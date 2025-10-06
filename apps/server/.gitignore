@@ -1,0 +1,29 @@
+# prod
+dist/
+/build
+/out/
+
+# dev
+.wrangler
+wrangler.jsonc
+.alchemy
+
+# deps
+node_modules/
+/node_modules
+
+# env
+.env*
+!.env.example
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# misc
+.DS_Store
+*.pem
+
+# typescript
+*.tsbuildinfo

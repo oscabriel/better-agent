@@ -1,0 +1,34 @@
+# Dependencies
+/node_modules
+
+# Build outputs
+/out/
+/build/
+/dist/
+.output
+.tanstack/
+
+# Deployment
+.vercel
+.netlify
+.wrangler
+.alchemy
+
+# Environment & local files
+.env*
+!.env.example
+.DS_Store
+*.local
+
+# Logs
+*.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Other
+dev-dist
+
+# wrangler
+.wrangler
+wrangler.jsonc

@@ -1,0 +1,28 @@
+node_modules
+.turbo
+.alchemy
+.env*
+!.env.example
+
+# AI rules
+.cursor
+AGENTS.md
+CLAUDE.md
+.cursor/
+.ruler/
+.claude/
+.codex/
+
+plans/
+
+# START Ruler Generated Files
+/.mcp.json
+/.mcp.json.bak
+/AGENTS.md
+/AGENTS.md.bak
+/CLAUDE.md
+/CLAUDE.md.bak
+/opencode.json
+/opencode.json.bak
+# END Ruler Generated Files
+

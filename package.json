@@ -1,0 +1,37 @@
+{
+	"name": "better-chat",
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.5",
+		"alchemy": "^0.70.2",
+		"dotenv": "^17.2.3",
+		"turbo": "^2.5.8"
+	},
+	"packageManager": "bun@1.2.21",
+	"private": true,
+	"scripts": {
+		"check": "biome check --write .",
+		"check:unsafe": "biome check --write --unsafe .",
+		"a:dev": "alchemy dev --env-file .env.dev",
+		"a:deploy": "alchemy deploy --env-file .env.prod",
+		"a:destroy": "alchemy destroy --env-file .env.prod",
+		"a:dev:destroy": "alchemy destroy --env-file .env.dev",
+		"a:clean": "rm -rf .alchemy && turbo a:clean",
+		"vite:dev": "turbo dev",
+		"vite:clean": "turbo -F web vite:clean",
+		"build": "turbo -F web build",
+		"typecheck": "turbo typecheck",
+		"dev:native": "turbo -F native dev",
+		"dev:web": "turbo -F web dev",
+		"dev:server": "turbo -F server dev",
+		"db:push": "turbo -F server db:push",
+		"db:studio": "turbo -F server db:studio",
+		"db:generate": "turbo -F server db:generate",
+		"db:migrate": "turbo -F server db:migrate",
+		"do:generate": "turbo -F server do:generate",
+		"ruler:apply": "bunx @intellectronica/ruler@latest apply --local-only"
+	},
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	]
+}

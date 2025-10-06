@@ -1,0 +1,50 @@
+{
+	"name": "server",
+	"main": "src/index.ts",
+	"type": "module",
+	"scripts": {
+		"build": "wrangler deploy --dry-run",
+		"typecheck": "tsc -b",
+		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
+		"dev": "wrangler dev --port=3000",
+		"deploy": "alchemy deploy",
+		"destroy": "alchemy destroy",
+		"a:dev": "alchemy dev",
+		"a:clean": "rm -rf .alchemy",
+		"db:generate": "drizzle-kit generate --config=./drizzle.db.config.ts",
+		"db:migrate": "DB_STAGE=dev drizzle-kit migrate --config=./drizzle.db.config.ts",
+		"db:studio": "DB_STAGE=dev drizzle-kit studio --config=./drizzle.db.config.ts",
+		"db:studio:prod": "drizzle-kit studio --config=./drizzle.db.config.ts",
+		"do:generate": "drizzle-kit generate --config=./drizzle.do.config.ts"
+	},
+	"dependencies": {
+		"@ai-sdk/anthropic": "^2.0.23",
+		"@ai-sdk/deepseek": "^1.0.20",
+		"@ai-sdk/google": "^2.0.17",
+		"@ai-sdk/openai": "^2.0.42",
+		"@ai-sdk/provider": "^2.0.0",
+		"@libsql/client": "^0.15.15",
+		"@modelcontextprotocol/sdk": "^1.19.1",
+		"@orpc/server": "^1.9.3",
+		"@react-email/render": "^1.3.1",
+		"ai": "^5.0.60",
+		"better-auth": "1.3.26",
+		"dotenv": "^17.2.2",
+		"drizzle-orm": "^0.44.6",
+		"exa-js": "^1.9.3",
+		"hono": "^4.9.9",
+		"nanoid": "^5.1.6",
+		"resend": "^6.1.2",
+		"zod": "^4.1.11"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20251003.0",
+		"@types/node": "^24.6.2",
+		"alchemy": "^0.70.2",
+		"dotenv": "^17.2.3",
+		"drizzle-kit": "^0.31.5",
+		"tsdown": "^0.15.6",
+		"typescript": "^5.9.3",
+		"wrangler": "^4.42.0"
+	}
+}
