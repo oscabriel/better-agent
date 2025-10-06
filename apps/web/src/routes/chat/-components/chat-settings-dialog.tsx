@@ -231,7 +231,9 @@ export function ChatSettingsDialog({
 														Basic Models
 													</div>
 													{freeModels.map(
-														(model: ModelDefinition & { isAvailable: boolean }) => {
+														(
+															model: ModelDefinition & { isAvailable: boolean },
+														) => {
 															const hasReasoning =
 																model.capabilities?.includes("reasoning");
 															return (
@@ -255,7 +257,9 @@ export function ChatSettingsDialog({
 														BYOK Models
 													</div>
 													{byokModels.map(
-														(model: ModelDefinition & { isAvailable: boolean }) => {
+														(
+															model: ModelDefinition & { isAvailable: boolean },
+														) => {
 															const hasReasoning =
 																model.capabilities?.includes("reasoning");
 															return (
@@ -301,7 +305,10 @@ export function ChatSettingsDialog({
 									<Label className="font-semibold text-sm">
 										Reasoning Effort
 									</Label>
-									<Select value={currentEffort} onValueChange={handleEffortChange}>
+									<Select
+										value={currentEffort}
+										onValueChange={handleEffortChange}
+									>
 										<SelectTrigger className="h-10">
 											<div className="flex items-center gap-2">
 												<Brain className="size-4 text-purple-600" />
@@ -422,8 +429,8 @@ export function ChatSettingsDialog({
 										<div className="items-centered flex gap-2">
 											<ShieldCheck className="size-3.5" />
 											<span>
-												Consider only enabling tools relevant to your immediate use
-												case.
+												Consider only enabling tools relevant to your immediate
+												use case.
 											</span>
 										</div>
 									</div>

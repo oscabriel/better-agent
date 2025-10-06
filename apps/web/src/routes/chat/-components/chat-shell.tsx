@@ -307,7 +307,7 @@ export function ChatShell() {
 												<Button
 													key={prompt.id}
 													variant="ghost"
-													className="h-auto justify-start gap-2 p-2 text-sm text-primary hover:text-primary sm:text-base"
+													className="h-auto justify-start gap-2 p-2 text-primary text-sm hover:text-primary sm:text-base"
 													onClick={() =>
 														handleStartNewChat({ text: prompt.text })
 													}

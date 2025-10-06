@@ -262,14 +262,59 @@ export function createUserProviderRegistry(
 
 		google:
 			userProviders.google ||
-			customProvider({
-				languageModels: {
-					"gemini-2.5-flash-lite": googleProvider("gemini-2.5-flash-lite"),
-					"gemini-2.0-flash-lite": googleProvider("gemini-2.0-flash-lite"),
-					"gemini-2.0-flash": googleProvider("gemini-2.0-flash"),
-				},
-				fallbackProvider: googleProvider,
-			}),
+			(() => {
+				const budgetMap = {
+					low: 2048,
+					medium: 8192,
+					high: 16384,
+				};
+				const thinkingBudget = reasoningConfig.enabled
+					? budgetMap[reasoningConfig.effort]
+					: undefined;
+
+				const createFallbackGoogleModel = (
+					modelId: string,
+					supportsReasoning = false,
+				) => {
+					if (!supportsReasoning || !thinkingBudget) {
+						return googleProvider(modelId);
+					}
+
+					return wrapLanguageModel({
+						model: googleProvider(modelId),
+						middleware: defaultSettingsMiddleware({
+							settings: {
+								providerOptions: {
+									google: {
+										thinkingConfig: {
+											thinkingBudget,
+											includeThoughts: true,
+										},
+									},
+								},
+							},
+						}),
+					});
+				};
+
+				return customProvider({
+					languageModels: {
+						"gemini-2.5-flash-lite": createFallbackGoogleModel(
+							"gemini-2.5-flash-lite",
+							true,
+						),
+						"gemini-2.0-flash-lite": createFallbackGoogleModel(
+							"gemini-2.0-flash-lite",
+							false,
+						),
+						"gemini-2.0-flash": createFallbackGoogleModel(
+							"gemini-2.0-flash",
+							false,
+						),
+					},
+					fallbackProvider: googleProvider,
+				});
+			})(),
 	};
 
 	return createProviderRegistry(finalProviders);

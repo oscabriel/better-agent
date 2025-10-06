@@ -46,24 +46,29 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 
 	if (part.state === "input-streaming" || part.state === "input-available") {
 		return (
-			<Card className="gap-3 border-l-4 border-l-blue-500 py-3">
-				<div className="space-y-3 px-3">
-					<div className="flex items-center gap-2">
+			<Card className="gap-2 border-l-4 border-l-blue-500 py-2 md:py-3">
+				<div className="space-y-2 px-2 md:space-y-3 md:px-3">
+					<div className="flex items-center gap-1.5 md:gap-2">
 						{icon}
-						<span className="font-medium text-sm">
+						<span className="font-medium text-xs md:text-sm">
 							{formatToolDisplayName(actualToolName, serverInfo?.name)}
 						</span>
-						<Badge className={stateMeta.color}>{stateMeta.label}</Badge>
+						<Badge className={`hidden md:inline-flex ${stateMeta.color}`}>
+							{stateMeta.label}
+						</Badge>
 						{serverInfo && (
-							<Badge variant="outline" className="text-xs">
+							<Badge
+								variant="outline"
+								className="hidden text-xs md:inline-flex"
+							>
 								{serverInfo.type}
 							</Badge>
 						)}
 					</div>
 
 					{part.input !== undefined && (
-						<div className="text-muted-foreground text-sm">
-							<pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">
+						<div className="text-muted-foreground text-xs md:text-sm">
+							<pre className="whitespace-pre-wrap rounded bg-muted p-1.5 text-xs md:p-2">
 								{JSON.stringify(part.input, null, 2)}
 							</pre>
 						</div>
@@ -75,17 +80,22 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 
 	if (part.state === "output-available") {
 		return (
-			<Card className="gap-3 border-l-4 border-l-green-500 py-3">
-				<div className="space-y-3 px-3">
-					<div className="flex flex-wrap items-center justify-between gap-2">
-						<div className="flex flex-wrap items-center gap-1.5">
+			<Card className="gap-2 border-l-4 border-l-green-500 py-2 md:py-3">
+				<div className="space-y-2 px-2 md:space-y-3 md:px-3">
+					<div className="flex flex-wrap items-center justify-between gap-1.5 md:gap-2">
+						<div className="flex flex-wrap items-center gap-1 md:gap-1.5">
 							{icon}
-							<span className="font-medium text-sm">
+							<span className="font-medium text-xs md:text-sm">
 								{formatToolDisplayName(actualToolName, serverInfo?.name)}
 							</span>
-							<Badge className={stateMeta.color}>{stateMeta.label}</Badge>
+							<Badge className={`hidden md:inline-flex ${stateMeta.color}`}>
+								{stateMeta.label}
+							</Badge>
 							{serverInfo && (
-								<Badge variant="outline" className="text-xs">
+								<Badge
+									variant="outline"
+									className="hidden text-xs md:inline-flex"
+								>
 									{serverInfo.type}
 								</Badge>
 							)}
@@ -94,7 +104,7 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 							<Button
 								variant="ghost"
 								size="sm"
-								className="h-7 px-2 text-xs"
+								className="h-6 px-1.5 text-xs md:h-7 md:px-2"
 								onClick={() => setIsExpanded((value) => !value)}
 							>
 								{isExpanded ? (
@@ -102,7 +112,7 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 								) : (
 									<ChevronRight className="size-3" />
 								)}
-								<span className="ml-1">Details</span>
+								<span className="ml-0.5 md:ml-1">Details</span>
 							</Button>
 						)}
 					</div>
@@ -110,42 +120,42 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 					{isExpanded && (
 						<>
 							{actualToolName === "webSearch" && Array.isArray(part.output) ? (
-								<div className="space-y-2">
+								<div className="space-y-1.5 md:space-y-2">
 									{(part.output as WebSearchResult[]).map((result, idx) => (
 										<div
 											key={result.url || idx}
-											className="rounded bg-muted p-3"
+											className="rounded bg-muted p-2 md:p-3"
 										>
 											<a
 												href={result.url}
 												target="_blank"
 												rel="noopener noreferrer"
-												className="font-medium text-blue-600 text-sm hover:underline dark:text-blue-400"
+												className="font-medium text-blue-600 text-xs hover:underline md:text-sm dark:text-blue-400"
 											>
 												{result.title}
 											</a>
-											<p className="mt-1 truncate text-muted-foreground text-xs">
+											<p className="mt-0.5 truncate text-muted-foreground text-xs md:mt-1">
 												{result.url}
 											</p>
 											{result.publishedDate && (
-												<p className="mt-1 text-muted-foreground text-xs">
+												<p className="mt-0.5 text-muted-foreground text-xs md:mt-1">
 													Published:{" "}
 													{new Date(result.publishedDate).toLocaleDateString()}
 												</p>
 											)}
 											{result.highlights && result.highlights.length > 0 ? (
-												<div className="mt-2 space-y-1">
+												<div className="mt-1.5 space-y-0.5 md:mt-2 md:space-y-1">
 													{result.highlights.map((highlight, hIdx) => (
 														<p
 															key={`${result.url}-${hIdx}`}
-															className="border-blue-500 border-l-2 pl-2 text-muted-foreground text-xs italic"
+															className="border-blue-500 border-l-2 pl-1.5 text-muted-foreground text-xs italic md:pl-2"
 														>
 															{highlight}
 														</p>
 													))}
 												</div>
 											) : result.content ? (
-												<p className="mt-2 line-clamp-3 text-muted-foreground text-xs">
+												<p className="mt-1.5 line-clamp-3 text-muted-foreground text-xs md:mt-2">
 													{result.content}
 												</p>
 											) : null}
@@ -153,7 +163,7 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 									))}
 								</div>
 							) : (
-								<div className="rounded bg-muted p-2 text-xs">
+								<div className="rounded bg-muted p-1.5 text-xs md:p-2">
 									{typeof part.output === "string"
 										? part.output
 										: JSON.stringify(part.output, null, 2)}
@@ -161,12 +171,12 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 							)}
 
 							{part.input !== undefined && (
-								<div className="mt-3 space-y-3 border-t pt-3 text-sm">
+								<div className="mt-2 space-y-2 border-t pt-2 text-xs md:mt-3 md:space-y-3 md:pt-3 md:text-sm">
 									<div>
-										<h4 className="mb-2 font-medium text-muted-foreground text-xs">
+										<h4 className="mb-1.5 font-medium text-muted-foreground text-xs md:mb-2">
 											Input:
 										</h4>
-										<pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">
+										<pre className="whitespace-pre-wrap rounded bg-muted p-1.5 text-xs md:p-2">
 											{JSON.stringify(part.input, null, 2)}
 										</pre>
 									</div>
@@ -181,16 +191,21 @@ export function ToolCallBlock({ part }: ToolCallBlockProps) {
 
 	if (part.state === "output-error") {
 		return (
-			<Card className="gap-3 border-l-4 border-l-red-500 py-3">
-				<div className="space-y-3 px-3">
-					<div className="flex flex-wrap items-center gap-1.5">
+			<Card className="gap-2 border-l-4 border-l-red-500 py-2 md:py-3">
+				<div className="space-y-2 px-2 md:space-y-3 md:px-3">
+					<div className="flex flex-wrap items-center gap-1 md:gap-1.5">
 						{icon}
-						<span className="font-medium text-sm">
+						<span className="font-medium text-xs md:text-sm">
 							{formatToolDisplayName(actualToolName, serverInfo?.name)}
 						</span>
-						<Badge className={stateMeta.color}>{stateMeta.label}</Badge>
+						<Badge className={`hidden md:inline-flex ${stateMeta.color}`}>
+							{stateMeta.label}
+						</Badge>
 						{serverInfo && (
-							<Badge variant="outline" className="text-xs">
+							<Badge
+								variant="outline"
+								className="hidden text-xs md:inline-flex"
+							>
 								{serverInfo.type}
 							</Badge>
 						)}
