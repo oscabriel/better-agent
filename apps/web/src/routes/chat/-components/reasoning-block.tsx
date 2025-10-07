@@ -59,9 +59,7 @@ export function ReasoningBlock({ part }: ReasoningBlockProps) {
 						) : (
 							<ChevronRight className="size-3" />
 						)}
-						<span className="ml-0.5 md:ml-1">
-							{isExpanded ? "Hide" : "Show"} Details
-						</span>
+						<span className="ml-0.5 md:ml-1">Details</span>
 					</Button>
 				</div>
 

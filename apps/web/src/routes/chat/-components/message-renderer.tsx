@@ -26,6 +26,7 @@ const defaultProseClass = cn(
 	"prose-h1:mb-2 prose-h2:mb-1.5 prose-h3:mb-1.5 prose-h1:text-lg prose-h2:text-base prose-h3:text-sm md:prose-h1:mb-3 md:prose-h2:mb-2 md:prose-h3:mb-2 md:prose-h1:text-xl md:prose-h2:text-lg md:prose-h3:text-base",
 	"prose-p:my-2 prose-strong:text-foreground prose-p:leading-relaxed md:prose-p:my-3",
 	"prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
+	"prose-code:px-0.5 prose-code:py-0 md:prose-code:px-1 md:prose-code:py-0.5",
 	"prose-ol:my-3 prose-ul:my-3 prose-li:mt-1.5 prose-li:mb-0.5 prose-li:marker:text-primary md:prose-ol:my-4 md:prose-ul:my-4 md:prose-li:mt-2 md:prose-li:mb-1",
 	"[&_ol>li>p]:my-0.5 md:[&_ol>li>p]:my-1 [&_ul>li>p]:my-0.5 md:[&_ul>li>p]:my-1",
 	"prose-blockquote:my-3 prose-blockquote:border-l-border prose-blockquote:bg-muted/50 prose-blockquote:pl-3 prose-blockquote:italic md:prose-blockquote:my-4 md:prose-blockquote:pl-4",
