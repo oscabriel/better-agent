@@ -182,7 +182,7 @@ export const CodeBlock = memo(
 					"not-prose",
 					"font-medium font-mono text-sm leading-normal",
 					"border border-primary/40 bg-primary/20",
-					"px-1 py-0.75",
+					"p-0.15 sm:p-0.5",
 					"text-foreground",
 				)}
 				{...props}
