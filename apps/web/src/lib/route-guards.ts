@@ -1,10 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import type { AuthContextValue } from "@/web/lib/auth-context";
 
-export function isProduction(): boolean {
-	return import.meta.env.VITE_ALCHEMY_STAGE === "prod";
-}
-
 async function resolveSession(auth: AuthContextValue) {
 	if (auth.status === "authenticated" && auth.session) {
 		return auth.session;
@@ -19,14 +15,6 @@ async function resolveSession(auth: AuthContextValue) {
 	}
 
 	return auth.session ?? null;
-}
-
-export function requireNonProduction() {
-	if (isProduction()) {
-		throw redirect({
-			to: "/",
-		});
-	}
 }
 
 interface RedirectIfAuthenticatedOptions {
