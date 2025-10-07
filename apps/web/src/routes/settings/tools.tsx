@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Loader2, Plus, Settings } from "lucide-react";
+import { Loader2, Plus, Settings, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { RouterOutputs } from "@/server/api/orpc";
@@ -204,6 +204,15 @@ function ToolsPage() {
 							isRemoving={removeServerMutation.isPending}
 						/>
 					))}
+					{mcpServers.length > 0 && (
+						<div className="flex items-center gap-2 rounded-md bg-muted/60 px-3 py-2 text-muted-foreground text-sm">
+							<ShieldAlert className="size-3.5 shrink-0" />
+							<span>
+								Consider only enabling MCP servers relevant to your immediate
+								use case to avoid context bloat.
+							</span>
+						</div>
+					)}
 				</CardContent>
 			</Card>
 

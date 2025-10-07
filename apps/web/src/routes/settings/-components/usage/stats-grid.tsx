@@ -7,10 +7,10 @@ import {
 
 function formatTokenCount(count: number): string {
 	if (count >= 1_000_000) {
-		return `${(count / 1_000_000).toFixed(2)}M`;
+		return `${(count / 1_000_000).toFixed(0)}M`;
 	}
 	if (count >= 1_000) {
-		return `${(count / 1_000).toFixed(2)}K`;
+		return `${(count / 1_000).toFixed(0)}K`;
 	}
 	return count.toLocaleString();
 }
@@ -37,7 +37,7 @@ export function StatsGrid({
 					<p className="text-muted-foreground text-xs uppercase tracking-wide">
 						Total Messages
 					</p>
-					<p className="mt-1 font-semibold text-2xl">
+					<p className="mt-1 font-semibold text-3xl">
 						{totalMessages.toLocaleString()}
 					</p>
 				</div>
@@ -47,7 +47,7 @@ export function StatsGrid({
 					</p>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="mt-1 cursor-help font-semibold text-2xl">
+							<p className="mt-1 cursor-help font-semibold text-3xl">
 								{formatTokenCount(totalInputTokens)}
 							</p>
 						</TooltipTrigger>
@@ -62,7 +62,7 @@ export function StatsGrid({
 					</p>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="mt-1 cursor-help font-semibold text-2xl">
+							<p className="mt-1 cursor-help font-semibold text-3xl">
 								{formatTokenCount(totalOutputTokens)}
 							</p>
 						</TooltipTrigger>
@@ -77,7 +77,7 @@ export function StatsGrid({
 					</p>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="mt-1 cursor-help font-semibold text-2xl">
+							<p className="mt-1 cursor-help font-semibold text-3xl">
 								{formatTokenCount(totalReasoningTokens)}
 							</p>
 						</TooltipTrigger>
@@ -92,7 +92,7 @@ export function StatsGrid({
 					</p>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="mt-1 cursor-help font-semibold text-2xl">
+							<p className="mt-1 cursor-help font-semibold text-3xl">
 								{formatTokenCount(totalTokens)}
 							</p>
 						</TooltipTrigger>

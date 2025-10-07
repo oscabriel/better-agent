@@ -12,8 +12,76 @@ function normalizeSchema(schema: unknown): unknown {
 
 	const normalized = { ...schema } as Record<string, unknown>;
 
+	// Handle AI SDK schema wrapper (has 'jsonSchema' property)
+	if (normalized.jsonSchema && typeof normalized.jsonSchema === "object") {
+		normalized.jsonSchema = normalizeSchema(normalized.jsonSchema);
+		return normalized;
+	}
+
 	if (normalized.type === "array" && !normalized.items) {
 		normalized.items = {};
+	}
+
+	// Convert anyOf/oneOf with const values to enum (Gemini doesn't support anyOf/const)
+	// Example: anyOf: [{ const: "4" }, { const: "5" }] -> type: "string", enum: ["4", "5"]
+	for (const key of ["anyOf", "any_of", "oneOf", "one_of"]) {
+		if (normalized[key] && Array.isArray(normalized[key])) {
+			const options = normalized[key] as Array<Record<string, unknown>>;
+
+			// Check if all options are const values
+			const allConst = options.every(
+				(opt) =>
+					typeof opt === "object" &&
+					opt !== null &&
+					"const" in opt &&
+					Object.keys(opt).length === 1,
+			);
+
+			if (allConst) {
+				// Extract unique const values and convert to strings
+				const enumValues = [
+					...new Set(
+						options.map((opt) => String((opt as { const: unknown }).const)),
+					),
+				];
+
+				// Replace anyOf/oneOf with enum
+				delete normalized[key];
+				normalized.type = "string";
+				normalized.enum = enumValues;
+			} else {
+				// Recursively normalize each option
+				normalized[key] = options.map((subSchema) =>
+					normalizeSchema(subSchema),
+				);
+			}
+		}
+	}
+
+	// Handle allOf (still needs recursive normalization)
+	for (const key of ["allOf", "all_of"]) {
+		if (normalized[key] && Array.isArray(normalized[key])) {
+			normalized[key] = (normalized[key] as unknown[]).map((subSchema) =>
+				normalizeSchema(subSchema),
+			);
+		}
+	}
+
+	// Convert numeric enum values to strings for Google models compatibility
+	if (normalized.enum && Array.isArray(normalized.enum)) {
+		normalized.enum = normalized.enum.map((value) => String(value));
+		// Ensure type is specified when enum is present
+		if (!normalized.type) {
+			normalized.type = "string";
+		}
+	}
+
+	// Convert const to enum (Gemini doesn't support const)
+	if (normalized.const !== undefined) {
+		const constValue = String(normalized.const);
+		delete normalized.const;
+		normalized.type = "string";
+		normalized.enum = [constValue];
 	}
 
 	if (normalized.properties && typeof normalized.properties === "object") {
@@ -107,16 +175,27 @@ export async function getMCPTools(serverConfigs: MCPServerConfig[]) {
 
 			const prefixedTools: Record<string, unknown> = {};
 			for (const [toolName, tool] of Object.entries(tools)) {
-				const normalizedTool =
-					typeof tool === "object" && tool !== null
-						? {
-								...(tool as Record<string, unknown>),
-								parameters: normalizeSchema(
-									(tool as Record<string, unknown>).parameters,
-								),
-							}
-						: tool;
-				prefixedTools[`${serverId}_${toolName}`] = normalizedTool;
+				if (typeof tool === "object" && tool !== null) {
+					const toolObj = tool as Record<string, unknown>;
+					// MCP uses 'inputSchema', AI SDK uses 'parameters'
+					const schemaKey = toolObj.inputSchema ? "inputSchema" : "parameters";
+					const normalizedTool = {
+						...toolObj,
+						[schemaKey]: normalizeSchema(toolObj[schemaKey]),
+					};
+					prefixedTools[`${serverId}_${toolName}`] = normalizedTool;
+
+					// Debug logging for SvelteKit MCP
+					if (serverId === "sveltekit") {
+						console.log(`[MCP Debug] ${serverId}_${toolName} original:`, toolObj);
+						console.log(
+							`[MCP Debug] ${serverId}_${toolName} normalized ${schemaKey}:`,
+							JSON.stringify(normalizedTool[schemaKey], null, 2),
+						);
+					}
+				} else {
+					prefixedTools[`${serverId}_${toolName}`] = tool;
+				}
 			}
 
 			Object.assign(allTools, prefixedTools);

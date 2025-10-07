@@ -140,7 +140,8 @@ export function ToolsDialogButton({ disabled }: { disabled?: boolean }) {
 					<div className="items-centered flex gap-2">
 						<ShieldCheck className="size-3.5" />
 						<span>
-							Consider only enabling tools relevant to your immediate use case.
+							Consider only enabling MCP servers relevant to your immediate use
+							case to avoid context bloat.
 						</span>
 					</div>
 				</div>

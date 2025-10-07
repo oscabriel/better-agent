@@ -7,7 +7,6 @@ node_modules
 # AI rules
 .cursor
 AGENTS.md
-CLAUDE.md
 .cursor/
 .ruler/
 .claude/
@@ -20,7 +19,6 @@ plans/
 /.mcp.json.bak
 /AGENTS.md
 /AGENTS.md.bak
-/CLAUDE.md
 /CLAUDE.md.bak
 /opencode.json
 /opencode.json.bak

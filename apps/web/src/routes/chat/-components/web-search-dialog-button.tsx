@@ -44,6 +44,7 @@ export const WebSearchDialogButton = memo(
 					<TooltipTrigger asChild>
 						<span className="inline-flex">
 							<Button
+								type="button"
 								variant={webSearchEnabled && hasExaKey ? "default" : "outline"}
 								size="icon"
 								onClick={handleWebSearchToggle}

@@ -38,7 +38,7 @@ export function ExaApiKeyDialog({
 					<DialogDescription>
 						Enter your Exa API key to enable web search. Get your key from{" "}
 						<a
-							href="https://exa.ai"
+							href="https://dashboard.exa.ai"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="underline hover:text-foreground"

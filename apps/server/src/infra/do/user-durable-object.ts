@@ -10,7 +10,7 @@ import {
 import { normalizeMessage } from "@/server/services/ai/message-service";
 // @ts-expect-error - generated JS file has no types
 import migrations from "./migrations/migrations.js";
-import * as schema from "./schema/chat.js";
+import * as schema from "./schema/chat";
 
 export class UserDurableObject extends DurableObject<Env> {
 	private readonly db: ReturnType<typeof drizzle>;
