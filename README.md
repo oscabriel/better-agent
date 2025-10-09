@@ -19,9 +19,113 @@ A modern AI chat application with multi-model support, MCP integration, and per-
 - Visual tool call rendering with results
 
 ### Architecture
-- **Dual-Database Design**:
-  - **D1 (SQLite)**: Shared/global data (auth, usage quotas)
-  - **Durable Objects SQLite**: Per-user isolated storage (conversations, messages, settings, MCP servers)
+
+#### Layered Architecture Overview
+
+Better Chat follows a **Clean Architecture** pattern with clear separation of concerns across five distinct layers: oRPC router layer, service layer, repository layer, infrastructure layer, and domain layer.
+
+#### Data Flow: AI Chat Completion
+
+Here's how an AI chat completion flows through all layers, demonstrating the full power of the layered architecture:
+
+```
+1. Frontend Request
+   └─ POST /api/ai/ with messages and conversationId
+      ↓
+
+2. HTTP Router Layer (/api/http/ai-routes.ts)
+   ├─ Validates authentication (requireUserDO)
+   ├─ Parses request body
+   └─ Calls AI completion service
+      ↓
+
+3. Service Layer (/services/ai/completion-service.ts)
+   ├─ Validates incoming messages
+   ├─ Loads user settings (model, API keys, MCP servers)
+   ├─ Checks usage quotas
+   ├─ Resolves AI provider and creates model registry
+   ├─ Connects to MCP servers and loads tools
+   ├─ Builds system prompt with available tools
+   ├─ Streams AI response with tool calling
+   ├─ Saves conversation messages to DO
+   ├─ Generates conversation title
+   ├─ Records usage statistics
+   └─ Closes MCP connections
+      ↓
+
+4. Repository Layer
+   ├─ Settings Repository: Gets user preferences and API keys
+   ├─ Conversation Repository: Saves messages to user's DO
+   ├─ Usage Repository: Records token usage in D1
+   └─ MCP Repository: Manages custom MCP server configs
+      ↓
+
+5. Infrastructure Layer
+   ├─ D1 Database: User settings, usage tracking
+   ├─ Durable Objects: Per-user conversation storage
+   ├─ AI Providers: OpenAI, Anthropic, Google APIs
+   ├─ MCP Servers: External tool providers
+   └─ Encryption: API key security
+      ↓
+
+6. Domain Layer
+   ├─ Message types and validation
+   ├─ Usage limits and quota rules
+   ├─ Model definitions and capabilities
+   └─ Business constraints
+      ↓
+
+7. Streaming Response
+   └─ Frontend receives real-time AI response with tool calls
+```
+
+**Note**: While the AI completion uses an HTTP router layer (`/api/http/ai-routes.ts`) for streaming responses, most operations in Better Chat use the oRPC router layer for type-safe API calls. For example, updating user settings would flow through:
+
+```
+1. Frontend: api.settings.update({ theme: "dark" })
+2. oRPC Router: Validates input, checks auth via protectedProcedure, extracts userId
+3. Service Layer: Orchestrates business logic
+4. Repository Layer: Queries database
+5. Infrastructure Layer: Database connections
+6. Domain Layer: Business rules
+7. Response: Typed response back to frontend
+```
+
+The service layer remains unchanged regardless of the API layer used, demonstrating how the architecture allows different API patterns while maintaining consistent business logic.
+
+#### Why This Architecture?
+
+**1. Separation of Concerns**
+- Each layer has a single responsibility
+- Changes in one layer don't affect others
+- Easy to test and maintain
+
+**2. Type Safety**
+- End-to-end TypeScript types from frontend to database
+- Compile-time error catching
+- Self-documenting APIs
+
+**3. Scalability**
+- Per-user Durable Objects for data isolation
+- Stateless services for horizontal scaling
+- Clear boundaries for microservice extraction
+
+**4. Security**
+- Authentication centralized in API layer
+- Sensitive data encryption in infrastructure
+- Input validation at the boundary
+
+**5. LLM Friendly**
+- Clear layer boundaries make code easy to reason about and change
+- Consistent patterns across codebase make it easy to model new features
+- Well-named functions and classes provide self-documenting code
+- Separation of concerns makes it easier to locate and update specific functionality
+- Type-safe interfaces make refactoring safer and more predictable
+
+#### Database Architecture
+
+- **D1 (SQLite)**: Shared/global data (auth, usage quotas, user settings)
+- **Durable Objects SQLite**: Per-user isolated storage (conversations, messages)
 - **Per-User Isolation**: Each user gets their own Durable Object instance with dedicated SQLite database
 - **Cloudflare Workers**: Edge-native serverless runtime
 - **Better Auth**: Email OTP and social authentication (Google, GitHub)

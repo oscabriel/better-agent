@@ -9,13 +9,11 @@ export function useChatModelSelector() {
 	const updateSettings = useUpdateUserSettings();
 	const [selectedModelId, setSelectedModelId] = useState<string | undefined>();
 
+	// Sync local state with persisted settings
 	useEffect(() => {
-		const persisted = settingsQuery.data?.selectedModel;
-		if (!persisted) {
-			return;
+		if (settingsQuery.data?.selectedModel) {
+			setSelectedModelId(settingsQuery.data.selectedModel);
 		}
-
-		setSelectedModelId((current) => current ?? persisted);
 	}, [settingsQuery.data?.selectedModel]);
 
 	const handleModelChange = useCallback(
@@ -23,9 +21,14 @@ export function useChatModelSelector() {
 			setSelectedModelId(id);
 			try {
 				await updateSettings({ selectedModel: id });
-			} catch (_error) {}
+			} catch (_error) {
+				// Revert on error
+				if (settingsQuery.data?.selectedModel) {
+					setSelectedModelId(settingsQuery.data.selectedModel);
+				}
+			}
 		},
-		[updateSettings],
+		[updateSettings, settingsQuery.data?.selectedModel],
 	);
 
 	return {

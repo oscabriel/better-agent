@@ -99,7 +99,9 @@ export function ChatSettingsDialog({
 	});
 
 	const isLoading = modelsQuery.isLoading || settingsQuery.isLoading;
-	const effectiveValue = modelId ?? DEFAULT_MODEL_ID;
+	// Use persisted selectedModel as fallback instead of hardcoded default
+	const effectiveValue =
+		modelId ?? settingsQuery.data?.selectedModel ?? DEFAULT_MODEL_ID;
 	const selectedModelDef = modelsWithAvailability.find(
 		(model: ModelDefinition & { isAvailable: boolean }) =>
 			model.id === effectiveValue,

@@ -184,15 +184,6 @@ export async function getMCPTools(serverConfigs: MCPServerConfig[]) {
 						[schemaKey]: normalizeSchema(toolObj[schemaKey]),
 					};
 					prefixedTools[`${serverId}_${toolName}`] = normalizedTool;
-
-					// Debug logging for SvelteKit MCP
-					if (serverId === "sveltekit") {
-						console.log(`[MCP Debug] ${serverId}_${toolName} original:`, toolObj);
-						console.log(
-							`[MCP Debug] ${serverId}_${toolName} normalized ${schemaKey}:`,
-							JSON.stringify(normalizedTool[schemaKey], null, 2),
-						);
-					}
 				} else {
 					prefixedTools[`${serverId}_${toolName}`] = tool;
 				}

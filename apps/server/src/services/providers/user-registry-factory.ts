@@ -15,6 +15,7 @@ import {
 } from "@ai-sdk/anthropic";
 import { google as googleProvider } from "@ai-sdk/google";
 import { createOpenAI, openai as openaiProvider } from "@ai-sdk/openai";
+import type { LanguageModel } from "ai";
 import {
 	createProviderRegistry,
 	customProvider,
@@ -33,6 +34,241 @@ interface ReasoningConfig {
 	effort: "low" | "medium" | "high";
 }
 
+// Shared budget mappings for reasoning/thinking across providers
+const ANTHROPIC_BUDGET_MAP = {
+	low: 10000,
+	medium: 32000,
+	high: 64000,
+} as const;
+
+const GOOGLE_THINKING_BUDGET_MAP = {
+	low: 2048,
+	medium: 8192,
+	high: 16384,
+} as const;
+
+/**
+ * Generic helper to wrap a model with reasoning/thinking middleware
+ */
+function wrapWithReasoning<TProvider extends string>(
+	model: LanguageModel,
+	provider: TProvider,
+	config: {
+		budgetTokens?: number;
+		reasoningEffort?: string;
+		thinkingBudget?: number;
+		includeThoughts?: boolean;
+	},
+) {
+	if (provider === "openai" && config.reasoningEffort) {
+		return wrapLanguageModel({
+			// biome-ignore lint/suspicious/noExplicitAny: AI SDK type compatibility
+			model: model as any,
+			middleware: defaultSettingsMiddleware({
+				settings: {
+					providerOptions: {
+						openai: {
+							reasoningEffort: config.reasoningEffort,
+						},
+					},
+				},
+			}),
+		});
+	}
+
+	if (provider === "anthropic" && config.budgetTokens) {
+		return wrapLanguageModel({
+			// biome-ignore lint/suspicious/noExplicitAny: AI SDK type compatibility
+			model: model as any,
+			middleware: defaultSettingsMiddleware({
+				settings: {
+					providerOptions: {
+						anthropic: {
+							thinking: {
+								type: "enabled",
+								budgetTokens: config.budgetTokens,
+							},
+						},
+					},
+				},
+			}),
+		});
+	}
+
+	if (provider === "google" && config.thinkingBudget) {
+		return wrapLanguageModel({
+			// biome-ignore lint/suspicious/noExplicitAny: AI SDK type compatibility
+			model: model as any,
+			middleware: defaultSettingsMiddleware({
+				settings: {
+					providerOptions: {
+						google: {
+							thinkingConfig: {
+								thinkingBudget: config.thinkingBudget,
+								includeThoughts: config.includeThoughts ?? true,
+							},
+						},
+					},
+				},
+			}),
+		});
+	}
+
+	return model;
+}
+
+/**
+ * Creates OpenAI provider with BYOK support and reasoning models
+ */
+function createOpenAIProvider(
+	apiKey: string,
+	reasoningConfig: ReasoningConfig,
+) {
+	const openai = createOpenAI({ apiKey });
+	const reasoningEffort = reasoningConfig.enabled
+		? reasoningConfig.effort
+		: undefined;
+
+	const createModel = (modelId: string, supportsReasoning = false) => {
+		const baseModel = openai(modelId);
+		if (!supportsReasoning || !reasoningEffort) {
+			return baseModel;
+		}
+		return wrapWithReasoning(baseModel, "openai", { reasoningEffort });
+	};
+
+	return customProvider({
+		languageModels: {
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"o3-mini": createModel("o3-mini", true) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"o4-mini": createModel("o4-mini", true) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			o3: createModel("o3", true) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"o3-pro": createModel("o3-pro", true) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gpt-4o": createModel("gpt-4o") as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gpt-4o-mini": createModel("gpt-4o-mini") as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gpt-4.1": createModel("gpt-4.1") as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gpt-4.1-mini": createModel("gpt-4.1-mini") as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gpt-4.1-nano": createModel("gpt-4.1-nano") as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gpt-5": createModel("gpt-5") as any,
+		},
+		fallbackProvider: openai,
+	});
+}
+
+/**
+ * Creates Anthropic provider with BYOK support and extended thinking
+ */
+function createAnthropicProvider(
+	apiKey: string,
+	reasoningConfig: ReasoningConfig,
+) {
+	const anthropic = createAnthropic({ apiKey });
+	const budgetTokens = reasoningConfig.enabled
+		? ANTHROPIC_BUDGET_MAP[reasoningConfig.effort]
+		: undefined;
+
+	const createModel = (modelId: string, supportsReasoning = false) => {
+		const baseModel = anthropic(modelId);
+		if (!supportsReasoning || !budgetTokens) {
+			return baseModel;
+		}
+		return wrapWithReasoning(baseModel, "anthropic", { budgetTokens });
+	};
+
+	return customProvider({
+		languageModels: {
+			"claude-opus-4-20250514": createModel(
+				"claude-opus-4-20250514",
+				true,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+			"claude-sonnet-4-5-20250929": createModel(
+				"claude-sonnet-4-5-20250929",
+				true,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+			"claude-sonnet-4-20250514": createModel(
+				"claude-sonnet-4-20250514",
+				true,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+			"claude-3-7-sonnet-20250219": createModel(
+				"claude-3-7-sonnet-20250219",
+				true,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+			"claude-3-5-haiku-20241022": createModel(
+				"claude-3-5-haiku-20241022",
+				false,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+		},
+		fallbackProvider: anthropic,
+	});
+}
+
+/**
+ * Creates Google provider with BYOK support and thinking config
+ */
+function createGoogleProvider(
+	apiKey: string,
+	reasoningConfig: ReasoningConfig,
+	useOpenAICompatibility = false,
+) {
+	const google = useOpenAICompatibility
+		? createOpenAI({
+				baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+				apiKey,
+			})
+		: googleProvider;
+
+	const thinkingBudget = reasoningConfig.enabled
+		? GOOGLE_THINKING_BUDGET_MAP[reasoningConfig.effort]
+		: undefined;
+
+	const createModel = (modelId: string, supportsReasoning = false) => {
+		const baseModel = google(modelId);
+		if (!supportsReasoning || !thinkingBudget) {
+			return baseModel;
+		}
+		return wrapWithReasoning(baseModel, "google", {
+			thinkingBudget,
+			includeThoughts: true,
+		});
+	};
+
+	return customProvider({
+		languageModels: {
+			"gemini-2.5-flash-lite": createModel(
+				"gemini-2.5-flash-lite",
+				true,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+			"gemini-2.0-flash-lite": createModel(
+				"gemini-2.0-flash-lite",
+				false,
+				// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gemini-2.0-flash": createModel("gemini-2.0-flash", false) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gemini-2.5-flash": createModel("gemini-2.5-flash", true) as any,
+			// biome-ignore lint/suspicious/noExplicitAny: Dynamic reasoning config requires flexible typing
+			"gemini-2.5-pro": createModel("gemini-2.5-pro", true) as any,
+		},
+		fallbackProvider: google,
+	});
+}
+
 /**
  * Creates a user-specific provider registry with BYOK support.
  * Merges app-provided free models with user's API keys.
@@ -45,204 +281,25 @@ export function createUserProviderRegistry(
 	const userProviders: Record<string, any> = {};
 
 	if (userApiKeys.openai) {
-		const openaiProvider = createOpenAI({ apiKey: userApiKeys.openai });
-
-		const reasoningEffortValue = reasoningConfig.enabled
-			? reasoningConfig.effort
-			: undefined;
-
-		userProviders.openai = customProvider({
-			languageModels: {
-				"o3-mini": reasoningEffortValue
-					? wrapLanguageModel({
-							model: openaiProvider("o3-mini"),
-							middleware: defaultSettingsMiddleware({
-								settings: {
-									providerOptions: {
-										openai: {
-											reasoningEffort: reasoningEffortValue,
-										},
-									},
-								},
-							}),
-						})
-					: openaiProvider("o3-mini"),
-
-				"o4-mini": reasoningEffortValue
-					? wrapLanguageModel({
-							model: openaiProvider("o4-mini"),
-							middleware: defaultSettingsMiddleware({
-								settings: {
-									providerOptions: {
-										openai: {
-											reasoningEffort: reasoningEffortValue,
-										},
-									},
-								},
-							}),
-						})
-					: openaiProvider("o4-mini"),
-
-				o3: reasoningEffortValue
-					? wrapLanguageModel({
-							model: openaiProvider("o3"),
-							middleware: defaultSettingsMiddleware({
-								settings: {
-									providerOptions: {
-										openai: {
-											reasoningEffort: reasoningEffortValue,
-										},
-									},
-								},
-							}),
-						})
-					: openaiProvider("o3"),
-
-				"o3-pro": reasoningEffortValue
-					? wrapLanguageModel({
-							model: openaiProvider("o3-pro"),
-							middleware: defaultSettingsMiddleware({
-								settings: {
-									providerOptions: {
-										openai: {
-											reasoningEffort: reasoningEffortValue,
-										},
-									},
-								},
-							}),
-						})
-					: openaiProvider("o3-pro"),
-
-				"gpt-4o": openaiProvider("gpt-4o"),
-				"gpt-4o-mini": openaiProvider("gpt-4o-mini"),
-				"gpt-4.1": openaiProvider("gpt-4.1"),
-				"gpt-4.1-mini": openaiProvider("gpt-4.1-mini"),
-				"gpt-4.1-nano": openaiProvider("gpt-4.1-nano"),
-				"gpt-5": openaiProvider("gpt-5"),
-			},
-			fallbackProvider: openaiProvider,
-		});
+		userProviders.openai = createOpenAIProvider(
+			userApiKeys.openai,
+			reasoningConfig,
+		);
 	}
 
 	if (userApiKeys.anthropic) {
-		const anthropicProvider = createAnthropic({
-			apiKey: userApiKeys.anthropic,
-		});
-
-		const budgetMap = {
-			low: 10000,
-			medium: 32000,
-			high: 64000,
-		};
-		const budgetTokens = reasoningConfig.enabled
-			? budgetMap[reasoningConfig.effort]
-			: undefined;
-
-		const createAnthropicModel = (
-			modelId: string,
-			supportsReasoning = false,
-		) => {
-			if (!supportsReasoning || !budgetTokens) {
-				return anthropicProvider(modelId);
-			}
-
-			return wrapLanguageModel({
-				model: anthropicProvider(modelId),
-				middleware: defaultSettingsMiddleware({
-					settings: {
-						providerOptions: {
-							anthropic: {
-								thinking: {
-									type: "enabled",
-									budgetTokens,
-								},
-							},
-						},
-					},
-				}),
-			});
-		};
-
-		userProviders.anthropic = customProvider({
-			languageModels: {
-				"claude-opus-4-20250514": createAnthropicModel(
-					"claude-opus-4-20250514",
-					true,
-				),
-				"claude-sonnet-4-5-20250929": createAnthropicModel(
-					"claude-sonnet-4-5-20250929",
-					true,
-				),
-				"claude-sonnet-4-20250514": createAnthropicModel(
-					"claude-sonnet-4-20250514",
-					true,
-				),
-				"claude-3-7-sonnet-20250219": createAnthropicModel(
-					"claude-3-7-sonnet-20250219",
-					true,
-				),
-				"claude-3-5-haiku-20241022": createAnthropicModel(
-					"claude-3-5-haiku-20241022",
-					false,
-				),
-			},
-			fallbackProvider: anthropicProvider,
-		});
+		userProviders.anthropic = createAnthropicProvider(
+			userApiKeys.anthropic,
+			reasoningConfig,
+		);
 	}
 
 	if (userApiKeys.google) {
-		const customGoogle = createOpenAI({
-			baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-			apiKey: userApiKeys.google,
-		});
-
-		const budgetMap = {
-			low: 2048,
-			medium: 8192,
-			high: 16384,
-		};
-		const thinkingBudget = reasoningConfig.enabled
-			? budgetMap[reasoningConfig.effort]
-			: undefined;
-
-		const createGoogleModel = (modelId: string, supportsReasoning = false) => {
-			if (!supportsReasoning || !thinkingBudget) {
-				return customGoogle(modelId);
-			}
-
-			return wrapLanguageModel({
-				model: customGoogle(modelId),
-				middleware: defaultSettingsMiddleware({
-					settings: {
-						providerOptions: {
-							google: {
-								thinkingConfig: {
-									thinkingBudget,
-									includeThoughts: true, // Required to receive reasoning tokens
-								},
-							},
-						},
-					},
-				}),
-			});
-		};
-
-		userProviders.google = customProvider({
-			languageModels: {
-				"gemini-2.5-flash-lite": createGoogleModel(
-					"gemini-2.5-flash-lite",
-					true,
-				),
-				"gemini-2.0-flash-lite": createGoogleModel(
-					"gemini-2.0-flash-lite",
-					false,
-				),
-				"gemini-2.0-flash": createGoogleModel("gemini-2.0-flash", false),
-				"gemini-2.5-flash": createGoogleModel("gemini-2.5-flash", true),
-				"gemini-2.5-pro": createGoogleModel("gemini-2.5-pro", true),
-			},
-			fallbackProvider: googleProvider,
-		});
+		userProviders.google = createGoogleProvider(
+			userApiKeys.google,
+			reasoningConfig,
+			true, // Use OpenAI compatibility endpoint for BYOK
+		);
 	}
 
 	// biome-ignore lint/suspicious/noExplicitAny: Dynamic provider construction requires any type
@@ -262,59 +319,11 @@ export function createUserProviderRegistry(
 
 		google:
 			userProviders.google ||
-			(() => {
-				const budgetMap = {
-					low: 2048,
-					medium: 8192,
-					high: 16384,
-				};
-				const thinkingBudget = reasoningConfig.enabled
-					? budgetMap[reasoningConfig.effort]
-					: undefined;
-
-				const createFallbackGoogleModel = (
-					modelId: string,
-					supportsReasoning = false,
-				) => {
-					if (!supportsReasoning || !thinkingBudget) {
-						return googleProvider(modelId);
-					}
-
-					return wrapLanguageModel({
-						model: googleProvider(modelId),
-						middleware: defaultSettingsMiddleware({
-							settings: {
-								providerOptions: {
-									google: {
-										thinkingConfig: {
-											thinkingBudget,
-											includeThoughts: true,
-										},
-									},
-								},
-							},
-						}),
-					});
-				};
-
-				return customProvider({
-					languageModels: {
-						"gemini-2.5-flash-lite": createFallbackGoogleModel(
-							"gemini-2.5-flash-lite",
-							true,
-						),
-						"gemini-2.0-flash-lite": createFallbackGoogleModel(
-							"gemini-2.0-flash-lite",
-							false,
-						),
-						"gemini-2.0-flash": createFallbackGoogleModel(
-							"gemini-2.0-flash",
-							false,
-						),
-					},
-					fallbackProvider: googleProvider,
-				});
-			})(),
+			createGoogleProvider(
+				"", // No API key for free tier
+				reasoningConfig,
+				false, // Use default Google provider for free models
+			),
 	};
 
 	return createProviderRegistry(finalProviders);

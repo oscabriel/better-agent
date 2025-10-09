@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RouterOutputs } from "@/server/api/orpc";
 import { Button } from "@/web/components/ui/button";
 import {
@@ -57,35 +57,26 @@ export function ChatShell() {
 		undefined,
 	);
 
-	const lastSavedModelRef = useRef<string | undefined>(undefined);
-	const isInitializedRef = useRef(false);
-
+	// Initialize local state from persisted settings
 	useEffect(() => {
-		if (!isInitializedRef.current && settingsQuery.data?.selectedModel) {
+		if (settingsQuery.data?.selectedModel) {
 			setSelectedModelId(settingsQuery.data.selectedModel);
-			lastSavedModelRef.current = settingsQuery.data.selectedModel;
-			isInitializedRef.current = true;
-		}
-	}, [settingsQuery.data?.selectedModel]);
-
-	useEffect(() => {
-		if (!settingsQuery.data?.selectedModel) {
-			isInitializedRef.current = false;
 		}
 	}, [settingsQuery.data?.selectedModel]);
 
 	const handleModelChange = useCallback(
 		async (id: string) => {
-			if (id === lastSavedModelRef.current) {
-				return;
-			}
 			setSelectedModelId(id);
-			lastSavedModelRef.current = id;
 			try {
 				await updateSettingsMutation.mutateAsync({ selectedModel: id });
-			} catch (_) {}
+			} catch (_) {
+				// Revert on error
+				if (settingsQuery.data?.selectedModel) {
+					setSelectedModelId(settingsQuery.data.selectedModel);
+				}
+			}
 		},
-		[updateSettingsMutation],
+		[updateSettingsMutation, settingsQuery.data?.selectedModel],
 	);
 
 	useEffect(() => {
