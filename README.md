@@ -18,9 +18,14 @@ A modern AI chat application with multi-model support, MCP integration, and per-
 - MCP tools exposed to AI models during conversations
 - Visual tool call rendering with results
 
-### Architecture
+### User Features
+- **Chat Management**: Create, view, and manage conversations with persistent history
+- **API Key Management**: Securely store encrypted BYOK API keys
+- **Usage Tracking**: Monitor token usage and quotas across models
+- **Customizable Settings**: Configure models, providers, MCP servers, and appearance preferences
+- **Profile Management**: Account settings, session management, and deletion
 
-#### Layered Architecture Overview
+### Layered Architecture
 
 Better Chat follows a **Clean Architecture** pattern with clear separation of concerns across five distinct layers: oRPC router layer, service layer, repository layer, infrastructure layer, and domain layer.
 
@@ -109,13 +114,6 @@ Obviously, there's downsides to CA, too. Keeping the over-engineering in check a
 - **Cloudflare Workers**: Edge-native serverless runtime
 - **Better Auth**: Email OTP and social authentication (Google, GitHub)
 - **KV Sessions**: Distributed session storage with rate limiting
-
-### User Features
-- **Chat Management**: Create, view, and manage conversations with persistent history
-- **API Key Management**: Securely store encrypted BYOK API keys
-- **Usage Tracking**: Monitor token usage and quotas across models
-- **Customizable Settings**: Configure models, providers, MCP servers, and appearance preferences
-- **Profile Management**: Account settings, session management, and deletion
 
 ## Tech Stack
 
