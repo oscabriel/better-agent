@@ -5,7 +5,6 @@ import {
 	KVNamespace,
 	Vite,
 	Worker,
-	WranglerJson,
 } from "alchemy/cloudflare";
 import { config } from "dotenv";
 
@@ -86,15 +85,6 @@ export const server = await Worker("server", {
 });
 
 if (stage === "prod") {
-	await WranglerJson({
-		worker: server,
-		path: "wrangler.jsonc",
-	});
-	await WranglerJson({
-		worker: web,
-		path: "wrangler.jsonc",
-	});
-
 	console.log("\nDeployed via Alchemy:");
 	console.log(`  Web    -> https://${alchemy.env.CUSTOM_WEB_DOMAIN}`);
 	console.log(`  Server -> https://${alchemy.env.API_ROUTE_PATTERN}`);
