@@ -22,7 +22,7 @@ export const BUILT_IN_MCP_SERVERS: MCPServerConfig[] = [
 	},
 	{
 		id: "cloudflare-docs",
-		name: "Cloudflare Docs",
+		name: "Cloudflare",
 		url: "https://docs.mcp.cloudflare.com/sse",
 		type: "sse",
 		description: "Complete Cloudflare platform documentation and guides.",
@@ -41,7 +41,7 @@ export const BUILT_IN_MCP_SERVERS: MCPServerConfig[] = [
 	},
 	{
 		id: "microsoft-learn",
-		name: "Microsoft Learn",
+		name: "MS Learn",
 		url: "https://learn.microsoft.com/api/mcp",
 		type: "http",
 		description:

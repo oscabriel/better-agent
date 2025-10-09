@@ -135,7 +135,6 @@ function ChatPage() {
 					modelId: selectedModelId,
 				}),
 			}),
-			experimental_throttle: 50,
 			onFinish: async () => {
 				queryClient.invalidateQueries({
 					queryKey: orpc.chat.listMessages.key({
