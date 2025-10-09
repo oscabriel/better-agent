@@ -95,25 +95,11 @@ The service layer remains unchanged regardless of the API layer used, demonstrat
 
 #### Why This Architecture?
 
-**1. Separation of Concerns**
-- Each layer has a single responsibility
-- Changes in one layer don't affect others
-- Easy to test and maintain
+There's many benefits to adopting Clean Architecture, including separation of concerns, scalability, data security, and flexibility to swap things out within a layer, but honestly the main reason I've chosen this (technically more complex) route is that I've found Clean Architecture to be incredibly LLM-friendly.
 
-**2. Type Safety**
-- End-to-end TypeScript types from frontend to database
-- Compile-time error catching
-- Self-documenting APIs
+The clean boundaries between concerns makes it very easy for an LLM to reason about your codebase, understand the data flows involved, and pinpoint exactly where changes need to be made within a layer without sacrificing everything that's already working in other layers. Defining clear interfaces, creating well-named functions and classes, and establishing consistent, repeatable patterns all do wonders for telling an LLM to model a new feature or make a very specific business logic tweak.
 
-**3. Scalability**
-- Per-user Durable Objects for data isolation
-- Stateless services for horizontal scaling
-- Clear boundaries for microservice extraction
-
-**4. Security**
-- Authentication centralized in API layer
-- Sensitive data encryption in infrastructure
-- Input validation at the boundary
+Obviously, there's downsides to CA, too. Keeping the over-engineering in check and trying to make sure the LLM doesn't lose focus when making changes across multiple layers are clear challenges. But for whatever reason, I've found CA to be easy to read and reason about myself, too, which means I have a better chance of following along as the LLM works. So even as this app has gotten more complex, I've been able to hang onto the reins and understand the direction we're going the whole way. 
 
 **5. LLM Friendly**
 - Clear layer boundaries make code easy to reason about and change
