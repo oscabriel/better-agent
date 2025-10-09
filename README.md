@@ -101,13 +101,6 @@ The clean boundaries between concerns makes it very easy for an LLM to reason ab
 
 Obviously, there's downsides to CA, too. Keeping the over-engineering in check and trying to make sure the LLM doesn't lose focus when making changes across multiple layers are clear challenges. But for whatever reason, I've found CA to be easy to read and reason about myself, too, which means I have a better chance of following along as the LLM works. So even as this app has gotten more complex, I've been able to hang onto the reins and understand the direction we're going the whole way. 
 
-**5. LLM Friendly**
-- Clear layer boundaries make code easy to reason about and change
-- Consistent patterns across codebase make it easy to model new features
-- Well-named functions and classes provide self-documenting code
-- Separation of concerns makes it easier to locate and update specific functionality
-- Type-safe interfaces make refactoring safer and more predictable
-
 #### Database Architecture
 
 - **D1 (SQLite)**: Shared/global data (auth, usage quotas, user settings)
