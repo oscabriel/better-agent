@@ -4,6 +4,7 @@ import type { LanguageModelUsage, UIMessage } from "ai";
 import {
 	convertToModelMessages,
 	generateId,
+	smoothStream,
 	stepCountIs,
 	streamText,
 } from "ai";
@@ -165,11 +166,12 @@ export class AICompletionService {
 			tools: Object.keys(allTools).length > 0 ? (allTools as any) : undefined,
 			toolChoice: Object.keys(allTools).length > 0 ? "auto" : undefined,
 			stopWhen: stepCountIs(5),
+			experimental_transform: smoothStream(),
 		});
 
 		const self = this;
 
-		return result.toUIMessageStreamResponse({
+		const response = result.toUIMessageStreamResponse({
 			// biome-ignore lint/suspicious/noExplicitAny: AI SDK type compatibility
 			originalMessages: incomingMessages as any,
 			generateMessageId: () => generateId(),
@@ -236,5 +238,13 @@ export class AICompletionService {
 				}
 			},
 		});
+
+		// Add headers to prevent Cloudflare Workers from buffering the stream
+		response.headers.set("Content-Type", "text/plain; charset=utf-8");
+		response.headers.set("Cache-Control", "no-cache, no-transform");
+		response.headers.set("Connection", "keep-alive");
+		response.headers.set("X-Accel-Buffering", "no");
+
+		return response;
 	}
 }

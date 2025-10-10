@@ -14,16 +14,8 @@ const app = new Hono().basePath("/api");
 
 const rpcHandler = new RPCHandler(appRouter);
 
-app.use(logger({
-	fn: (str, ...rest) => {
-		// Skip logging for streaming endpoints to prevent buffering
-		const [, req] = rest;
-		if (req?.url && req.url.includes("/api/ai")) {
-			return;
-		}
-		console.log(str);
-	},
-}));
+app.use(logger());
+
 app.use(
 	"/*",
 	cors({
