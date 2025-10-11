@@ -49,7 +49,7 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
 	{
 		id: "prompt-alchemy",
 		label: "Create resources with Alchemy",
-		text: "Alchemy is an Infrastructure as Code library for Cloudflare and other cloud providersmade by Sam Goodwin and the Alchemy team. How do I create a Durable Object resource, and how do I bind it to a Worker resource?",
+		text: "Alchemy is an Infrastructure as Code library for Cloudflare and other cloud providers. Read the Alchemy docs for the Cloudflare provider. How do I create a Durable Object resource, and how do I bind it to a Worker resource?",
 	},
 	{
 		id: "prompt-hono",
