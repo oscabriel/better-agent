@@ -6,7 +6,6 @@ import { ChevronDown } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
-import { AppShellSkeleton } from "@/web/components/app-skeleton";
 import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/card";
 import { MAX_MESSAGE_BATCH } from "@/web/lib/constants";
@@ -30,7 +29,6 @@ export const Route = createFileRoute("/chat/$chatId")({
 		});
 	},
 	component: ChatPage,
-	pendingComponent: AppShellSkeleton,
 	loader: async ({ params, context }) => {
 		const { chatId } = params;
 		if (!chatId) return;
