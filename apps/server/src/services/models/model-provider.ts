@@ -1,4 +1,3 @@
-import { env } from "cloudflare:workers";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { createOpenAI, openai } from "@ai-sdk/openai";
@@ -10,24 +9,9 @@ import {
 } from "ai";
 import { getModelDefinition } from "./model-catalog";
 
-const openrouterApiKey =
-	env?.OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY ?? "";
-
-const openrouterHeaders: Record<string, string> = {};
-
-if (env?.CORS_ORIGIN) {
-	openrouterHeaders["HTTP-Referer"] = env.CORS_ORIGIN;
-}
-
 if (process.env.NODE_ENV === "production") {
 	globalThis.AI_SDK_DEFAULT_PROVIDER = google;
 }
-
-const openrouter = createOpenAI({
-	baseURL: "https://openrouter.ai/api/v1",
-	apiKey: openrouterApiKey,
-	headers: openrouterHeaders,
-});
 
 export const registry = createProviderRegistry({
 	openai,
@@ -39,18 +23,6 @@ export const registry = createProviderRegistry({
 			"gemini-2.5-pro": google("gemini-2.5-pro"),
 		},
 		fallbackProvider: google,
-	}),
-	openrouter: customProvider({
-		languageModels: {
-			"meta-llama/llama-4-scout:free": openrouter(
-				"meta-llama/llama-4-scout:free",
-			),
-			"meta-llama/llama-3.3-70b-instruct:free": openrouter(
-				"meta-llama/llama-3.3-70b-instruct:free",
-			),
-			"meta-llama/llama-4-maverick": openrouter("meta-llama/llama-4-maverick"),
-		},
-		fallbackProvider: openrouter,
 	}),
 });
 
@@ -79,11 +51,6 @@ export function getModelFromId(modelId: string, userApiKey?: string) {
 				});
 				return customGoogle(model);
 			}
-			case "openrouter":
-				return createOpenAI({
-					baseURL: "https://openrouter.ai/api/v1",
-					apiKey: userApiKey,
-				})(model);
 		}
 	}
 

@@ -4,7 +4,6 @@
  * Creates per-user provider registries that merge:
  * 1. Base app-provided free models
  * 2. User BYOK providers (OpenAI, Anthropic, Google)
- * 3. User OpenRouter key (catch-all for all models)
  *
  * Each registry is built dynamically based on user's available API keys.
  */

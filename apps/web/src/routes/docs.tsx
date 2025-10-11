@@ -84,7 +84,7 @@ function DocsRoute() {
 						<div className="space-y-4 opacity-90">
 							<p>
 								Free Models: GPT-4o mini, GPT-4.1 mini/nano, Gemini 2.5 Flash
-								Lite, Llama 3.3/4 via OpenRouter
+								Lite
 							</p>
 							<div>
 								<p className="mb-2">BYOK (Bring Your Own Key) Models:</p>
@@ -96,7 +96,6 @@ function DocsRoute() {
 										→ Anthropic: Claude Opus 4, Sonnet 4.5/4/3.7, Haiku 3.5
 									</li>
 									<li>→ Google: Gemini 2.5 Flash/Pro</li>
-									<li>→ Meta: Llama 4 Maverick via OpenRouter</li>
 								</ul>
 							</div>
 							<p>

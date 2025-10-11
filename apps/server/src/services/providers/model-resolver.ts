@@ -4,7 +4,6 @@
  * Determines which provider to use for a given model based on:
  * 1. Model access type (free vs BYOK)
  * 2. User's available API keys
- * 3. Provider priority (native > OpenRouter)
  */
 
 import { getModelDefinition } from "@/server/services/models/model-catalog";
