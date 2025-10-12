@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppShellSkeleton } from "@/web/components/app-skeleton";
-import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { requireAuthenticated } from "@/web/lib/route-guards";
 import { ChatShell } from "@/web/routes/chat/-components/chat-shell";
 
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/chat")({
 function ChatLayout() {
 	const navigate = useNavigate();
 	const location = useRouterState({ select: (state) => state.location });
-	const { data: session, isPending } = authClient.useSession();
+	const auth = useAuth();
 
 	useEffect(() => {
 		const pathname = location.pathname ?? "";
@@ -33,14 +33,11 @@ function ChatLayout() {
 		}
 	}, [location.pathname, navigate]);
 
-	if (isPending) {
-		return <AppShellSkeleton />;
-	}
-
-	if (!session?.user) {
+	// Runtime session guard - handles session expiry/sign-out during use
+	if (!auth.session?.user) {
 		return (
 			<Navigate
-				to="/auth/sign-in"
+				to="/"
 				replace
 				search={{ redirect: location.href ?? location.pathname ?? "/chat" }}
 			/>

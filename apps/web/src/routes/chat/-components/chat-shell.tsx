@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,7 +12,10 @@ import {
 	SheetTitle,
 } from "@/web/components/ui/sheet";
 import { useIsMobile } from "@/web/hooks/use-mobile";
-import { useUserSettings } from "@/web/hooks/use-user-settings";
+import {
+	useUpdateUserSettings,
+	useUserSettings,
+} from "@/web/hooks/use-user-settings";
 import { QUICK_PROMPTS } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
 import { generateConversationId } from "@/web/utils/chat";
@@ -49,34 +52,37 @@ export function ChatShell() {
 	);
 
 	const settingsQuery = useUserSettings();
-	const updateSettingsMutation = useMutation(
-		orpc.settings.update.mutationOptions(),
-	);
+	const updateSettings = useUpdateUserSettings();
 
-	const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
-		undefined,
-	);
+	// Local state for immediate UI updates, initialized from settings query
+	const [localSelectedModelId, setLocalSelectedModelId] = useState<
+		string | undefined
+	>(settingsQuery.data?.selectedModel);
 
-	// Initialize local state from persisted settings
+	// Sync local state when settings query data changes
 	useEffect(() => {
 		if (settingsQuery.data?.selectedModel) {
-			setSelectedModelId(settingsQuery.data.selectedModel);
+			setLocalSelectedModelId(settingsQuery.data.selectedModel);
 		}
 	}, [settingsQuery.data?.selectedModel]);
 
+	const selectedModelId =
+		localSelectedModelId || settingsQuery.data?.selectedModel;
+
 	const handleModelChange = useCallback(
 		async (id: string) => {
-			setSelectedModelId(id);
+			// Update local state immediately for instant UI feedback
+			setLocalSelectedModelId(id);
 			try {
-				await updateSettingsMutation.mutateAsync({ selectedModel: id });
-			} catch (_) {
-				// Revert on error
-				if (settingsQuery.data?.selectedModel) {
-					setSelectedModelId(settingsQuery.data.selectedModel);
-				}
+				// Persist to DB in background
+				await updateSettings({ selectedModel: id });
+			} catch (error) {
+				// On error, revert local state
+				setLocalSelectedModelId(settingsQuery.data?.selectedModel);
+				console.error("Failed to update model:", error);
 			}
 		},
-		[updateSettingsMutation, settingsQuery.data?.selectedModel],
+		[updateSettings, settingsQuery.data?.selectedModel],
 	);
 
 	useEffect(() => {
@@ -318,6 +324,8 @@ export function ChatShell() {
 											modelId={selectedModelId}
 											onModelChange={handleModelChange}
 											onSendMessage={handleStartNewChat}
+											userApiKeys={settingsQuery.data?.apiKeys}
+											enabledModels={settingsQuery.data?.enabledModels}
 										/>
 									</div>
 								</div>

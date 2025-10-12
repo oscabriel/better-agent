@@ -17,7 +17,7 @@ import {
 } from "@/web/components/ui/sheet";
 import { useIsMobile } from "@/web/hooks/use-mobile";
 import { useUserSettings } from "@/web/hooks/use-user-settings";
-import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { SETTINGS_NAV_ITEMS } from "@/web/lib/constants";
 import { cn } from "@/web/utils/cn";
 
@@ -29,7 +29,7 @@ export const Route = createLazyFileRoute("/settings")({
 function SettingsLayout() {
 	const navigate = useNavigate();
 	const location = useRouterState({ select: (state) => state.location });
-	const { data: session, isPending } = authClient.useSession();
+	const auth = useAuth();
 	const isMobile = useIsMobile();
 	const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -72,14 +72,11 @@ function SettingsLayout() {
 		}
 	}, [isMobile]);
 
-	if (isPending) {
-		return <AppShellSkeleton />;
-	}
-
-	if (!session?.user) {
+	// Runtime session guard - handles session expiry/sign-out during use
+	if (!auth.session?.user) {
 		return (
 			<Navigate
-				to="/auth/sign-in"
+				to="/"
 				replace
 				search={{ redirect: location.href ?? location.pathname ?? "/settings" }}
 			/>

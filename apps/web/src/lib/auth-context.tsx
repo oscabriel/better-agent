@@ -23,14 +23,25 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Type guard for Better Auth session response
+function extractSessionData(sessionResult: unknown): AuthSession | null {
+	if (!sessionResult) return null;
+
+	// Better Auth can return { data: session } or just session
+	if (
+		typeof sessionResult === "object" &&
+		sessionResult !== null &&
+		"data" in sessionResult
+	) {
+		return (sessionResult.data as AuthSession) ?? null;
+	}
+
+	return sessionResult as AuthSession;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
-	const {
-		data: sessionFromHook,
-		isPending,
-		error,
-		refetch,
-	} = authClient.useSession();
-	const sessionData = sessionFromHook as AuthSession | null;
+	const { data: sessionFromHook, isPending, error } = authClient.useSession();
+	const sessionData = extractSessionData(sessionFromHook);
 	const [hasHydrated, setHasHydrated] = useState(() => !isPending);
 	const ensureSessionPromiseRef = useRef<Promise<AuthSession | null> | null>(
 		null,
@@ -43,25 +54,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
 	}, [isPending]);
 
 	const ensureSession = useCallback(async () => {
+		// If already have data and not pending, return immediately
+		if (sessionData && !isPending) {
+			return sessionData;
+		}
+
+		// If there's an ongoing ensureSession call, return it to prevent duplicates
 		if (ensureSessionPromiseRef.current) {
 			return ensureSessionPromiseRef.current;
 		}
 
+		// Create new fetch promise
 		const promise = (async () => {
 			try {
 				const result = await authClient.getSession();
-				const nextSession = (
-					result && "data" in result ? result.data : result
-				) as AuthSession | null;
+				const nextSession = extractSessionData(result);
 				setHasHydrated(true);
-				if (typeof refetch === "function") {
-					const currentUserId = sessionData?.user?.id ?? null;
-					const nextUserId = nextSession?.user?.id ?? null;
-					if (currentUserId && nextUserId && currentUserId !== nextUserId) {
-						await refetch();
-					}
-				}
-				return nextSession ?? null;
+				return nextSession;
 			} catch (fetchError) {
 				console.error("Failed to ensure auth session", fetchError);
 				return null;
@@ -72,7 +81,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
 		ensureSessionPromiseRef.current = promise;
 		return promise;
-	}, [refetch, sessionData?.user?.id]);
+	}, [sessionData, isPending]);
 
 	const status: AuthStatus = useMemo(() => {
 		if (isPending) {

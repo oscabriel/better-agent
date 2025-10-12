@@ -19,6 +19,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/web/components/ui/dropdown-menu";
 import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { orpc } from "@/web/lib/orpc";
 
 const getFirstName = (
@@ -32,14 +33,14 @@ const getFirstName = (
 
 export default function UserMenu() {
 	const navigate = useNavigate();
-	const { data: session } = authClient.useSession();
+	const auth = useAuth();
 	const isCheckingSession = useRouterState({
 		select: (state) => state.isLoading,
 	});
 
 	const user = useQuery({
 		...orpc.profile.getProfile.queryOptions(),
-		enabled: Boolean(session?.user),
+		enabled: Boolean(auth.session?.user),
 		refetchOnWindowFocus: true,
 		refetchOnMount: true,
 		staleTime: 0,
@@ -57,7 +58,7 @@ export default function UserMenu() {
 		);
 	}
 
-	if (!session?.user) {
+	if (!auth.session?.user) {
 		return (
 			<Button
 				variant="outline"

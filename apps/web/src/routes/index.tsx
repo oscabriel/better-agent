@@ -5,32 +5,20 @@ import { useCallback, useState } from "react";
 import { GuestShellSkeleton } from "@/web/components/guest-skeleton";
 import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
-import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { redirectIfAuthenticated } from "@/web/lib/route-guards";
 
 export const Route = createFileRoute("/")({
 	beforeLoad: async (opts) => {
 		await redirectIfAuthenticated({ auth: opts.context.auth, to: "/chat" });
 	},
-	component: GuestRoute,
+	component: GuestLanding,
 	pendingComponent: GuestShellSkeleton,
 });
 
-function GuestRoute() {
-	const { data: session, isPending } = authClient.useSession();
-	if (isPending) {
-		return <GuestShellSkeleton />;
-	}
-
-	if (session?.user) {
-		return <Navigate to="/chat" replace />;
-	}
-
-	return <GuestLanding />;
-}
-
 function GuestLanding() {
 	const navigate = useNavigate();
+	const auth = useAuth();
 	const [message, setMessage] = useState("");
 	const isReady = message.trim().toLowerCase() === "get started";
 
@@ -45,6 +33,11 @@ function GuestLanding() {
 		},
 		[isReady, navigate],
 	);
+
+	// Runtime session guard - redirect away if already authenticated
+	if (auth.session?.user) {
+		return <Navigate to="/chat" replace />;
+	}
 
 	return (
 		<div className="relative flex min-h-screen flex-col justify-center px-4 py-8 sm:px-6">

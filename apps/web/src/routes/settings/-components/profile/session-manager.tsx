@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { orpc } from "@/web/lib/orpc";
 import type { Session } from "@/web/types/user";
 import { getDeviceIcon } from "./utils";
@@ -74,7 +75,7 @@ function SessionItem({
 
 export function SessionManager() {
 	const [terminatingSession, setTerminatingSession] = useState<string>();
-	const { data: currentUser } = authClient.useSession();
+	const auth = useAuth();
 
 	const sessions = useQuery({
 		...orpc.profile.listSessions.queryOptions(),
@@ -99,7 +100,7 @@ export function SessionManager() {
 		const sessionId = session.id || session.token;
 		setTerminatingSession(sessionId);
 
-		const isCurrentSession = session.token === currentUser?.session?.token;
+		const isCurrentSession = session.token === auth.session?.session?.token;
 
 		if (isCurrentSession) {
 			await authClient.signOut({
@@ -138,7 +139,7 @@ export function SessionManager() {
 				<div className="space-y-2 bg-background/60">
 					{validSessions.map((session, index) => {
 						const isCurrentSession =
-							session.token === currentUser?.session?.token;
+							session.token === auth.session?.session?.token;
 						const sessionId = session.id || session.token;
 						const isTerminating = terminatingSession === sessionId;
 

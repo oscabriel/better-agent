@@ -9,30 +9,32 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/web/components/ui/select";
-import { useUserSettings } from "@/web/hooks/use-user-settings";
 import { orpc } from "@/web/lib/orpc";
 
 interface ModelSelectorProps {
-	modelId?: string;
+	modelId: string;
 	onModelChange?: (modelId: string) => void;
+	userApiKeys?: Record<string, string>;
+	enabledModels?: string[];
 }
 
 const DEFAULT_MODEL_ID = "google:gemini-2.5-flash-lite";
 
 type ModelDefinition = RouterOutputs["models"]["list"][number];
 
-export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
+export function ModelSelector({
+	modelId,
+	onModelChange,
+	userApiKeys = {},
+	enabledModels = [],
+}: ModelSelectorProps) {
 	const modelsQuery = useQuery(
 		orpc.models.list.queryOptions({
 			staleTime: 60_000,
 		}),
 	);
 
-	const settingsQuery = useUserSettings();
-
 	const models = modelsQuery.data || [];
-	const userApiKeys = settingsQuery.data?.apiKeys || {};
-	const enabledModels = settingsQuery.data?.enabledModels || [];
 
 	const modelsWithAvailability = models.map((model: ModelDefinition) => {
 		const providerKey = model.id.split(":")[0] || model.provider.toLowerCase();
@@ -45,10 +47,8 @@ export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
 		};
 	});
 
-	const isLoading = modelsQuery.isLoading || settingsQuery.isLoading;
-	// Use persisted selectedModel as fallback instead of hardcoded default
-	const effectiveValue =
-		modelId ?? settingsQuery.data?.selectedModel ?? DEFAULT_MODEL_ID;
+	const isLoading = modelsQuery.isLoading;
+	const effectiveValue = modelId || DEFAULT_MODEL_ID;
 	const selectedModelDef = modelsWithAvailability.find(
 		(model: ModelDefinition & { isAvailable: boolean }) =>
 			model.id === effectiveValue,

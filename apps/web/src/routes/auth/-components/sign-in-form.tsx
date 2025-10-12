@@ -12,6 +12,7 @@ import {
 } from "@/web/components/ui/input-otp";
 import { useAppForm } from "@/web/components/ui/tanstack-form";
 import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { SIGN_IN_FORM, SOCIAL_PROVIDERS } from "@/web/lib/constants";
 import { signInEmailSchema, signInOtpSchema } from "@/web/lib/validators";
 import { GitHubIcon, GoogleIcon } from "./social-sign-in-icons";
@@ -22,18 +23,18 @@ interface SignInFormProps {
 
 export function SignInForm({ redirectPath }: SignInFormProps) {
 	const navigate = useNavigate();
-	const { data: session, isPending } = authClient.useSession();
+	const auth = useAuth();
 	const [isOtpSent, setIsOtpSent] = useState(false);
 	const [email, setEmail] = useState("");
 
 	useEffect(() => {
-		if (session?.user && !isPending) {
+		if (auth.session?.user && auth.status === "authenticated") {
 			navigate({
 				to: redirectPath,
 				replace: true,
 			});
 		}
-	}, [session?.user, isPending]);
+	}, [auth.session?.user, auth.status, navigate, redirectPath]);
 
 	const sendOtpMutation = useMutation({
 		mutationFn: async (email: string) => {
@@ -245,7 +246,7 @@ export function SignInForm({ redirectPath }: SignInFormProps) {
 											value={field.state.value}
 											onChange={field.handleChange}
 											onBlur={field.handleBlur}
-											disabled={isPending}
+											disabled={auth.status === "loading"}
 											autoComplete="one-time-code"
 											maxLength={SIGN_IN_FORM.OTP_LENGTH}
 											className="w-full"

@@ -3,18 +3,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { DefaultChatTransport } from "ai";
 import { ChevronDown } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/card";
+import {
+	useUpdateUserSettings,
+	useUserSettings,
+} from "@/web/hooks/use-user-settings";
 import { MAX_MESSAGE_BATCH } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
 import { requireAuthenticated } from "@/web/lib/route-guards";
 import { ChatComposer } from "@/web/routes/chat/-components/chat-composer";
 import { ChatHeader } from "@/web/routes/chat/-components/chat-header";
 import { MessageRenderer } from "@/web/routes/chat/-components/message-renderer";
-import { useChatModelSelector } from "@/web/routes/chat/-hooks/use-chat-model-selector";
 import { useInitializeChatMessages } from "@/web/routes/chat/-hooks/use-initialize-chat-messages";
 import { usePendingConversationMessage } from "@/web/routes/chat/-hooks/use-pending-conversation-message";
 import { useStreamingIndicator } from "@/web/routes/chat/-hooks/use-streaming-indicator";
@@ -55,7 +58,45 @@ function ChatPage() {
 	const navigate = useNavigate();
 	const [isDeleting, setIsDeleting] = useState(false);
 
-	const { selectedModelId, handleModelChange } = useChatModelSelector();
+	const settingsQuery = useUserSettings();
+	const updateSettings = useUpdateUserSettings();
+
+	// Local state for immediate UI updates, initialized from settings query
+	const [localSelectedModelId, setLocalSelectedModelId] = useState<
+		string | undefined
+	>(settingsQuery.data?.selectedModel);
+
+	// Sync local state when settings query data changes
+	useEffect(() => {
+		if (settingsQuery.data?.selectedModel) {
+			setLocalSelectedModelId(settingsQuery.data.selectedModel);
+		}
+	}, [settingsQuery.data?.selectedModel]);
+
+	const selectedModelId =
+		localSelectedModelId || settingsQuery.data?.selectedModel;
+
+	// Use ref to capture latest selectedModelId for useChat body function
+	const selectedModelIdRef = useRef(selectedModelId);
+	useEffect(() => {
+		selectedModelIdRef.current = selectedModelId;
+	}, [selectedModelId]);
+
+	const handleModelChange = useCallback(
+		async (id: string) => {
+			// Update local state immediately for instant UI feedback
+			setLocalSelectedModelId(id);
+			try {
+				// Persist to DB in background
+				await updateSettings({ selectedModel: id });
+			} catch (error) {
+				// On error, revert local state
+				setLocalSelectedModelId(settingsQuery.data?.selectedModel);
+				console.error("Failed to update model:", error);
+			}
+		},
+		[updateSettings, settingsQuery.data?.selectedModel],
+	);
 
 	const { scrollRef, contentRef, isAtBottom, scrollToBottom } =
 		useStickToBottom({
@@ -130,7 +171,7 @@ function ChatPage() {
 				body: () => ({
 					conversationId: chatId,
 					messages: messages.slice(-MAX_MESSAGE_BATCH),
-					modelId: selectedModelId,
+					modelId: selectedModelIdRef.current,
 				}),
 			}),
 			onFinish: async () => {
@@ -279,6 +320,8 @@ function ChatPage() {
 				modelId={selectedModelId}
 				onModelChange={handleModelChange}
 				onSendMessage={handleSendMessage}
+				userApiKeys={settingsQuery.data?.apiKeys}
+				enabledModels={settingsQuery.data?.enabledModels}
 			/>
 		</div>
 	);

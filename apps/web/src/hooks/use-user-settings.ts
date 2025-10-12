@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import type { RouterInputs, RouterOutputs } from "@/server/lib/router";
-import { authClient } from "@/web/lib/auth-client";
+import { useAuth } from "@/web/lib/auth-context";
 import { orpc } from "@/web/lib/orpc";
 import {
 	getStoredChatWidth,
@@ -27,8 +27,8 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
  * preventing excessive refetches and potential infinite loops.
  */
 export function useUserSettings() {
-	const { data: session } = authClient.useSession();
-	const isAuthenticated = Boolean(session?.user?.id);
+	const auth = useAuth();
+	const isAuthenticated = Boolean(auth.session?.user?.id);
 
 	const query = useQuery(
 		orpc.settings.get.queryOptions({
@@ -64,18 +64,49 @@ export function useUserSettings() {
  */
 export function useUpdateUserSettings() {
 	const queryClient = useQueryClient();
-	const { data: session } = authClient.useSession();
-	const userId = session?.user?.id;
+	const auth = useAuth();
+	const userId = auth.session?.user?.id;
 
 	const mutation = useMutation(
 		orpc.settings.update.mutationOptions({
+			onMutate: async (updates: RouterInputs["settings"]["update"]) => {
+				// Cancel outgoing refetches to prevent race conditions
+				await queryClient.cancelQueries({
+					queryKey: orpc.settings.get.queryKey({}),
+				});
+
+				// Snapshot previous value for rollback
+				const previous = queryClient.getQueryData(
+					orpc.settings.get.queryKey({}),
+				);
+
+				// Optimistically update cache immediately
+				if (previous) {
+					queryClient.setQueryData(orpc.settings.get.queryKey({}), {
+						...previous,
+						...updates,
+					});
+				}
+
+				return { previous };
+			},
 			onSuccess: (updated: UserSettings) => {
+				// Update with server response
 				queryClient.setQueryData(orpc.settings.get.queryKey({}), updated);
 				if (
 					updated.chatWidth === "cozy" ||
 					updated.chatWidth === "comfortable"
 				) {
 					setStoredChatWidth(updated.chatWidth);
+				}
+			},
+			onError: (_error, _variables, context) => {
+				// Rollback optimistic update on error
+				if (context?.previous) {
+					queryClient.setQueryData(
+						orpc.settings.get.queryKey({}),
+						context.previous,
+					);
 				}
 			},
 		}),

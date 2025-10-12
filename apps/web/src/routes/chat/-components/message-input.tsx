@@ -16,10 +16,19 @@ interface MessageInputProps {
 	onSendMessage: (message: { text: string; modelId?: string }) => void;
 	modelId?: string;
 	onModelChange?: (modelId: string) => void;
+	userApiKeys?: Record<string, string>;
+	enabledModels?: string[];
 }
 
 export const MessageInput = memo(
-	({ disabled, onSendMessage, modelId, onModelChange }: MessageInputProps) => {
+	({
+		disabled,
+		onSendMessage,
+		modelId,
+		onModelChange,
+		userApiKeys,
+		enabledModels,
+	}: MessageInputProps) => {
 		const [input, setInput] = useState("");
 		const textareaRef = useRef<HTMLTextAreaElement>(null);
 		const isMobile = useIsMobile();
@@ -107,7 +116,12 @@ export const MessageInput = memo(
 						</>
 					) : (
 						<>
-							<ModelSelector modelId={modelId} onModelChange={onModelChange} />
+							<ModelSelector
+								modelId={modelId || "google:gemini-2.5-flash-lite"}
+								onModelChange={onModelChange}
+								userApiKeys={userApiKeys}
+								enabledModels={enabledModels}
+							/>
 							{hasReasoningCapability && <ReasoningEffortSelector />}
 							<ToolsDialogButton disabled={disabled} />
 							<WebSearchDialogButton disabled={disabled} />
