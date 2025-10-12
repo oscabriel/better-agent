@@ -18,7 +18,7 @@ config({ path: `./apps/server/.env.${stage}` });
 
 const db = await D1Database("database", {
 	name: `${app.name}-db`,
-	migrationsDir: "apps/server/src/infra/db/migrations",
+	migrationsDir: "apps/server/src/adapters/db/migrations",
 	adopt: true,
 	readReplication: { mode: "auto" },
 });

@@ -25,86 +25,99 @@ A modern AI chat application with multi-model support, MCP integration, and per-
 - **Customizable Settings**: Configure models, providers, MCP servers, and appearance preferences
 - **Profile Management**: Account settings, session management, and deletion
 
-### Layered Architecture
+### Functional Feature-Based Architecture
 
-Better Chat follows a **Clean Architecture** pattern with clear separation of concerns across five distinct layers: oRPC router layer, service layer, repository layer, infrastructure layer, and domain layer.
+Better Chat uses a **functional, feature-based architecture** with clear separation between routes, business logic, and data access. Each feature is self-contained with a consistent structure, making it easy to locate and modify code.
+
+#### Standard Feature Structure
+
+```
+features/[feature]/
+  ├── routes.ts      # API routes (thin, validation only)
+  ├── handlers.ts    # Business logic orchestration (optional)
+  ├── queries.ts     # Database reads
+  ├── mutations.ts   # Database writes
+  ├── utils.ts       # Pure utility functions
+  ├── types.ts       # TypeScript types
+  └── constants.ts   # Constants (optional)
+```
+
+**Architecture Principles:**
+- **100% Functional** — No classes, only pure functions
+- **Thin Routes** — Routes validate input, call handlers, return response
+- **Query/Mutation Split** — Clear separation between reads and writes
+- **Feature Colocation** — All related code lives together in one feature directory
+- **Consistent Naming** — Same file names across all features
 
 #### Data Flow: AI Chat Completion
-
-Here's how an AI chat completion flows through all layers, demonstrating the full power of the layered architecture:
 
 ```
 1. Frontend Request
    └─ POST /api/ai/ with messages and conversationId
       ↓
 
-2. HTTP Router Layer (/api/http/ai-routes.ts)
+2. Routes Layer (features/ai/routes.ts)
    ├─ Validates authentication (requireUserDO)
-   ├─ Parses request body
-   └─ Calls AI completion service
+   ├─ Parses request body (Zod schema)
+   └─ Calls streamCompletion(userId, stub, body)
       ↓
 
-3. Service Layer (/services/ai/completion-service.ts)
-   ├─ Validates incoming messages
-   ├─ Loads user settings (model, API keys, MCP servers)
-   ├─ Checks usage quotas
-   ├─ Resolves AI provider and creates model registry
-   ├─ Connects to MCP servers and loads tools
-   ├─ Builds system prompt with available tools
-   ├─ Streams AI response with tool calling
-   ├─ Saves conversation messages to DO
-   ├─ Generates conversation title
-   ├─ Records usage statistics
-   └─ Closes MCP connections
+3. Handler Layer (features/ai/handlers.ts)
+   ├─ validateIncomingMessages() — validates messages
+   ├─ getUserSettings() — loads user preferences
+   ├─ requireAvailableQuota() — checks usage limits
+   ├─ resolveModelProvider() — determines provider
+   ├─ createUserProviderRegistry() — sets up AI SDK
+   ├─ getCustomMcpServers() — fetches MCP configs
+   ├─ getMCPTools() — connects to MCP servers
+   ├─ buildSystemPrompt() — constructs prompt
+   ├─ streamText() — streams AI response
+   ├─ onFinish:
+   │   ├─ userDOStub.appendMessages() — saves to DO
+   │   ├─ maybeGenerateConversationTitle() — create title
+   │   ├─ closeMCPClients() — cleanup
+   │   └─ recordUsage() — tracks tokens
+   └─ Returns streaming response
       ↓
 
-4. Repository Layer
-   ├─ Settings Repository: Gets user preferences and API keys
-   ├─ Conversation Repository: Saves messages to user's DO
-   ├─ Usage Repository: Records token usage in D1
-   └─ MCP Repository: Manages custom MCP server configs
+4. Data Layer
+   ├─ settings/queries.ts: getUserSettings() → D1
+   ├─ usage/mutations.ts: recordUsage() → D1
+   ├─ tools/mcp/queries.ts: getCustomMcpServers() → D1
+   └─ DO: appendMessages(), listMessages() → per-user SQLite
       ↓
 
-5. Infrastructure Layer
-   ├─ D1 Database: User settings, usage tracking
+5. Infrastructure
+   ├─ D1: Settings, usage tracking, MCP configs
    ├─ Durable Objects: Per-user conversation storage
    ├─ AI Providers: OpenAI, Anthropic, Google APIs
    ├─ MCP Servers: External tool providers
-   └─ Encryption: API key security
-      ↓
-
-6. Domain Layer
-   ├─ Message types and validation
-   ├─ Usage limits and quota rules
-   ├─ Model definitions and capabilities
-   └─ Business constraints
-      ↓
-
-7. Streaming Response
-   └─ Frontend receives real-time AI response with tool calls
+   └─ Crypto: API key encryption
 ```
 
-**Note**: While the AI completion uses an HTTP router layer (`/api/http/ai-routes.ts`) for streaming responses, most operations in Better Chat use the oRPC router layer for type-safe API calls. For example, updating user settings would flow through:
+**Example: Updating User Settings**
+
+Most operations use oRPC for type-safe API calls:
 
 ```
 1. Frontend: api.settings.update({ theme: "dark" })
-2. oRPC Router: Validates input, checks auth via protectedProcedure, extracts userId
-3. Service Layer: Orchestrates business logic
-4. Repository Layer: Queries database
-5. Infrastructure Layer: Database connections
-6. Domain Layer: Business rules
-7. Response: Typed response back to frontend
+2. Routes: settingsRouter.update validates input via Zod schema
+3. Handlers: updateUserSettings(userId, input) orchestrates logic
+4. Mutations: Writes updated settings to D1 database
+5. Response: Typed response back to frontend via oRPC
 ```
-
-The service layer remains unchanged regardless of the API layer used, demonstrating how the architecture allows different API patterns while maintaining consistent business logic.
 
 #### Why This Architecture?
 
-There's many benefits to adopting Clean Architecture, including separation of concerns, scalability, data security, and flexibility to swap things out within a layer, but honestly the main reason I've chosen this (technically more complex) route is that I've found Clean Architecture to be incredibly LLM-friendly.
+Benefits of functional feature-based architecture:
+- **Simplicity**: No layers, classes, or abstractions — just functions
+- **Predictability**: Same structure across all features
+- **Discoverability**: Need usage logic? Check `features/usage/`
+- **Maintainability**: Changes isolated to one feature directory
+- **LLM-Friendly**: Clear boundaries, consistent patterns, easy to reason about
+- **Performance**: Thin routes and pure functions optimize cold starts
 
-The clean boundaries between concerns makes it very easy for an LLM to reason about your codebase, understand the data flows involved, and pinpoint exactly where changes need to be made within a layer without sacrificing everything that's already working in other layers. Defining clear interfaces, creating well-named functions and classes, and establishing consistent, repeatable patterns all do wonders for telling an LLM to model a new feature or make a very specific business logic tweak.
-
-Obviously, there's downsides to CA, too. Keeping the over-engineering in check and trying to make sure the LLM doesn't lose focus when making changes across multiple layers are clear challenges. But for whatever reason, I've found CA to be easy to read and reason about myself, too, which means I have a better chance of following along as the LLM works. So even as this app has gotten more complex, I've been able to hang onto the reins and understand the direction we're going the whole way. 
+This architecture strikes a balance: structured enough to scale, simple enough to understand quickly. Features are self-documenting through consistent file naming, making it easy for both humans and LLMs to navigate the codebase and make targeted changes without unintended side effects. 
 
 #### Database Architecture
 

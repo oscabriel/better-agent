@@ -1,4 +1,4 @@
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import { Badge } from "@/web/components/ui/badge";
 import { Switch } from "@/web/components/ui/switch";
 

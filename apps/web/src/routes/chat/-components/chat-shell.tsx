@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import { Button } from "@/web/components/ui/button";
 import {
 	Sheet,

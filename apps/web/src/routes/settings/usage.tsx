@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import {
 	Card,
 	CardContent,
@@ -11,11 +11,11 @@ import {
 	CardTitle,
 } from "@/web/components/ui/card";
 import { orpc } from "@/web/lib/orpc";
-import { ModelBreakdownSection } from "@/web/routes/settings/-components/usage/model-breakdown-section";
-import { PeriodSelector } from "@/web/routes/settings/-components/usage/period-selector";
-import { StatsGrid } from "@/web/routes/settings/-components/usage/stats-grid";
-import { UsageLimitCard } from "@/web/routes/settings/-components/usage/usage-limit-card";
 import { onSyncEvent } from "@/web/utils/sync";
+import { ModelBreakdownSection } from "./-components/usage/model-breakdown-section";
+import { PeriodSelector } from "./-components/usage/period-selector";
+import { StatsGrid } from "./-components/usage/stats-grid";
+import { UsageLimitCard } from "./-components/usage/usage-limit-card";
 
 type ModelsList = RouterOutputs["models"]["list"];
 type UsageStats = RouterOutputs["usage"]["getStats"];

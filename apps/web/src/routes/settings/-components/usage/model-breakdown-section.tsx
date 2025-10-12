@@ -1,4 +1,4 @@
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import { Progress } from "@/web/components/ui/progress";
 import {
 	Tooltip,

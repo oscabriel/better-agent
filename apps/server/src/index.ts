@@ -3,12 +3,12 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { aiRoutes } from "./api/http/ai-routes";
-import { appRouter } from "./api/orpc";
-import { auth } from "./infra/auth";
+import { aiRoutes } from "./features/ai/routes";
+import { auth } from "./lib/auth";
 import { createContext } from "./lib/context";
+import { appRouter } from "./lib/router";
 
-export { UserDurableObject } from "./infra/do/user-durable-object";
+export { UserDurableObject } from "./db/do/user-durable-object";
 
 const app = new Hono().basePath("/api");
 

@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import { Badge } from "@/web/components/ui/badge";
 import { Button } from "@/web/components/ui/button";
 import { Switch } from "@/web/components/ui/switch";

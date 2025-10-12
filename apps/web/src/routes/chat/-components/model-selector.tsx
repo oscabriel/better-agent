@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Brain } from "lucide-react";
 import { useMemo } from "react";
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import {
 	Select,
 	SelectContent,

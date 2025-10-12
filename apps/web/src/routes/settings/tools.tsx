@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Plus, Settings, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import { Button } from "@/web/components/ui/button";
 import {
 	Card,
@@ -14,10 +14,10 @@ import {
 } from "@/web/components/ui/card";
 import { useUserSettings } from "@/web/hooks/use-user-settings";
 import { orpc } from "@/web/lib/orpc";
-import { AddMcpServerDialog } from "@/web/routes/settings/-components/tools/add-mcp-server-dialog";
-import { ExaApiKeyDialog } from "@/web/routes/settings/-components/tools/exa-api-key-dialog";
-import { ExaApiKeySection } from "@/web/routes/settings/-components/tools/exa-api-key-section";
-import { McpServerRow } from "@/web/routes/settings/-components/tools/mcp-server-row";
+import { AddMcpServerDialog } from "./-components/tools/add-mcp-server-dialog";
+import { ExaApiKeyDialog } from "./-components/tools/exa-api-key-dialog";
+import { ExaApiKeySection } from "./-components/tools/exa-api-key-section";
+import { McpServerRow } from "./-components/tools/mcp-server-row";
 
 export const Route = createFileRoute("/settings/tools")({
 	component: ToolsPage,

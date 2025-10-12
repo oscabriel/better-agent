@@ -1,9 +1,6 @@
 import type { Context, Next } from "hono";
-import {
-	requireUserId,
-	UnauthorizedError,
-} from "@/server/services/auth/session-guard";
-import { UsageTrackingService } from "@/server/services/usage/usage-tracking-service";
+import { getCurrentUsageSummary } from "@/server/features/usage/handlers";
+import { requireUserId, UnauthorizedError } from "./auth-guards";
 
 /**
  * Rate limiting middleware for AI endpoints
@@ -12,8 +9,7 @@ import { UsageTrackingService } from "@/server/services/usage/usage-tracking-ser
 export async function rateLimitMiddleware(c: Context, next: Next) {
 	try {
 		const userId = await requireUserId(c);
-		const usageService = new UsageTrackingService();
-		const usage = await usageService.getCurrentUsageSummary(userId);
+		const usage = await getCurrentUsageSummary(userId);
 
 		if (!usage.daily.allowed || !usage.monthly.allowed) {
 			return c.json(

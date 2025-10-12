@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import type { Context as HonoContext } from "hono";
-import { auth } from "@/server/infra/auth";
-import { db } from "@/server/infra/db";
+import { db } from "@/server/db/d1";
+import { auth } from "./auth";
 
 export type CreateContextOptions = {
 	context: HonoContext;

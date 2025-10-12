@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
-import type { RouterInputs, RouterOutputs } from "@/server/api/orpc";
+import type { RouterInputs, RouterOutputs } from "@/server/lib/router";
 import { authClient } from "@/web/lib/auth-client";
 import { orpc } from "@/web/lib/orpc";
 import {

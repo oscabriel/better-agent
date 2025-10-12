@@ -15,8 +15,8 @@ import {
 	useUserSettings,
 } from "@/web/hooks/use-user-settings";
 import { orpc } from "@/web/lib/orpc";
-import { ApiKeyDialog } from "@/web/routes/settings/-components/providers/api-key-dialog";
-import { ProviderRow } from "@/web/routes/settings/-components/providers/provider-row";
+import { ApiKeyDialog } from "./-components/providers/api-key-dialog";
+import { ProviderRow } from "./-components/providers/provider-row";
 
 interface Provider {
 	id: string;

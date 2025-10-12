@@ -1,5 +1,5 @@
 import { Calendar, TrendingUp } from "lucide-react";
-import type { RouterOutputs } from "@/server/api/orpc";
+import type { RouterOutputs } from "@/server/lib/router";
 import {
 	Card,
 	CardContent,
