@@ -85,11 +85,9 @@ export const CodeBlock = memo(
 		return !inline && (match || isMultiLine) ? (
 			<div className="code-block-container relative my-2 flex flex-col overflow-hidden border border-border">
 				<div className="code-block-header flex items-center gap-2 rounded-t-md border-border border-b bg-muted px-2 py-1">
-					<span className="pl-2 font-mono text-muted-foreground text-xs">
-						{language}
-					</span>
+					<span className="pl-2 text-muted-foreground text-xs">{language}</span>
 					{lineNumber >= 16 && (
-						<span className="pt-0.5 pl-2 font-mono text-muted-foreground/50 text-xs">
+						<span className="pt-0.5 pl-2 text-muted-foreground/50 text-xs">
 							{lineNumber + 1} lines
 						</span>
 					)}
@@ -168,7 +166,7 @@ export const CodeBlock = memo(
 				<div
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: shiki is safe
 					dangerouslySetInnerHTML={{ __html: highlightedCode }}
-					className="code-block-content pl-2 font-mono text-sm leading-normal"
+					className="code-block-content pl-2 text-sm leading-normal"
 				/>
 
 				{!expanded && lineNumber > 17 && (
@@ -180,7 +178,7 @@ export const CodeBlock = memo(
 				className={cn(
 					className,
 					"not-prose",
-					"font-medium font-mono text-sm leading-normal",
+					"font-medium text-sm leading-normal",
 					"border border-primary/40 bg-primary/20",
 					"p-0.15 sm:p-0.5",
 					"text-foreground",

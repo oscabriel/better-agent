@@ -13,8 +13,8 @@ export const BUILT_IN_MCP_SERVERS: MCPServerConfig[] = [
 	{
 		id: "cloudflare-docs",
 		name: "Cloudflare",
-		url: "https://docs.mcp.cloudflare.com/sse",
-		type: "sse",
+		url: "https://docs.mcp.cloudflare.com/mcp",
+		type: "http",
 		description: "Complete Cloudflare platform documentation and guides.",
 		headers: {},
 		isBuiltIn: true,

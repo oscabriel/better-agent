@@ -50,7 +50,7 @@ export function McpServerRow({
 				<p className="text-muted-foreground text-sm">{server.description}</p>
 
 				<div className="flex items-center gap-2 text-muted-foreground text-xs">
-					<span className="font-mono">{server.url}</span>
+					<span>{server.url}</span>
 				</div>
 			</div>
 

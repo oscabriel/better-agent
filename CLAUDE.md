@@ -345,4 +345,3 @@ Each feature follows the functional pattern: routes.ts (thin API), handlers.ts (
 - **Auth client:** `apps/web/src/lib/auth-client.ts`
 - **Routes:** `apps/web/src/routes/`
 - **Components:** `apps/web/src/components/` and `apps/web/src/routes/[route]/-components/`
-- Always be extremely concise. Sacrifice grammar in favor of concision.

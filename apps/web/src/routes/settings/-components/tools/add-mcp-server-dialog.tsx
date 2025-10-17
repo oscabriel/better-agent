@@ -159,7 +159,7 @@ export function AddMcpServerDialog({
 												key={key}
 												className="flex items-center justify-between rounded bg-muted px-2 py-1 text-sm"
 											>
-												<span className="font-mono">
+												<span>
 													{key}: {value}
 												</span>
 												<Button
