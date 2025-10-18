@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { QuotaExceededError } from "@/server/features/usage/types";
 import { requireUserDO, UnauthorizedError } from "@/server/lib/auth-guards";
-import { streamCompletion } from "./handlers";
+import { streamCompletion } from "./completion";
 
 const aiRequestSchema = z.object({
 	messages: z.array(z.any()),

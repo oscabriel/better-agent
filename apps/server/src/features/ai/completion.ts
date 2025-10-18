@@ -10,10 +10,7 @@ import {
 } from "ai";
 import type { UserDurableObject } from "@/server/db/do/user-durable-object";
 import { createUserProviderRegistry } from "@/server/features/models/user-registry-factory";
-import {
-	getModelDefinition,
-	resolveModelProvider,
-} from "@/server/features/models/utils";
+import { resolveModelProvider } from "@/server/features/models/utils";
 import { getUserSettings } from "@/server/features/settings/queries";
 import { BUILT_IN_MCP_SERVERS } from "@/server/features/tools/mcp/catalog";
 import {
@@ -73,8 +70,6 @@ export async function streamCompletion(
 				? "medium"
 				: userSettings.reasoningEffort,
 	});
-
-	const _modelDefinition = getModelDefinition(modelId);
 
 	const customServers = await getCustomMcpServers(userId);
 	const enabledBuiltInIds = userSettings.enabledMcpServers || [];
