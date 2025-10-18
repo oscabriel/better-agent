@@ -10,7 +10,7 @@ import { appRouter } from "./lib/router";
 
 export { UserDurableObject } from "./db/do/user-durable-object";
 
-const app = new Hono().basePath("/api");
+const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
 const rpcHandler = new RPCHandler(appRouter);
 
