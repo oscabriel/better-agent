@@ -70,8 +70,8 @@ export const server = await Worker("server", {
 		RESEND_API_KEY: alchemy.secret.env.RESEND_API_KEY,
 		GOOGLE_CLIENT_ID: alchemy.secret.env.GOOGLE_CLIENT_ID,
 		GOOGLE_CLIENT_SECRET: alchemy.secret.env.GOOGLE_CLIENT_SECRET,
-		GITHUB_CLIENT_ID: alchemy.secret.env.GITHUB_CLIENT_ID,
-		GITHUB_CLIENT_SECRET: alchemy.secret.env.GITHUB_CLIENT_SECRET,
+		GH_CLIENT_ID: alchemy.secret.env.GH_CLIENT_ID,
+		GH_CLIENT_SECRET: alchemy.secret.env.GH_CLIENT_SECRET,
 		API_ENCRYPTION_KEY: alchemy.secret.env.API_ENCRYPTION_KEY,
 		OPENAI_API_KEY: alchemy.secret.env.OPENAI_API_KEY,
 		GOOGLE_GENERATIVE_AI_API_KEY:

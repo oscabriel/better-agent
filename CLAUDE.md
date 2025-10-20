@@ -241,7 +241,7 @@ See `.env.example` files in root and app directories. Key variables:
 - **Auth:** `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `CORS_ORIGIN`
 - **API encryption:** `API_ENCRYPTION_KEY` (for BYOK storage in DO)
 - **Email:** `RESEND_API_KEY` (production only)
-- **Social auth:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- **Social auth:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GH_CLIENT_ID`, `GH_CLIENT_SECRET`
 - **AI providers:** `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GROQ_API_KEY`
 - **Alchemy:** `VITE_SERVER_URL`, `VITE_WEB_URL`, `CUSTOM_WEB_DOMAIN`, `API_ROUTE_PATTERN`
 
