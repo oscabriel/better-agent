@@ -6,9 +6,12 @@ import {
 	Vite,
 	Worker,
 } from "alchemy/cloudflare";
+import { CloudflareStateStore } from "alchemy/state";
 import { config } from "dotenv";
 
-const app = await alchemy("better-chat");
+const app = await alchemy("better-chat", {
+	stateStore: (scope) => new CloudflareStateStore(scope),
+});
 
 const stage = app.stage;
 
@@ -17,14 +20,15 @@ config({ path: `./apps/web/.env.${stage}` });
 config({ path: `./apps/server/.env.${stage}` });
 
 const db = await D1Database("database", {
-	name: `${app.name}-db`,
+	name: `${app.name}-${stage}-db`,
 	migrationsDir: "apps/server/src/db/d1/migrations",
 	adopt: true,
 	readReplication: { mode: "auto" },
 });
 
 const sessions = await KVNamespace("sessions", {
-	title: `${app.name}-user-sessions`,
+	title: `${app.name}-${stage}-user-sessions`,
+	adopt: true,
 });
 
 const userDO = DurableObjectNamespace("user-do", {
@@ -34,8 +38,9 @@ const userDO = DurableObjectNamespace("user-do", {
 
 export const web = await Vite("web", {
 	cwd: "apps/web",
-	name: `${app.name}-site`,
+	name: `${app.name}-${stage}-web`,
 	assets: "dist",
+	adopt: true,
 	bindings: {
 		VITE_SERVER_URL: alchemy.env.VITE_SERVER_URL,
 		VITE_WEB_URL: alchemy.env.VITE_WEB_URL,
@@ -48,9 +53,10 @@ export const web = await Vite("web", {
 
 export const server = await Worker("server", {
 	cwd: "apps/server",
-	name: `${app.name}-api`,
+	name: `${app.name}-${stage}-api`,
 	entrypoint: "src/index.ts",
 	compatibility: "node",
+	adopt: true,
 	bundle: {
 		loader: {
 			".sql": "text",
@@ -83,8 +89,8 @@ export const server = await Worker("server", {
 	},
 });
 
-if (stage === "prod") {
-	console.log("\nDeployed via Alchemy:");
+if (stage === "prod" || stage === "staging") {
+	console.log(`\nDeployed to ${stage} via Alchemy:`);
 	console.log(`  Web    -> https://${alchemy.env.CUSTOM_WEB_DOMAIN}`);
 	console.log(`  Server -> https://${alchemy.env.API_ROUTE_PATTERN}`);
 }
