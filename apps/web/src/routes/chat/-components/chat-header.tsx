@@ -22,7 +22,6 @@ export function ChatHeader({ title, onDelete, isDeleting }: ChatHeaderProps) {
 						disabled={isDeleting}
 					>
 						<Trash2 className="size-4" />
-						Delete
 					</Button>
 				</div>
 			</div>
