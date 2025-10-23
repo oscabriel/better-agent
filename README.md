@@ -196,6 +196,52 @@ bun a:deploy
 bun a:destroy
 ```
 
+## CI/CD
+
+Automated deployment via GitHub Actions on push to `main` or `staging` branches.
+
+### Branch-Based Deployment
+
+- **main** → production environment (`prod` stage)
+- **staging** → staging environment (`staging` stage)
+
+### Required GitHub Configuration
+
+**Environment Variables** (Settings → Secrets and variables → Actions → Variables):
+- `VITE_SERVER_URL` - Server URL (e.g., `https://chat.oscargabriel.dev`)
+- `VITE_WEB_URL` - Web app URL (e.g., `https://chat.oscargabriel.dev`)
+- `CUSTOM_WEB_DOMAIN` - Custom domain (e.g., `chat.oscargabriel.dev`)
+- `CORS_ORIGIN` - CORS origin (e.g., `https://chat.oscargabriel.dev`)
+- `BETTER_AUTH_URL` - Auth URL (e.g., `https://chat.oscargabriel.dev`)
+- `API_ROUTE_PATTERN` - API route pattern (e.g., `chat.oscargabriel.dev/api/*`)
+
+**Secrets** (Settings → Secrets and variables → Actions → Secrets):
+- `ALCHEMY_PASSWORD` - Alchemy state encryption password
+- `ALCHEMY_STATE_TOKEN` - Alchemy state token
+- `CLOUDFLARE_API_TOKEN` - Cloudflare API token
+- `CLOUDFLARE_EMAIL` - Cloudflare account email
+- `BETTER_AUTH_SECRET` - Better Auth secret key
+- `API_ENCRYPTION_KEY` - User API key encryption key
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+- `GH_CLIENT_ID` - GitHub OAuth client ID
+- `GH_CLIENT_SECRET` - GitHub OAuth client secret
+- `RESEND_API_KEY` - Resend email API key
+- `OPENAI_API_KEY` - OpenAI API key (for free models)
+- `GOOGLE_GENERATIVE_AI_API_KEY` - Google AI API key (for free models)
+
+**Environment Setup** (Settings → Environments):
+- Create `production` environment
+- Create `staging` environment (if using staging branch)
+
+### Workflow Details
+
+`.github/workflows/deploy.yml`:
+1. Triggers on push to `main` or `staging`
+2. Creates stage-specific `.env` files from GitHub vars/secrets
+3. Deploys via Alchemy CLI to Cloudflare
+4. Prevents concurrent deployments with concurrency groups
+
 ## Environment Setup
 
 Create stage-specific environment files:
