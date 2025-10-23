@@ -13,7 +13,6 @@ const app = await alchemy("better-chat", {
 	stateStore: (scope) =>
 		new CloudflareStateStore(scope, {
 			stateToken: alchemy.secret.env.ALCHEMY_STATE_TOKEN,
-			forceUpdate: true,
 		}),
 });
 
