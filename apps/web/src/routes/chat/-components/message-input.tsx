@@ -53,7 +53,7 @@ export const MessageInput = memo(
 
 		useEffect(() => {
 			adjustHeight(textareaRef.current);
-		}, [adjustHeight]);
+		}, [input, adjustHeight]);
 
 		const handleSend = () => {
 			if (!input.trim() || disabled) return;
