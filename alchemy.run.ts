@@ -10,7 +10,10 @@ import { CloudflareStateStore } from "alchemy/state";
 import { config } from "dotenv";
 
 const app = await alchemy("better-chat", {
-	stateStore: (scope) => new CloudflareStateStore(scope),
+	stateStore: (scope) =>
+		new CloudflareStateStore(scope, {
+			stateToken: alchemy.secret.env.ALCHEMY_STATE_TOKEN,
+		}),
 });
 
 const stage = app.stage;
