@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import type { Auth } from "better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins";
@@ -8,7 +9,7 @@ import * as schema from "@/server/db/d1/schema/auth";
 import { EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME } from "./constants";
 import { renderVerificationCodeEmail } from "./email";
 
-export const auth = betterAuth({
+export const auth: Auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "sqlite",
 		schema: schema,
