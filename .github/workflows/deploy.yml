@@ -30,6 +30,34 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Create environment files
+        run: |
+          cat > .env.${{ env.STAGE }} << EOF
+          ALCHEMY_STAGE=${{ env.STAGE }}
+          ALCHEMY_PASSWORD=${{ secrets.ALCHEMY_PASSWORD }}
+          EOF
+
+          cat > apps/web/.env.${{ env.STAGE }} << EOF
+          VITE_SERVER_URL=${{ vars.VITE_SERVER_URL }}
+          VITE_WEB_URL=${{ vars.VITE_WEB_URL }}
+          CUSTOM_WEB_DOMAIN=${{ vars.CUSTOM_WEB_DOMAIN }}
+          EOF
+
+          cat > apps/server/.env.${{ env.STAGE }} << EOF
+          CORS_ORIGIN=${{ vars.CORS_ORIGIN }}
+          BETTER_AUTH_URL=${{ vars.BETTER_AUTH_URL }}
+          BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GH_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}
+          GH_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}
+          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          API_ENCRYPTION_KEY=${{ secrets.API_ENCRYPTION_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY=${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          API_ROUTE_PATTERN=${{ vars.API_ROUTE_PATTERN }}
+          EOF
+
       - name: Deploy
         run: bun alchemy deploy --stage ${{ env.STAGE }}
         env:
