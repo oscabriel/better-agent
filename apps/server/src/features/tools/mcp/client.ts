@@ -1,8 +1,8 @@
+import { experimental_createMCPClient } from "@ai-sdk/mcp";
 import {
 	StreamableHTTPClientTransport,
 	type StreamableHTTPClientTransportOptions,
 } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { experimental_createMCPClient as createMCPClient } from "ai";
 import type { MCPServerConfig } from "./types";
 
 function normalizeSchema(schema: unknown): unknown {
@@ -112,7 +112,7 @@ export async function createMCPClients(serverConfigs: MCPServerConfig[]) {
 	const clients = new Map<
 		string,
 		{
-			client: Awaited<ReturnType<typeof createMCPClient>>;
+			client: Awaited<ReturnType<typeof experimental_createMCPClient>>;
 			config: MCPServerConfig;
 		}
 	>();
@@ -147,7 +147,16 @@ export async function createMCPClients(serverConfigs: MCPServerConfig[]) {
 				};
 			}
 
-			const client = await createMCPClient({ transport });
+			const client = await experimental_createMCPClient({
+				transport,
+				name: `mcp-${serverConfig.id}`,
+				onUncaughtError: (error) => {
+					console.error(
+						`Uncaught error in MCP client ${serverConfig.name}:`,
+						error,
+					);
+				},
+			});
 			clients.set(serverConfig.id, { client, config: serverConfig });
 		} catch (error) {
 			console.error(
@@ -164,48 +173,56 @@ export async function getMCPTools(serverConfigs: MCPServerConfig[]) {
 	const clients = await createMCPClients(serverConfigs);
 	const allTools: Record<string, unknown> = {};
 
-	for (const [serverId, { client, config }] of clients) {
-		try {
-			let tools: Record<string, unknown>;
-			if (config.schemas) {
-				tools = await client.tools({ schemas: config.schemas });
-			} else {
-				tools = await client.tools();
-			}
-
-			const prefixedTools: Record<string, unknown> = {};
-			for (const [toolName, tool] of Object.entries(tools)) {
-				if (typeof tool === "object" && tool !== null) {
-					const toolObj = tool as Record<string, unknown>;
-					// MCP uses 'inputSchema', AI SDK uses 'parameters'
-					const schemaKey = toolObj.inputSchema ? "inputSchema" : "parameters";
-					const normalizedTool = {
-						...toolObj,
-						[schemaKey]: normalizeSchema(toolObj[schemaKey]),
-					};
-					prefixedTools[`${serverId}_${toolName}`] = normalizedTool;
+	try {
+		for (const [serverId, { client, config }] of clients) {
+			try {
+				let tools: Record<string, unknown>;
+				if (config.schemas) {
+					tools = await client.tools({ schemas: config.schemas });
 				} else {
-					prefixedTools[`${serverId}_${toolName}`] = tool;
+					tools = await client.tools();
 				}
+
+				const prefixedTools: Record<string, unknown> = {};
+				for (const [toolName, tool] of Object.entries(tools)) {
+					if (typeof tool === "object" && tool !== null) {
+						const toolObj = tool as Record<string, unknown>;
+						// MCP uses 'inputSchema', AI SDK uses 'parameters'
+						const schemaKey = toolObj.inputSchema
+							? "inputSchema"
+							: "parameters";
+						const normalizedTool = {
+							...toolObj,
+							[schemaKey]: normalizeSchema(toolObj[schemaKey]),
+						};
+						prefixedTools[`${serverId}_${toolName}`] = normalizedTool;
+					} else {
+						prefixedTools[`${serverId}_${toolName}`] = tool;
+					}
+				}
+
+				Object.assign(allTools, prefixedTools);
+			} catch (error) {
+				console.error(
+					`Failed to load tools from MCP server ${config.name}:`,
+					error,
+				);
 			}
-
-			Object.assign(allTools, prefixedTools);
-		} catch (error) {
-			console.error(
-				`Failed to load tools from MCP server ${config.name}:`,
-				error,
-			);
 		}
-	}
 
-	return { tools: allTools, clients };
+		return { tools: allTools, clients };
+	} catch (error) {
+		// If there's a critical error, cleanup all clients before rethrowing
+		await closeMCPClients(clients);
+		throw error;
+	}
 }
 
 export async function closeMCPClients(
 	clients: Map<
 		string,
 		{
-			client: Awaited<ReturnType<typeof createMCPClient>>;
+			client: Awaited<ReturnType<typeof experimental_createMCPClient>>;
 			config: MCPServerConfig;
 		}
 	>,
