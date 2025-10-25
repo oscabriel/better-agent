@@ -21,7 +21,7 @@ export function Response({ children, className, ...props }: ResponseProps) {
 	return (
 		<div
 			className={cn(
-				"markdown-response w-full min-w-0 break-words",
+				"markdown-response wrap-break-word w-full min-w-0",
 				"space-y-4",
 				"[&_pre]:max-w-full [&_pre]:overflow-x-auto",
 				"[&_pre_code]:break-normal",

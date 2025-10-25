@@ -9,7 +9,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ title, onDelete, isDeleting }: ChatHeaderProps) {
 	return (
-		<div className="flex-shrink-0 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
+		<div className="shrink-0 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/60 sm:px-6">
 			<div className="flex items-center justify-between">
 				<div className="flex-1 truncate">
 					<h1 className="font-semibold text-lg">{title}</h1>

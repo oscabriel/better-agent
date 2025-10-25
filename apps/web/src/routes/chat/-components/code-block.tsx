@@ -91,20 +91,20 @@ export const CodeBlock = memo(
 							{lineNumber + 1} lines
 						</span>
 					)}
-					<div className="flex-grow" />
+					<div className="grow" />
 					{lineNumber >= 16 && !disable?.expand && (
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
 									variant="ghost"
 									size="icon"
-									className="size-[1.5rem] text-muted-foreground"
+									className="size-6 text-muted-foreground"
 									onClick={() => setExpanded((t) => !t)}
 								>
 									{expanded ? (
-										<ChevronUp className="!size-4" />
+										<ChevronUp className="size-4" />
 									) : (
-										<ChevronDown className="!size-4" />
+										<ChevronDown className="size-4" />
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -119,13 +119,13 @@ export const CodeBlock = memo(
 								<Button
 									variant="ghost"
 									size="icon"
-									className="size-[1.5rem] text-muted-foreground"
+									className="size-6 text-muted-foreground"
 									onClick={() => setWrapped((t) => !t)}
 								>
 									{wrapped ? (
-										<WrapText className="!size-4" />
+										<WrapText className="size-4" />
 									) : (
-										<AlignLeft className="!size-4" />
+										<AlignLeft className="size-4" />
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -140,7 +140,7 @@ export const CodeBlock = memo(
 								<Button
 									variant="ghost"
 									size="icon"
-									className="size-[1.5rem] text-muted-foreground"
+									className="size-6 text-muted-foreground"
 									onClick={() => {
 										copyToClipboard(codeString);
 										setDidRecentlyCopied(true);
@@ -170,7 +170,7 @@ export const CodeBlock = memo(
 				/>
 
 				{!expanded && lineNumber > 17 && (
-					<div className="absolute right-0 bottom-0 left-0 h-16 rounded-b-md bg-gradient-to-t from-sidebar via-sidebar/80 to-transparent" />
+					<div className="absolute right-0 bottom-0 left-0 h-16 rounded-b-md bg-linear-to-t from-sidebar via-sidebar/80 to-transparent" />
 				)}
 			</div>
 		) : (

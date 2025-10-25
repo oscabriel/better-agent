@@ -57,7 +57,7 @@ function GuestLanding() {
 						type="submit"
 						size="lg"
 						disabled={!isReady}
-						className="flex size-11 flex-shrink-0 items-center justify-center rounded-md bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/60 disabled:opacity-70 sm:size-12 md:size-14"
+						className="flex size-11 shrink-0 items-center justify-center rounded-md bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/60 disabled:opacity-70 sm:size-12 md:size-14"
 					>
 						<Send className="size-5 sm:size-6 md:size-7" />
 					</Button>

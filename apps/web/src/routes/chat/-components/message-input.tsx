@@ -88,7 +88,7 @@ export const MessageInput = memo(
 						}}
 						onKeyDown={handleKeyPress}
 						disabled={disabled}
-						className="h-[2.25rem] min-h-0 flex-1 resize-none overflow-hidden px-3 py-1.5"
+						className="h-9 min-h-0 flex-1 resize-none overflow-hidden px-3 py-1.5"
 						rows={1}
 						autoComplete="off"
 						autoFocus
@@ -96,7 +96,7 @@ export const MessageInput = memo(
 					<Button
 						disabled={!input.trim() || disabled}
 						size="icon"
-						className="flex-shrink-0"
+						className="shrink-0"
 						type="submit"
 					>
 						<Send className="size-4" />
