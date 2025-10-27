@@ -2,7 +2,7 @@ import {
 	createFileRoute,
 	Link,
 	Outlet,
-	useNavigate,
+	redirect,
 	useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +27,11 @@ export const Route = createFileRoute("/settings")({
 			auth: opts.context.auth,
 			location: opts.location,
 		});
+
+		const pathname = opts.location.pathname ?? "";
+		if (pathname === "/settings" || pathname === "/settings/") {
+			throw redirect({ to: "/settings/profile", replace: true });
+		}
 	},
 	errorComponent: SettingsError,
 	component: SettingsLayout,
@@ -34,14 +39,12 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsLayout() {
-	const navigate = useNavigate();
 	const location = useRouterState({ select: (state) => state.location });
 	const isMobile = useIsMobile();
 	const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
 	const activePath = location.pathname ?? "";
 
-	// Use shared settings hook
 	const settingsQuery = useUserSettings();
 
 	const navigationItems = useMemo(() => {
@@ -51,13 +54,6 @@ function SettingsLayout() {
 			return { ...item, isActive };
 		});
 	}, [activePath]);
-
-	useEffect(() => {
-		const pathname = location.pathname ?? "";
-		if (pathname === "/settings" || pathname === "/settings/") {
-			void navigate({ to: "/settings/profile", replace: true });
-		}
-	}, [location.pathname, navigate]);
 
 	useEffect(() => {
 		const handler = () => setMobileSidebarOpen(true);

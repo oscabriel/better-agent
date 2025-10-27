@@ -30,7 +30,6 @@ export const Route = createFileRoute("/auth/sign-in")({
 		const redirectValue = sanitizeRedirect(
 			search.redirect as string | undefined,
 		);
-		// Only include redirect in search if it's not the default
 		if (redirectValue === FALLBACK_REDIRECT) {
 			return {};
 		}

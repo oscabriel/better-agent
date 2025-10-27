@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { DocumentSkeleton } from "@/web/components/skeletons/document-skeleton";
 import { TECH_STACK_SECTIONS } from "@/web/lib/constants";
 
 const subtleLinkClass =
@@ -20,6 +21,7 @@ function TechLink({ href, children }: TechLinkProps) {
 
 export const Route = createFileRoute("/docs")({
 	component: DocsRoute,
+	pendingComponent: DocumentSkeleton,
 });
 
 function DocsRoute() {

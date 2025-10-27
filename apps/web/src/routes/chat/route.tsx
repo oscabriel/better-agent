@@ -10,9 +10,7 @@ export const Route = createFileRoute("/chat")({
 			location: opts.location,
 		});
 
-		// Normalize /chat/ (trailing slash) to /chat
-		const pathname = opts.location.pathname ?? "";
-		if (pathname === "/chat/") {
+		if (opts.location.pathname === "/chat/") {
 			throw redirect({ to: "/chat", replace: true });
 		}
 	},

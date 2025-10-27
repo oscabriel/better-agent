@@ -12,6 +12,10 @@ export function redirectIfAuthenticated({
 	to,
 	replace,
 }: RedirectIfAuthenticatedOptions) {
+	if (auth.isPending) {
+		return;
+	}
+
 	if (auth.isAuthenticated) {
 		throw redirect({
 			to,
@@ -35,6 +39,10 @@ export function requireAuthenticated({
 	redirectOverride,
 	replace,
 }: RequireAuthenticatedOptions) {
+	if (auth.isPending) {
+		return;
+	}
+
 	if (!auth.isAuthenticated) {
 		const redirectTarget =
 			redirectOverride ?? location.href ?? location.pathname ?? "/";
