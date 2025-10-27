@@ -1,5 +1,4 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useAuth } from "@/web/lib/auth-context";
+import { createFileRoute } from "@tanstack/react-router";
 import { redirectIfAuthenticated } from "@/web/lib/route-guards";
 import { SignInShellSkeleton } from "@/web/routes/auth/-components/sign-in-skeleton";
 import { SignInForm } from "./-components/sign-in-form";
@@ -11,10 +10,10 @@ interface SignInSearch {
 const FALLBACK_REDIRECT = "/chat";
 
 export const Route = createFileRoute("/auth/sign-in")({
-	beforeLoad: async (opts) => {
+	beforeLoad: (opts) => {
 		const search = opts.search as SignInSearch | undefined;
 		const redirectPath = sanitizeRedirect(search?.redirect);
-		await redirectIfAuthenticated({
+		redirectIfAuthenticated({
 			auth: opts.context.auth,
 			to: redirectPath,
 		});
@@ -42,12 +41,6 @@ function sanitizeRedirect(rawRedirect: string | undefined) {
 function SignInRoute() {
 	const search = Route.useSearch() as SignInSearch;
 	const redirectPath = sanitizeRedirect(search.redirect);
-	const auth = useAuth();
-
-	// Runtime session guard - redirect away if already authenticated
-	if (auth.session?.user) {
-		return <Navigate to={redirectPath} replace />;
-	}
 
 	return (
 		<div className="container mx-auto w-full min-w-0 max-w-[90vw] px-3 py-2 sm:max-w-2xl sm:px-4 md:max-w-3xl">

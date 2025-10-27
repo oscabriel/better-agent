@@ -1,9 +1,19 @@
+import { LogOutIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/web/components/ui/button";
 import { authClient } from "@/web/lib/auth-client";
 
-export function SignOutButton() {
+interface SignOutButtonProps {
+	className?: string;
+	variant?: "ghost" | "outline";
+	redirectTo?: string;
+}
+
+export function SignOutButton({
+	className,
+	variant = "ghost",
+	redirectTo = "/",
+}: SignOutButtonProps) {
 	const [isPending, setIsPending] = useState(false);
 
 	const handleSignOut = async () => {
@@ -11,11 +21,10 @@ export function SignOutButton() {
 		await authClient.signOut({
 			fetchOptions: {
 				onSuccess: () => {
-					toast.success("Signed out successfully");
-					window.location.href = "/auth/sign-in";
+					window.location.href = redirectTo;
 				},
 				onError: () => {
-					toast.error("Failed to sign out");
+					console.error("Failed to sign out");
 					setIsPending(false);
 				},
 			},
@@ -24,11 +33,12 @@ export function SignOutButton() {
 
 	return (
 		<Button
-			variant="outline"
+			variant={variant}
 			onClick={handleSignOut}
 			disabled={isPending}
-			className="flex w-full items-center justify-center space-x-2 text-sm sm:w-auto"
+			className={className}
 		>
+			<LogOutIcon className="mr-2 size-4" />
 			{isPending ? "Signing out..." : "Sign Out"}
 		</Button>
 	);

@@ -1,7 +1,6 @@
 import {
 	createLazyFileRoute,
 	Link,
-	Navigate,
 	Outlet,
 	useNavigate,
 	useRouterState,
@@ -17,7 +16,6 @@ import {
 } from "@/web/components/ui/sheet";
 import { useIsMobile } from "@/web/hooks/use-mobile";
 import { useUserSettings } from "@/web/hooks/use-user-settings";
-import { useAuth } from "@/web/lib/auth-context";
 import { SETTINGS_NAV_ITEMS } from "@/web/lib/constants";
 import { cn } from "@/web/utils/cn";
 
@@ -29,7 +27,6 @@ export const Route = createLazyFileRoute("/settings")({
 function SettingsLayout() {
 	const navigate = useNavigate();
 	const location = useRouterState({ select: (state) => state.location });
-	const auth = useAuth();
 	const isMobile = useIsMobile();
 	const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -71,17 +68,6 @@ function SettingsLayout() {
 			setMobileSidebarOpen(false);
 		}
 	}, [isMobile]);
-
-	// Runtime session guard - handles session expiry/sign-out during use
-	if (!auth.session?.user) {
-		return (
-			<Navigate
-				to="/"
-				replace
-				search={{ redirect: location.href ?? location.pathname ?? "/settings" }}
-			/>
-		);
-	}
 
 	const renderNavigation = (onNavigate?: () => void) => (
 		<div className="space-y-2">

@@ -402,7 +402,7 @@ export function ChatSettingsDialog({
 															{server.description}
 														</p>
 													) : null}
-													<p className="text-xs text-muted-foreground">
+													<p className="text-muted-foreground text-xs">
 														{(() => {
 															try {
 																const parsed = new URL(server.url);

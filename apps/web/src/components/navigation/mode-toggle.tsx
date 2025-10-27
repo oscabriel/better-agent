@@ -1,5 +1,3 @@
-"use client";
-
 import { useTheme } from "@/web/components/theme-provider";
 import { Button } from "@/web/components/ui/button";
 

@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
+import { AppShellSkeleton } from "@/web/components/app-skeleton";
 import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/card";
 import {
@@ -14,7 +15,6 @@ import {
 } from "@/web/hooks/use-user-settings";
 import { MAX_MESSAGE_BATCH } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
-import { requireAuthenticated } from "@/web/lib/route-guards";
 import { ChatComposer } from "@/web/routes/chat/-components/chat-composer";
 import { ChatHeader } from "@/web/routes/chat/-components/chat-header";
 import { MessageRenderer } from "@/web/routes/chat/-components/message-renderer";
@@ -25,13 +25,8 @@ import type { ChatMessage, ConversationSummary } from "@/web/types/chat";
 import { broadcastSync } from "@/web/utils/sync";
 
 export const Route = createFileRoute("/chat/$chatId")({
-	beforeLoad: async (opts) => {
-		await requireAuthenticated({
-			auth: opts.context.auth,
-			location: opts.location,
-		});
-	},
 	component: ChatPage,
+	pendingComponent: AppShellSkeleton,
 	loader: async ({ params, context }) => {
 		const { chatId } = params;
 		if (!chatId) return;

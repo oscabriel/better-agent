@@ -1,5 +1,3 @@
-"use client";
-
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -38,6 +36,19 @@ export default function UserMenu() {
 		select: (state) => state.isLoading,
 	});
 
+	const handleSignOut = async () => {
+		await authClient.signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					window.location.href = "/";
+				},
+				onError: () => {
+					console.error("Failed to sign out");
+				},
+			},
+		});
+	};
+
 	const user = useQuery({
 		...orpc.profile.getProfile.queryOptions(),
 		enabled: Boolean(auth.session?.user),
@@ -68,16 +79,6 @@ export default function UserMenu() {
 			</Button>
 		);
 	}
-
-	const handleSignOut = async () => {
-		await authClient.signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					navigate({ to: "/" });
-				},
-			},
-		});
-	};
 
 	const firstName = displayFirstName ?? "User";
 

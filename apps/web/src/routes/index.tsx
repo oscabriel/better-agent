@@ -1,16 +1,15 @@
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Send } from "lucide-react";
 import type { FormEvent } from "react";
 import { useCallback, useState } from "react";
 import { GuestShellSkeleton } from "@/web/components/guest-skeleton";
 import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
-import { useAuth } from "@/web/lib/auth-context";
 import { redirectIfAuthenticated } from "@/web/lib/route-guards";
 
 export const Route = createFileRoute("/")({
-	beforeLoad: async (opts) => {
-		await redirectIfAuthenticated({ auth: opts.context.auth, to: "/chat" });
+	beforeLoad: (opts) => {
+		redirectIfAuthenticated({ auth: opts.context.auth, to: "/chat" });
 	},
 	component: GuestLanding,
 	pendingComponent: GuestShellSkeleton,
@@ -18,7 +17,6 @@ export const Route = createFileRoute("/")({
 
 function GuestLanding() {
 	const navigate = useNavigate();
-	const auth = useAuth();
 	const [message, setMessage] = useState("");
 	const isReady = message.trim().toLowerCase() === "get started";
 
@@ -33,11 +31,6 @@ function GuestLanding() {
 		},
 		[isReady, navigate],
 	);
-
-	// Runtime session guard - redirect away if already authenticated
-	if (auth.session?.user) {
-		return <Navigate to="/chat" replace />;
-	}
 
 	return (
 		<div className="relative flex min-h-screen flex-col justify-center px-4 py-8 sm:px-6">

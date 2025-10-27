@@ -23,7 +23,11 @@ function ProfilePage() {
 				<Separator />
 
 				<div className="flex flex-col space-y-3 sm:flex-row sm:justify-between sm:space-x-3 sm:space-y-0">
-					<SignOutButton />
+					<SignOutButton
+						variant="outline"
+						redirectTo="/auth/sign-in"
+						className="flex w-full items-center justify-center space-x-2 text-sm sm:w-auto"
+					/>
 					<DeleteAccountButton />
 				</div>
 			</CardContent>

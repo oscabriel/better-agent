@@ -28,13 +28,13 @@ export function SignInForm({ redirectPath }: SignInFormProps) {
 	const [email, setEmail] = useState("");
 
 	useEffect(() => {
-		if (auth.session?.user && auth.status === "authenticated") {
+		if (auth.isAuthenticated) {
 			navigate({
 				to: redirectPath,
 				replace: true,
 			});
 		}
-	}, [auth.session?.user, auth.status, navigate, redirectPath]);
+	}, [auth.isAuthenticated, navigate, redirectPath]);
 
 	const sendOtpMutation = useMutation({
 		mutationFn: async (email: string) => {
@@ -246,7 +246,7 @@ export function SignInForm({ redirectPath }: SignInFormProps) {
 											value={field.state.value}
 											onChange={field.handleChange}
 											onBlur={field.handleBlur}
-											disabled={auth.status === "loading"}
+											disabled={auth.isPending}
 											autoComplete="one-time-code"
 											maxLength={SIGN_IN_FORM.OTP_LENGTH}
 											className="w-full"

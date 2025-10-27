@@ -4,6 +4,7 @@ import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { BackgroundLayout } from "@/web/components/background";
 import Header from "@/web/components/navigation/header";
+import { NotFound } from "@/web/components/not-found";
 import { ThemeProvider } from "@/web/components/theme-provider";
 import { Toaster } from "@/web/components/ui/sonner";
 import type { AuthContextValue } from "@/web/lib/auth-context";
@@ -18,6 +19,7 @@ export interface RouterAppContext {
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
 	component: RootComponent,
+	notFoundComponent: NotFound,
 });
 
 function RootComponent() {
