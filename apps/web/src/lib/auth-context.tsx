@@ -1,6 +1,5 @@
 import type { PropsWithChildren } from "react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AppShellSkeleton } from "@/web/components/app-skeleton";
 import { authClient } from "@/web/lib/auth-client";
 
 export type AuthSession = typeof authClient.$Infer.Session;
@@ -37,10 +36,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		console.error("Failed to fetch auth session", error);
 	}
 
-	// Show loading screen only during initial auth load
-	// This ensures beforeLoad can synchronously check auth state on first render
+	// Show empty div during initial auth load to prevent flashing
+	// Route guards now check isPending, so this is purely to avoid content flash
 	if (!hasInitiallyLoaded && isPending) {
-		return <AppShellSkeleton />;
+		return <div />;
 	}
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

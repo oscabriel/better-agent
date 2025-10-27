@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { BackgroundLayout } from "@/web/components/background";
+import { ErrorBoundary } from "@/web/components/error-boundary";
 import Header from "@/web/components/navigation/header";
 import { NotFound } from "@/web/components/not-found";
 import { ThemeProvider } from "@/web/components/theme-provider";
@@ -20,6 +21,7 @@ export interface RouterAppContext {
 export const Route = createRootRouteWithContext<RouterAppContext>()({
 	component: RootComponent,
 	notFoundComponent: NotFound,
+	errorComponent: ErrorBoundary,
 });
 
 function RootComponent() {

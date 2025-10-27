@@ -23,6 +23,18 @@ type ModelUsageEntry = UsageStats["totals"]["models"][string];
 
 export const Route = createFileRoute("/settings/usage")({
 	component: UsageSettings,
+	loader: async ({ context }) => {
+		await Promise.all([
+			context.queryClient.ensureQueryData(
+				context.orpc.models.list.queryOptions({ staleTime: 60_000 * 5 }),
+			),
+			context.queryClient.ensureQueryData(
+				context.orpc.usage.getCurrentSummary.queryOptions({
+					staleTime: 30_000,
+				}),
+			),
+		]);
+	},
 });
 
 function UsageSettings() {

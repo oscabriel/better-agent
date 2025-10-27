@@ -23,6 +23,18 @@ type ModelDefinition = RouterOutputs["models"]["list"][number];
 
 export const Route = createFileRoute("/settings/models")({
 	component: ModelSettings,
+	loader: async ({ context }) => {
+		await Promise.all([
+			context.queryClient.ensureQueryData(
+				context.orpc.models.list.queryOptions({
+					staleTime: 60_000,
+				}),
+			),
+			context.queryClient.ensureQueryData(
+				context.orpc.settings.get.queryOptions(),
+			),
+		]);
+	},
 });
 
 function ModelSettings() {

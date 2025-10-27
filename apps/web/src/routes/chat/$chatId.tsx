@@ -16,6 +16,7 @@ import {
 import { MAX_MESSAGE_BATCH } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
 import { ChatComposer } from "@/web/routes/chat/-components/chat-composer";
+import { ChatError } from "@/web/routes/chat/-components/chat-error";
 import { ChatHeader } from "@/web/routes/chat/-components/chat-header";
 import { MessageRenderer } from "@/web/routes/chat/-components/message-renderer";
 import { useInitializeChatMessages } from "@/web/routes/chat/-hooks/use-initialize-chat-messages";
@@ -27,10 +28,33 @@ import { broadcastSync } from "@/web/utils/sync";
 export const Route = createFileRoute("/chat/$chatId")({
 	component: ChatPage,
 	pendingComponent: AppShellSkeleton,
+	errorComponent: ChatError,
 	loader: async ({ params, context }) => {
 		const { chatId } = params;
 		if (!chatId) return;
 
+		// Check if this is a legitimate conversation
+		const conversationsList = await context.queryClient.ensureQueryData(
+			context.orpc.chat.listConversations.queryOptions(),
+		);
+
+		const conversationExists = conversationsList.items.some(
+			(conv: { id: string }) => conv.id === chatId,
+		);
+
+		// Check if there's a pending message (new chat flow)
+		const hasPendingMessage =
+			typeof window !== "undefined" &&
+			sessionStorage.getItem(`better-chat:pending:${chatId}`) !== null;
+
+		// If conversation doesn't exist and no pending message, it's invalid
+		if (!conversationExists && !hasPendingMessage) {
+			throw new Error(
+				"Conversation not found. This chat may have been deleted or the link is invalid.",
+			);
+		}
+
+		// Load conversation data
 		await Promise.all([
 			context.queryClient.ensureQueryData(
 				context.orpc.chat.listMessages.queryOptions({
