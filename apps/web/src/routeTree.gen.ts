@@ -37,9 +37,7 @@ const SettingsRouteRoute = SettingsRouteRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() =>
-  import('./routes/settings/route.lazy').then((d) => d.Route),
-)
+} as any)
 const ChatRouteRoute = ChatRouteRouteImport.update({
   id: '/chat',
   path: '/chat',
