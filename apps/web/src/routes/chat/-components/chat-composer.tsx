@@ -18,7 +18,7 @@ export function ChatComposer({
 	enabledModels,
 }: ChatComposerProps) {
 	return (
-		<div className="shrink-0 border-t bg-background/95 px-4 py-4 backdrop-blur supports-backdrop-filter:bg-background/60 sm:px-6">
+		<div className="shrink-0 border-t bg-background/60 px-4 py-4 sm:px-6">
 			<div className="w-full">
 				<MessageInput
 					disabled={disabled}

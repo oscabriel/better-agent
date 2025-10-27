@@ -115,7 +115,7 @@ export const useCodeHighlighter = ({
 									"py-3",
 									"relative",
 									"shadow-none",
-									"text-base",
+									"text-sm",
 									"leading-[inherit]",
 									"text-[color:var(--code-foreground)]",
 									!expanded && "max-h-72",
@@ -133,7 +133,7 @@ export const useCodeHighlighter = ({
 									wrapped
 										? "whitespace-pre-wrap break-words"
 										: "whitespace-pre",
-									"text-base",
+									"text-sm",
 									"leading-[inherit]",
 									"text-[color:var(--code-foreground)]",
 								);
@@ -146,7 +146,7 @@ export const useCodeHighlighter = ({
 				console.error("Error highlighting code", error);
 				if (!cancelled) {
 					setHighlightedCode(
-						`<pre class="px-4 py-3 whitespace-pre text-base leading-[inherit] text-(--code-foreground)"><code class="text-base leading-[inherit]">${codeString}</code></pre>`,
+						`<pre class="px-4 py-3 whitespace-pre text-sm leading-[inherit] text-(--code-foreground)"><code class="text-sm leading-[inherit]">${codeString}</code></pre>`,
 					);
 				}
 			} finally {

@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ModeToggle } from "@/web/components/navigation/mode-toggle";
-import { Button } from "@/web/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -84,10 +83,14 @@ function AppearanceSettings() {
 					{chatWidthOptions.map((option) => {
 						const isActive = chatWidth === option.id;
 						return (
-							<Button
+							<button
 								key={option.id}
-								variant={isActive ? "secondary" : "ghost"}
-								className="flex h-auto w-full flex-col items-start gap-1 px-4 py-3 text-left"
+								type="button"
+								className={`flex w-full cursor-pointer flex-col gap-2 p-4 text-left ${
+									isActive
+										? "border bg-background/60 hover:bg-background/80"
+										: "hover:border hover:bg-muted/50"
+								}`}
 								onClick={() => handleChatWidthChange(option.id)}
 								disabled={updateChatWidthMutation.isPending}
 							>
@@ -95,7 +98,7 @@ function AppearanceSettings() {
 								<span className="text-muted-foreground text-xs">
 									{option.description}
 								</span>
-							</Button>
+							</button>
 						);
 					})}
 				</CardContent>
