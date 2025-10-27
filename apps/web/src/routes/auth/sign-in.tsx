@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SignInShellSkeleton } from "@/web/components/sign-in-skeleton";
+import { SignInShellSkeleton } from "@/web/components/skeletons/sign-in-skeleton";
 import { redirectIfAuthenticated } from "@/web/lib/route-guards";
 import { SignInForm } from "./-components/sign-in-form";
 

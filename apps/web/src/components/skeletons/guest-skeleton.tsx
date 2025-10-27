@@ -1,6 +1,6 @@
 import { Send } from "lucide-react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { Button } from "@/web/components/ui/button";
+import { Input } from "@/web/components/ui/input";
 
 export function GuestShellSkeleton() {
 	return (

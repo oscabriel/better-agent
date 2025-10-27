@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Send } from "lucide-react";
 import type { FormEvent } from "react";
 import { useCallback, useState } from "react";
-import { GuestShellSkeleton } from "@/web/components/guest-skeleton";
+import { GuestShellSkeleton } from "@/web/components/skeletons/guest-skeleton";
 import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
 import { redirectIfAuthenticated } from "@/web/lib/route-guards";

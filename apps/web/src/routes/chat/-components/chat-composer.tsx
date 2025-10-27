@@ -1,4 +1,4 @@
-import { MessageInput } from "@/web/routes/chat/-components/message-input";
+import { MessageInput } from "./message-input";
 
 interface ChatComposerProps {
 	disabled: boolean;

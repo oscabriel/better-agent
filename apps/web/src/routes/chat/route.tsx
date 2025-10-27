@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { AppShellSkeleton } from "@/web/components/app-skeleton";
+import { AppShellSkeleton } from "@/web/components/skeletons/app-skeleton";
 import { requireAuthenticated } from "@/web/lib/route-guards";
-import { ChatShell } from "@/web/routes/chat/-components/chat-shell";
+import { ChatShell } from "./-components/chat-shell";
 
 export const Route = createFileRoute("/chat")({
 	beforeLoad: (opts) => {

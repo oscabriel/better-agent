@@ -6,7 +6,7 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AppShellSkeleton } from "@/web/components/app-skeleton";
+import { AppShellSkeleton } from "@/web/components/skeletons/app-skeleton";
 import {
 	Sheet,
 	SheetContent,

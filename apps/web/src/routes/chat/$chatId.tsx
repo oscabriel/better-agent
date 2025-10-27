@@ -6,7 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStickToBottom } from "use-stick-to-bottom";
-import { AppShellSkeleton } from "@/web/components/app-skeleton";
+import { ChatPageSkeleton } from "@/web/components/skeletons/chat-skeleton";
 import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/card";
 import {
@@ -15,19 +15,19 @@ import {
 } from "@/web/hooks/use-user-settings";
 import { MAX_MESSAGE_BATCH } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
-import { ChatComposer } from "@/web/routes/chat/-components/chat-composer";
-import { ChatError } from "@/web/routes/chat/-components/chat-error";
-import { ChatHeader } from "@/web/routes/chat/-components/chat-header";
-import { MessageRenderer } from "@/web/routes/chat/-components/message-renderer";
-import { useInitializeChatMessages } from "@/web/routes/chat/-hooks/use-initialize-chat-messages";
-import { usePendingConversationMessage } from "@/web/routes/chat/-hooks/use-pending-conversation-message";
-import { useStreamingIndicator } from "@/web/routes/chat/-hooks/use-streaming-indicator";
 import type { ChatMessage, ConversationSummary } from "@/web/types/chat";
 import { broadcastSync } from "@/web/utils/sync";
+import { ChatComposer } from "./-components/chat-composer";
+import { ChatError } from "./-components/chat-error";
+import { ChatHeader } from "./-components/chat-header";
+import { MessageRenderer } from "./-components/message-renderer";
+import { useInitializeChatMessages } from "./-hooks/use-initialize-chat-messages";
+import { usePendingConversationMessage } from "./-hooks/use-pending-conversation-message";
+import { useStreamingIndicator } from "./-hooks/use-streaming-indicator";
 
 export const Route = createFileRoute("/chat/$chatId")({
 	component: ChatPage,
-	pendingComponent: AppShellSkeleton,
+	pendingComponent: ChatPageSkeleton,
 	errorComponent: ChatError,
 	loader: async ({ params, context }) => {
 		const { chatId } = params;
