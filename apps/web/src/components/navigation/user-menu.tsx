@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
 	BookText,
+	Github,
 	Loader2,
 	LogOutIcon,
 	SettingsIcon,
@@ -20,7 +21,6 @@ import { authClient } from "@/web/lib/auth-client";
 import { useAuth } from "@/web/lib/auth-context";
 import { SITE_GITHUB } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
-import { GitHubIcon } from "@/web/routes/auth/-components/social-sign-in-icons";
 
 const getFirstName = (
 	user: { name?: string | null; email?: string | null } | null | undefined,
@@ -111,14 +111,14 @@ export default function UserMenu() {
 					<BookText className="size-4" />
 					<span>Docs</span>
 				</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => window.open(SITE_GITHUB, "_blank")}>
-					<GitHubIcon className="size-4" />
-					<span>Source</span>
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
 				<DropdownMenuItem onClick={() => navigate({ to: "/privacy" })}>
 					<UserLock className="size-4" />
 					<span>Privacy Policy</span>
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem onClick={() => window.open(SITE_GITHUB, "_blank")}>
+					<Github className="size-4" />
+					<span>Source</span>
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem onClick={handleSignOut}>

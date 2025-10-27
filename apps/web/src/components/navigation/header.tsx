@@ -35,7 +35,7 @@ export default function Header() {
 			<header className="fixed top-0 z-50 w-full bg-background/80 px-4 backdrop-blur-sm">
 				<nav
 					className={cn(
-						"mx-auto flex items-center justify-between py-4",
+						"mx-auto flex items-center justify-between py-1.5",
 						settingsQuery.data?.chatWidth === "comfortable"
 							? "max-w-7xl"
 							: "max-w-5xl",
