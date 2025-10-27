@@ -7,7 +7,7 @@ import type { QuickPrompt } from "@/web/types/chat";
 export const SITE_NAME = "better-chat";
 export const SITE_DESCRIPTION = "better chat through durable objects";
 export const SITE_URL = "https://chat.oscargabriel.dev";
-export const SITE_GITHUB = "https://github.com/oscargabriel/better-chat";
+export const SITE_GITHUB = "https://github.com/oscabriel/better-chat";
 
 export const SOCIAL_PROVIDERS = {
 	GOOGLE: "google",

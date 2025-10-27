@@ -18,7 +18,9 @@ import {
 } from "@/web/components/ui/dropdown-menu";
 import { authClient } from "@/web/lib/auth-client";
 import { useAuth } from "@/web/lib/auth-context";
+import { SITE_GITHUB } from "@/web/lib/constants";
 import { orpc } from "@/web/lib/orpc";
+import { GitHubIcon } from "@/web/routes/auth/-components/social-sign-in-icons";
 
 const getFirstName = (
 	user: { name?: string | null; email?: string | null } | null | undefined,
@@ -108,6 +110,10 @@ export default function UserMenu() {
 				<DropdownMenuItem onClick={() => navigate({ to: "/docs" })}>
 					<BookText className="size-4" />
 					<span>Docs</span>
+				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => window.open(SITE_GITHUB, "_blank")}>
+					<GitHubIcon className="size-4" />
+					<span>Source</span>
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem onClick={() => navigate({ to: "/privacy" })}>
