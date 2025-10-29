@@ -10,6 +10,7 @@ import { routeTree } from "./routeTree.gen";
 const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
+	scrollRestoration: true,
 	context: { orpc, queryClient, auth: {} as AuthContextValue },
 	Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
 		return (

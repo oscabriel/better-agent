@@ -24,7 +24,7 @@ export function ProviderRow({
 		<div className="flex flex-col gap-3 border bg-background/60 p-4 md:flex-row md:items-center md:justify-between">
 			<div className="flex-1 space-y-1">
 				<div className="flex items-center gap-2">
-					<h3 className="font-medium text-sm">{provider.name}</h3>
+					<h3 className="font-medium">{provider.name}</h3>
 					{provider.appProvided ? (
 						<Badge
 							variant={hasUserKey ? "default" : "secondary"}
@@ -41,7 +41,7 @@ export function ProviderRow({
 						</Badge>
 					)}
 				</div>
-				<p className="text-muted-foreground text-xs">{provider.description}</p>
+				<p className="text-muted-foreground text-sm">{provider.description}</p>
 				{provider.appProvided ? (
 					hasUserKey ? (
 						<p className="text-muted-foreground text-xs">

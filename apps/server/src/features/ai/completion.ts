@@ -12,7 +12,7 @@ import type { UserDurableObject } from "@/server/db/do/user-durable-object";
 import { createUserProviderRegistry } from "@/server/features/models/user-registry-factory";
 import { resolveModelProvider } from "@/server/features/models/utils";
 import { getUserSettings } from "@/server/features/settings/queries";
-import { BUILT_IN_MCP_SERVERS } from "@/server/features/tools/mcp/catalog";
+import { getBuiltInMCPServers } from "@/server/features/tools/mcp/catalog";
 import {
 	closeMCPClients,
 	getMCPTools,
@@ -75,7 +75,7 @@ export async function streamCompletion(
 	const enabledBuiltInIds = userSettings.enabledMcpServers || [];
 
 	const enabledMCPServers = [
-		...BUILT_IN_MCP_SERVERS.filter((server) =>
+		...getBuiltInMCPServers().filter((server) =>
 			enabledBuiltInIds.includes(server.id),
 		),
 		...customServers

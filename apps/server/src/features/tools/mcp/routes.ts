@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure } from "@/server/lib/orpc";
-import { BUILT_IN_MCP_SERVERS } from "./catalog";
+import { getBuiltInMCPServers } from "./catalog";
 import { addCustomMcpServer, removeCustomMcpServer } from "./mutations";
 import { getAllMCPServers, toggleMCPServer } from "./utils";
 
@@ -62,7 +62,7 @@ export const mcpRouter = {
 		.handler(async ({ context, input }) => {
 			const userId = context.session.user.id;
 
-			const builtInServer = BUILT_IN_MCP_SERVERS.find(
+			const builtInServer = getBuiltInMCPServers().find(
 				(s) => s.id === input.serverId,
 			);
 			if (builtInServer) {

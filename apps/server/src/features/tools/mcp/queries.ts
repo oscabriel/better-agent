@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/d1";
 import { userMcpServers } from "@/server/db/d1/schema/settings";
 import { getUserSettings } from "@/server/features/settings/queries";
-import { BUILT_IN_MCP_SERVERS } from "./catalog";
+import { getBuiltInMCPServers } from "./catalog";
 import type { MCPServerConfig, UserMCPServer } from "./types";
 
 export function parseJson<T>(value: string | null | undefined, fallback: T): T {
@@ -47,7 +47,7 @@ export async function getUserMCPServers(
 	const settings = await getUserSettings(userId);
 	const enabledBuiltInIds = settings.enabledMcpServers || [];
 
-	const enabledBuiltIn = BUILT_IN_MCP_SERVERS.filter((server) =>
+	const enabledBuiltIn = getBuiltInMCPServers().filter((server) =>
 		enabledBuiltInIds.includes(server.id),
 	);
 

@@ -15,7 +15,7 @@ export function ExaApiKeySection({
 		<div className="flex flex-col gap-3 border bg-background/60 p-4 md:flex-row md:items-center md:justify-between">
 			<div className="flex-1 space-y-1">
 				<div className="flex items-center gap-2">
-					<h3 className="font-medium text-sm">Exa</h3>
+					<h3 className="font-medium">Exa</h3>
 					<Badge
 						variant={hasApiKey ? "default" : "secondary"}
 						className="text-xs"
@@ -23,7 +23,7 @@ export function ExaApiKeySection({
 						{hasApiKey ? "Connected" : "Not Connected"}
 					</Badge>
 				</div>
-				<p className="text-muted-foreground text-xs">
+				<p className="text-muted-foreground text-sm">
 					Real-time web search and content retrieval
 				</p>
 				{hasApiKey ? (

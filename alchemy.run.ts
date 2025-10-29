@@ -85,6 +85,7 @@ export const server = await Worker("server", {
 		OPENAI_API_KEY: alchemy.secret.env.OPENAI_API_KEY,
 		GOOGLE_GENERATIVE_AI_API_KEY:
 			alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
+		CONTEXT7_API_KEY: alchemy.secret.env.CONTEXT7_API_KEY,
 	},
 	routes: [alchemy.env.API_ROUTE_PATTERN],
 	dev: {

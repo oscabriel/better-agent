@@ -1,6 +1,6 @@
 import { updateUserSettings } from "@/server/features/settings/mutations";
 import { getUserSettings } from "@/server/features/settings/queries";
-import { BUILT_IN_MCP_SERVERS } from "./catalog";
+import { getBuiltInMCPServers } from "./catalog";
 import { toggleCustomMcpServer } from "./mutations";
 import { getCustomMcpServers } from "./queries";
 import type { MCPServerConfig, UserMCPServer } from "./types";
@@ -13,7 +13,7 @@ export async function getAllMCPServers(
 	const enabledBuiltInIds = settings.enabledMcpServers || [];
 
 	return [
-		...BUILT_IN_MCP_SERVERS.map((server) => ({
+		...getBuiltInMCPServers().map((server) => ({
 			...server,
 			enabled: enabledBuiltInIds.includes(server.id),
 		})),
