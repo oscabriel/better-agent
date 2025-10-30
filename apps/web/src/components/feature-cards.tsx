@@ -14,8 +14,8 @@ export function FeatureCards() {
 				/>
 				<FeatureCard
 					icon={<DurableObjectsIcon />}
-					title="Per-User Isolation"
-					description="Every user's data lives in their own Durable Object instance."
+					title="Data Isolation"
+					description="Your chat data lives in your own fast, isolated database."
 				/>
 				<FeatureCard
 					icon={<BYOKIcon />}
