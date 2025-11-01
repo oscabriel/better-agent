@@ -1,29 +1,15 @@
-import { useChat } from "@ai-sdk/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { DefaultChatTransport } from "ai";
-import { ChevronDown } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { toast } from "sonner";
-import { useStickToBottom } from "use-stick-to-bottom";
 import { ChatPageSkeleton } from "@/web/components/skeletons/chat-skeleton";
-import { Button } from "@/web/components/ui/button";
-import { Card } from "@/web/components/ui/card";
-import {
-	useUpdateUserSettings,
-	useUserSettings,
-} from "@/web/hooks/use-user-settings";
-import { MAX_MESSAGE_BATCH } from "@/web/lib/constants";
-import { orpc } from "@/web/lib/orpc";
-import type { ChatMessage, ConversationSummary } from "@/web/types/chat";
-import { broadcastSync } from "@/web/utils/sync";
 import { ChatComposer } from "./-components/chat-composer";
 import { ChatError } from "./-components/chat-error";
 import { ChatHeader } from "./-components/chat-header";
-import { MessageRenderer } from "./-components/message-renderer";
-import { useInitializeChatMessages } from "./-hooks/use-initialize-chat-messages";
-import { usePendingConversationMessage } from "./-hooks/use-pending-conversation-message";
-import { useStreamingIndicator } from "./-hooks/use-streaming-indicator";
+import { ChatMessagesList } from "./-components/chat-messages-list";
+import { useChatOperations } from "./-hooks/use-chat-operations";
+import { useChatScroll } from "./-hooks/use-chat-scroll";
+import { useDeleteConversation } from "./-hooks/use-delete-conversation";
+import { useModelSelection } from "./-hooks/use-model-selection";
 
 export const Route = createFileRoute("/chat/$chatId")({
 	component: ChatPage,
@@ -72,198 +58,32 @@ export const Route = createFileRoute("/chat/$chatId")({
 
 function ChatPage() {
 	const { chatId } = Route.useParams() as { chatId: string };
-	const apiBase = `${import.meta.env.VITE_SERVER_URL}/api`;
-	const queryClient = useQueryClient();
-	const navigate = useNavigate();
-	const [isDeleting, setIsDeleting] = useState(false);
 
-	const settingsQuery = useUserSettings();
-	const updateSettings = useUpdateUserSettings();
+	const {
+		selectedModelId,
+		selectedModelIdRef,
+		handleModelChange,
+		settingsQuery,
+	} = useModelSelection();
 
-	// Local state for immediate UI updates, initialized from settings query
-	const [localSelectedModelId, setLocalSelectedModelId] = useState<
-		string | undefined
-	>(settingsQuery.data?.selectedModel);
+	const { scrollRef, contentRef, isAtBottom, scheduleScrollToBottom } =
+		useChatScroll();
 
-	// Sync local state when settings query data changes
-	useEffect(() => {
-		if (settingsQuery.data?.selectedModel) {
-			setLocalSelectedModelId(settingsQuery.data.selectedModel);
-		}
-	}, [settingsQuery.data?.selectedModel]);
-
-	const selectedModelId =
-		localSelectedModelId || settingsQuery.data?.selectedModel;
-
-	// Use ref to capture latest selectedModelId for useChat body function
-	const selectedModelIdRef = useRef(selectedModelId);
-	useEffect(() => {
-		selectedModelIdRef.current = selectedModelId;
-	}, [selectedModelId]);
-
-	const handleModelChange = useCallback(
-		async (id: string) => {
-			// Update local state immediately for instant UI feedback
-			setLocalSelectedModelId(id);
-			try {
-				// Persist to DB in background
-				await updateSettings({ selectedModel: id });
-			} catch (error) {
-				// On error, revert local state
-				setLocalSelectedModelId(settingsQuery.data?.selectedModel);
-				console.error("Failed to update model:", error);
-			}
-		},
-		[updateSettings, settingsQuery.data?.selectedModel],
-	);
-
-	const { scrollRef, contentRef, isAtBottom, scrollToBottom } =
-		useStickToBottom({
-			initial: "instant",
-			resize: "instant",
-		});
-
-	const scheduleScrollToBottom = useCallback(
-		({
-			animation = "instant",
-			force = false,
-		}: {
-			animation?: "instant" | "smooth";
-			force?: boolean;
-		} = {}) => {
-			if (!force && !isAtBottom) {
-				return;
-			}
-
-			const performScroll = () => {
-				void scrollToBottom({ animation });
-			};
-
-			if (typeof window === "undefined") {
-				performScroll();
-				return;
-			}
-
-			window.requestAnimationFrame(() => {
-				window.requestAnimationFrame(performScroll);
-			});
-		},
-		[isAtBottom, scrollToBottom],
-	);
-
-	const messagesQuery = useQuery(
-		orpc.chat.listMessages.queryOptions({
-			input: { conversationId: chatId },
-			staleTime: 30_000,
-			placeholderData: (previousData) => previousData,
-		}),
-	);
-
-	const conversationQuery = useQuery(
-		orpc.chat.getConversation.queryOptions({
-			input: { conversationId: chatId },
-			staleTime: 30_000,
-		}),
-	);
-
-	const deleteConversationMutation = useMutation(
-		orpc.chat.deleteConversation.mutationOptions({
-			onSuccess: () => {
-				queryClient.invalidateQueries({
-					queryKey: orpc.chat.listConversations.key(),
-				});
-				toast.success("Conversation deleted");
-				void navigate({ to: "/chat" });
-			},
-			onError: (error) => {
-				toast.error(error.message);
-			},
-		}),
-	);
-
-	const { messages, status, error, sendMessage, setMessages } =
-		useChat<ChatMessage>({
-			id: chatId,
-			transport: new DefaultChatTransport({
-				api: `${apiBase}/ai`,
-				credentials: "include",
-				body: () => ({
-					conversationId: chatId,
-					messages: messages.slice(-MAX_MESSAGE_BATCH),
-					modelId: selectedModelIdRef.current,
-				}),
-			}),
-			onFinish: async () => {
-				queryClient.invalidateQueries({
-					queryKey: orpc.chat.listMessages.key({
-						input: { conversationId: chatId },
-					}),
-				});
-				queryClient.invalidateQueries({
-					queryKey: orpc.chat.getConversation.key({
-						input: { conversationId: chatId },
-					}),
-				});
-				if (messages.length <= 2) {
-					queryClient.invalidateQueries({
-						queryKey: orpc.chat.listConversations.key(),
-					});
-					broadcastSync({ type: "conversations-list-changed" });
-				}
-				queryClient.invalidateQueries({
-					queryKey: orpc.usage.getCurrentSummary.key(),
-				});
-				queryClient.invalidateQueries({
-					queryKey: orpc.usage.getStats.key(),
-				});
-
-				broadcastSync({ type: "usage-changed" });
-				broadcastSync({ type: "conversation-changed", chatId });
-			},
-		});
-
-	useInitializeChatMessages({
-		chatId,
-		items: messagesQuery.data?.items,
-		isLoading: messagesQuery.isLoading,
-		setMessages,
-		scheduleScrollToBottom,
-	});
-
-	const isMessagesReady =
-		!messagesQuery.isLoading &&
-		!messagesQuery.isFetching &&
-		messagesQuery.isSuccess;
-
-	usePendingConversationMessage({
-		chatId,
+	const {
 		messages,
-		sendMessage,
 		status,
-		isMessagesReady,
+		error,
+		sendMessage,
+		title,
+		shouldShowStreamingIndicator,
+	} = useChatOperations({
+		chatId,
+		selectedModelIdRef,
+		scheduleScrollToBottom,
 		onError: (message) => toast.error(message),
 	});
 
-	const title =
-		(conversationQuery.data as ConversationSummary)?.title?.trim() ||
-		"New chat";
-
-	const shouldShowStreamingIndicator = useStreamingIndicator({
-		messages,
-		status,
-	});
-
-	const handleDeleteConversation = async () => {
-		if (isDeleting) return;
-		setIsDeleting(true);
-		try {
-			await deleteConversationMutation.mutateAsync({
-				conversationId: chatId,
-			});
-		} finally {
-			setIsDeleting(false);
-		}
-	};
+	const { handleDelete, isDeleting } = useDeleteConversation();
 
 	const handleSendMessage = useCallback(
 		({ text }: { text: string }) => {
@@ -273,6 +93,10 @@ function ChatPage() {
 		[scheduleScrollToBottom, sendMessage],
 	);
 
+	const handleDeleteConversation = useCallback(() => {
+		void handleDelete(chatId);
+	}, [handleDelete, chatId]);
+
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
 			<ChatHeader
@@ -280,60 +104,17 @@ function ChatPage() {
 				onDelete={handleDeleteConversation}
 				isDeleting={isDeleting}
 			/>
-			<div
-				className="relative flex-1 overflow-y-auto px-3 py-4 sm:px-6"
-				ref={scrollRef}
-			>
-				<div ref={contentRef} className="w-full space-y-4 pb-10">
-					{messages.map((message) => (
-						<MessageRenderer key={message.id} message={message} />
-					))}
-					{shouldShowStreamingIndicator && (
-						<div className="flex justify-start">
-							<Card
-								className="max-w-[80%] gap-2 py-2"
-								role="status"
-								aria-live="polite"
-							>
-								<div className="px-3 py-2">
-									<span className="block animate-pulse text-muted-foreground text-xl leading-none">
-										...
-									</span>
-									<span className="sr-only">
-										Assistant is preparing a response
-									</span>
-								</div>
-							</Card>
-						</div>
-					)}
-					{error && (
-						<div className="flex justify-center">
-							<Card className="gap-2 border-destructive bg-destructive/10 py-2">
-								<div className="px-3 py-2">
-									<p className="text-destructive text-sm">
-										{error.message || "An error occurred"}
-									</p>
-								</div>
-							</Card>
-						</div>
-					)}
-				</div>
-				{!isAtBottom && (
-					<div className="pointer-events-none sticky bottom-4 flex justify-center pr-2">
-						<Button
-							variant="secondary"
-							size="icon"
-							className="pointer-events-auto shadow"
-							onClick={() => {
-								scheduleScrollToBottom({ animation: "smooth", force: true });
-							}}
-							aria-label="Scroll to latest message"
-						>
-							<ChevronDown className="size-4" />
-						</Button>
-					</div>
-				)}
-			</div>
+			<ChatMessagesList
+				messages={messages}
+				error={error ?? null}
+				shouldShowStreamingIndicator={shouldShowStreamingIndicator}
+				isAtBottom={isAtBottom}
+				scrollRef={scrollRef as React.Ref<HTMLDivElement>}
+				contentRef={contentRef as React.Ref<HTMLDivElement>}
+				onScrollToBottom={() => {
+					scheduleScrollToBottom({ animation: "smooth", force: true });
+				}}
+			/>
 			<ChatComposer
 				disabled={status === "streaming"}
 				modelId={selectedModelId}

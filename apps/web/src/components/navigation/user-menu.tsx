@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
 	BookText,
 	Github,
@@ -34,9 +34,6 @@ const getFirstName = (
 export default function UserMenu() {
 	const navigate = useNavigate();
 	const auth = useAuth();
-	const isCheckingSession = useRouterState({
-		select: (state) => state.isLoading,
-	});
 
 	const handleSignOut = async () => {
 		await authClient.signOut({
@@ -63,7 +60,8 @@ export default function UserMenu() {
 		? (getFirstName(user.data) ?? "User")
 		: null;
 
-	if (isCheckingSession && !displayFirstName) {
+	// Show loading spinner while auth is pending
+	if (auth.isPending) {
 		return (
 			<div className="flex h-8 w-8 items-center justify-center rounded-md">
 				<Loader2 className="size-4 animate-spin" />

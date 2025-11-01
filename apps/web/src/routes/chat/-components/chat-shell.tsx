@@ -21,7 +21,6 @@ import { orpc } from "@/web/lib/orpc";
 import { generateConversationId } from "@/web/utils/chat";
 import { cn } from "@/web/utils/cn";
 import { formatDistanceToNowStrict, getTimeOfDayLabel } from "@/web/utils/date";
-import { onSyncEvent } from "@/web/utils/sync";
 import { MessageInput } from "./message-input";
 
 export function ChatShell() {
@@ -84,31 +83,6 @@ export function ChatShell() {
 		},
 		[updateSettings, settingsQuery.data?.selectedModel],
 	);
-
-	useEffect(() => {
-		const cleanup = onSyncEvent((event) => {
-			if (event.type === "conversations-list-changed") {
-				queryClient.invalidateQueries({
-					queryKey: orpc.chat.listConversations.key(),
-				});
-			} else if (event.type === "conversation-changed") {
-				queryClient.invalidateQueries({
-					queryKey: orpc.chat.getConversation.key({
-						input: { conversationId: event.chatId },
-					}),
-				});
-				queryClient.invalidateQueries({
-					queryKey: orpc.chat.listMessages.key({
-						input: { conversationId: event.chatId },
-					}),
-				});
-			}
-		});
-
-		return () => {
-			cleanup?.();
-		};
-	}, []);
 
 	const selectedConversationId = useMemo(() => {
 		const pathname = location.pathname ?? "";

@@ -1,7 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { RouterOutputs } from "@/server/lib/router";
 import {
 	Card,
@@ -11,7 +11,6 @@ import {
 	CardTitle,
 } from "@/web/components/ui/card";
 import { orpc } from "@/web/lib/orpc";
-import { onSyncEvent } from "@/web/utils/sync";
 import { ModelBreakdownSection } from "./-components/usage/model-breakdown-section";
 import { PeriodSelector } from "./-components/usage/period-selector";
 import { StatsGrid } from "./-components/usage/stats-grid";
@@ -38,7 +37,6 @@ export const Route = createFileRoute("/settings/usage")({
 });
 
 function UsageSettings() {
-	const queryClient = useQueryClient();
 	const [period, setPeriod] = useState<"day" | "week" | "month">("month");
 
 	const modelsQuery = useQuery(
@@ -72,23 +70,6 @@ function UsageSettings() {
 			staleTime: 30_000,
 		}),
 	);
-
-	useEffect(() => {
-		const cleanup = onSyncEvent((event) => {
-			if (event.type === "usage-changed") {
-				queryClient.invalidateQueries({
-					queryKey: orpc.usage.getCurrentSummary.key(),
-				});
-				queryClient.invalidateQueries({
-					queryKey: orpc.usage.getStats.key(),
-				});
-			}
-		});
-
-		return () => {
-			cleanup?.();
-		};
-	}, [queryClient]);
 
 	const getModelDisplayName = (modelId: string): string => {
 		const model = modelsQuery.data?.find(
