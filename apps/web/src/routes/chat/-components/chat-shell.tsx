@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ArrowRight, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -25,7 +25,6 @@ import { MessageInput } from "./message-input";
 
 export function ChatShell() {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const location = useRouterState({ select: (state) => state.location });
 	const isMobile = useIsMobile();
 	const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);

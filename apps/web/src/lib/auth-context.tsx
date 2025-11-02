@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { createContext, useContext, useMemo } from "react";
+import { AppBackground } from "@/web/components/background";
 import { authClient } from "@/web/lib/auth-client";
 
 export type AuthSession = typeof authClient.$Infer.Session;
@@ -26,6 +27,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
 	if (error) {
 		console.error("Failed to fetch auth session", error);
+	}
+
+	// Block rendering until auth resolves (prevents race condition in route guards)
+	if (isPending) {
+		return (
+			<div className="relative min-h-screen bg-background">
+				<AppBackground />
+			</div>
+		);
 	}
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
