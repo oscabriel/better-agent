@@ -10,8 +10,11 @@ import { Input } from "@/web/components/ui/input";
 import { redirectIfAuthenticated } from "@/web/lib/route-guards";
 
 export const Route = createFileRoute("/")({
-	beforeLoad: (opts) => {
-		redirectIfAuthenticated({ auth: opts.context.auth, to: "/chat" });
+	beforeLoad: async (opts) => {
+		await redirectIfAuthenticated({
+			authClient: opts.context.authClient,
+			to: "/chat",
+		});
 	},
 	component: GuestLanding,
 	pendingComponent: GuestShellSkeleton,

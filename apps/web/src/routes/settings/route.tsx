@@ -22,9 +22,9 @@ import { cn } from "@/web/utils/cn";
 import { SettingsError } from "./-components/settings-error";
 
 export const Route = createFileRoute("/settings")({
-	beforeLoad: (opts) => {
-		requireAuthenticated({
-			auth: opts.context.auth,
+	beforeLoad: async (opts) => {
+		await requireAuthenticated({
+			authClient: opts.context.authClient,
 			location: opts.location,
 		});
 

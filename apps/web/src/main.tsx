@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import { AuthProvider, useAuth } from "@/web/components/auth-provider";
+import { authClient } from "./lib/auth-client";
 import { orpc, queryClient } from "./lib/orpc";
 import { routeTree } from "./routeTree.gen";
 
@@ -12,6 +13,7 @@ const router = createRouter({
 	context: {
 		orpc,
 		queryClient,
+		authClient,
 		auth: { isPending: true, isAuthenticated: false, session: null },
 	},
 	Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
@@ -23,7 +25,10 @@ const router = createRouter({
 
 function AppRouter() {
 	const auth = useAuth();
-	const routerContext = useMemo(() => ({ orpc, queryClient, auth }), [auth]);
+	const routerContext = useMemo(
+		() => ({ orpc, queryClient, authClient, auth }),
+		[auth],
+	);
 
 	return <RouterProvider router={router} context={routerContext} />;
 }

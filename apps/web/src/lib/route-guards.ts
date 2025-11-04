@@ -1,16 +1,18 @@
 import { redirect } from "@tanstack/react-router";
-import type { AuthContextValue } from "@/web/components/auth-provider";
+import type { authClient } from "@/web/lib/auth-client";
 
 interface RedirectIfAuthenticatedOptions {
-	auth: AuthContextValue;
+	authClient: typeof authClient;
 	to: string;
 }
 
-export function redirectIfAuthenticated({
-	auth,
+export async function redirectIfAuthenticated({
+	authClient,
 	to,
 }: RedirectIfAuthenticatedOptions) {
-	if (auth.isAuthenticated) {
+	const { data: session } = await authClient.getSession();
+
+	if (session) {
 		throw redirect({
 			to,
 			replace: true,
@@ -19,15 +21,17 @@ export function redirectIfAuthenticated({
 }
 
 interface RequireAuthenticatedOptions {
-	auth: AuthContextValue;
+	authClient: typeof authClient;
 	location: { href?: string | null; pathname?: string | null };
 }
 
-export function requireAuthenticated({
-	auth,
+export async function requireAuthenticated({
+	authClient,
 	location,
 }: RequireAuthenticatedOptions) {
-	if (!auth.isAuthenticated) {
+	const { data: session } = await authClient.getSession();
+
+	if (!session) {
 		const redirectTarget = location.href ?? location.pathname ?? "/";
 
 		throw redirect({

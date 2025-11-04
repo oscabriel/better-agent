@@ -4,9 +4,9 @@ import { requireAuthenticated } from "@/web/lib/route-guards";
 import { ChatShell } from "./-components/chat-shell";
 
 export const Route = createFileRoute("/chat")({
-	beforeLoad: (opts) => {
-		requireAuthenticated({
-			auth: opts.context.auth,
+	beforeLoad: async (opts) => {
+		await requireAuthenticated({
+			authClient: opts.context.authClient,
 			location: opts.location,
 		});
 	},

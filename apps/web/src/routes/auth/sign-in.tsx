@@ -37,9 +37,9 @@ export const Route = createFileRoute("/auth/sign-in")({
 			redirect: redirectValue,
 		};
 	},
-	beforeLoad: (opts) => {
-		redirectIfAuthenticated({
-			auth: opts.context.auth,
+	beforeLoad: async (opts) => {
+		await redirectIfAuthenticated({
+			authClient: opts.context.authClient,
 			to: opts.search.redirect || FALLBACK_REDIRECT,
 		});
 	},
