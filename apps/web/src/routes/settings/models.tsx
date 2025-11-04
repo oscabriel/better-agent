@@ -27,7 +27,7 @@ export const Route = createFileRoute("/settings/models")({
 		await Promise.all([
 			context.queryClient.ensureQueryData(
 				context.orpc.models.list.queryOptions({
-					staleTime: 60_000,
+					staleTime: 5 * 60 * 1000, // 5 minutes
 				}),
 			),
 			context.queryClient.ensureQueryData(
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/settings/models")({
 function ModelSettings() {
 	const modelsQuery = useQuery(
 		orpc.models.list.queryOptions({
-			staleTime: 60_000,
+			staleTime: 5 * 60 * 1000, // 5 minutes
 		}),
 	);
 

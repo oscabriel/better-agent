@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import type { RouterInputs, RouterOutputs } from "@/server/lib/router";
-import { useAuth } from "@/web/lib/auth-context";
+import { useAuth } from "@/web/components/auth-provider";
 import { orpc } from "@/web/lib/orpc";
 import {
 	getStoredChatWidth,
@@ -23,8 +23,14 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
 
 /**
  * Shared hook for accessing user settings across the application.
- * This hook consolidates all user settings queries into a single query,
- * preventing excessive refetches and potential infinite loops.
+ *
+ * Caching Strategy:
+ * - 5 minute staleTime (matches server cookie cache duration)
+ * - No automatic refetching (refetchOnMount disabled)
+ * - Optimistic updates on mutations for instant UI feedback
+ *
+ * This consolidates all user settings queries into a single query,
+ * preventing excessive refetches and reducing server load.
  */
 export function useUserSettings() {
 	const auth = useAuth();
@@ -33,8 +39,9 @@ export function useUserSettings() {
 	const query = useQuery(
 		orpc.settings.get.queryOptions({
 			enabled: isAuthenticated,
-			staleTime: 30_000,
+			staleTime: 5 * 60 * 1000, // 5 minutes
 			refetchOnMount: false,
+			refetchOnWindowFocus: false,
 			retry: false,
 			placeholderData: () => {
 				const storedChatWidth = getStoredChatWidth();

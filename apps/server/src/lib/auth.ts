@@ -65,6 +65,12 @@ export const auth: Auth = betterAuth({
 			await env.SESSION_KV.delete(key);
 		},
 	},
+	session: {
+		cookieCache: {
+			enabled: env.ALCHEMY_STAGE !== "dev", // Disable in dev to avoid stale data
+			maxAge: 5 * 60, // 5 minutes
+		},
+	},
 	rateLimit: {
 		storage: "secondary-storage",
 	},

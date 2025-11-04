@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/web/components/auth-provider";
 import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
 import {
@@ -12,7 +13,6 @@ import {
 } from "@/web/components/ui/input-otp";
 import { useAppForm } from "@/web/components/ui/tanstack-form";
 import { authClient } from "@/web/lib/auth-client";
-import { useAuth } from "@/web/lib/auth-context";
 import { SIGN_IN_FORM, SOCIAL_PROVIDERS } from "@/web/lib/constants";
 import { signInEmailSchema, signInOtpSchema } from "@/web/lib/validators";
 import { GitHubIcon, GoogleIcon } from "./social-sign-in-icons";

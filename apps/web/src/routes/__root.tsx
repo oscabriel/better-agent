@@ -6,13 +6,13 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import type { AuthContextValue } from "@/web/components/auth-provider";
 import { BackgroundLayout } from "@/web/components/background";
 import { ErrorBoundary } from "@/web/components/error-boundary";
 import Header from "@/web/components/navigation/header";
 import { NotFound } from "@/web/components/not-found";
 import { ThemeProvider } from "@/web/components/theme-provider";
 import { Toaster } from "@/web/components/ui/sonner";
-import type { AuthContextValue } from "@/web/lib/auth-context";
 import type { orpc } from "@/web/lib/orpc";
 import "@/web/index.css";
 import { useEffect } from "react";
@@ -30,7 +30,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootComponent() {
-	// force scroll to top on route change
+	// force scroll to top on route change -- router default behavior doesn't seem to be working?
 	const router = useRouterState();
 
 	useEffect(() => {

@@ -25,11 +25,11 @@ export const Route = createFileRoute("/settings/usage")({
 	loader: async ({ context }) => {
 		await Promise.all([
 			context.queryClient.ensureQueryData(
-				context.orpc.models.list.queryOptions({ staleTime: 60_000 * 5 }),
+				context.orpc.models.list.queryOptions({ staleTime: 5 * 60 * 1000 }),
 			),
 			context.queryClient.ensureQueryData(
 				context.orpc.usage.getCurrentSummary.queryOptions({
-					staleTime: 30_000,
+					staleTime: 5 * 60 * 1000, // 5 minutes
 				}),
 			),
 		]);
@@ -40,11 +40,11 @@ function UsageSettings() {
 	const [period, setPeriod] = useState<"day" | "week" | "month">("month");
 
 	const modelsQuery = useQuery(
-		orpc.models.list.queryOptions({ staleTime: 60_000 * 5 }),
+		orpc.models.list.queryOptions({ staleTime: 5 * 60 * 1000 }),
 	);
 
 	const usageQuery = useQuery(
-		orpc.usage.getCurrentSummary.queryOptions({ staleTime: 30_000 }),
+		orpc.usage.getCurrentSummary.queryOptions({ staleTime: 5 * 60 * 1000 }),
 	);
 
 	const endDate = new Date().toISOString().split("T")[0];
@@ -67,7 +67,7 @@ function UsageSettings() {
 				startDate,
 				endDate,
 			},
-			staleTime: 30_000,
+			staleTime: 5 * 60 * 1000, // 5 minutes
 		}),
 	);
 

@@ -19,21 +19,14 @@ import {
 } from "@/web/components/ui/dialog";
 import { Input } from "@/web/components/ui/input";
 import { Label } from "@/web/components/ui/label";
-import { useAuth } from "@/web/lib/auth-context";
+import { useProfile } from "@/web/hooks/use-profile";
 import { orpc } from "@/web/lib/orpc";
 
 export function ProfileInfo() {
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const queryClient = useQueryClient();
-	const auth = useAuth();
 
-	const user = useQuery({
-		...orpc.profile.getProfile.queryOptions(),
-		enabled: Boolean(auth.session?.user),
-		refetchOnWindowFocus: true,
-		refetchOnMount: true,
-		staleTime: 0,
-	});
+	const user = useProfile();
 
 	const initials = useQuery({
 		...orpc.profile.getInitials.queryOptions({

@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	BookText,
@@ -8,6 +7,7 @@ import {
 	SettingsIcon,
 	UserLock,
 } from "lucide-react";
+import { useAuth } from "@/web/components/auth-provider";
 import { Button } from "@/web/components/ui/button";
 import {
 	DropdownMenu,
@@ -17,10 +17,9 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/web/components/ui/dropdown-menu";
+import { useProfile } from "@/web/hooks/use-profile";
 import { authClient } from "@/web/lib/auth-client";
-import { useAuth } from "@/web/lib/auth-context";
 import { SITE_GITHUB } from "@/web/lib/constants";
-import { orpc } from "@/web/lib/orpc";
 
 const getFirstName = (
 	user: { name?: string | null; email?: string | null } | null | undefined,
@@ -48,13 +47,7 @@ export default function UserMenu() {
 		});
 	};
 
-	const user = useQuery({
-		...orpc.profile.getProfile.queryOptions(),
-		enabled: Boolean(auth.session?.user),
-		refetchOnWindowFocus: true,
-		refetchOnMount: true,
-		staleTime: 0,
-	});
+	const user = useProfile();
 
 	const displayFirstName = user.data
 		? (getFirstName(user.data) ?? "User")

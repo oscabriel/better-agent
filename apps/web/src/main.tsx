@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { useMemo } from "react";
 import ReactDOM from "react-dom/client";
-import { AuthProvider, useAuth } from "@/web/lib/auth-context";
+import { AuthProvider, useAuth } from "@/web/components/auth-provider";
 import { orpc, queryClient } from "./lib/orpc";
 import { routeTree } from "./routeTree.gen";
 
