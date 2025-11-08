@@ -208,12 +208,12 @@ Automated deployment via GitHub Actions on push to `main` or `staging` branches.
 ### Required GitHub Configuration
 
 **Environment Variables** (Settings → Secrets and variables → Actions → Variables):
-- `VITE_SERVER_URL` - Server URL (e.g., `https://chat.oscargabriel.dev`)
-- `VITE_WEB_URL` - Web app URL (e.g., `https://chat.oscargabriel.dev`)
-- `CUSTOM_WEB_DOMAIN` - Custom domain (e.g., `chat.oscargabriel.dev`)
-- `CORS_ORIGIN` - CORS origin (e.g., `https://chat.oscargabriel.dev`)
-- `BETTER_AUTH_URL` - Auth URL (e.g., `https://chat.oscargabriel.dev`)
-- `API_ROUTE_PATTERN` - API route pattern (e.g., `chat.oscargabriel.dev/api/*`)
+- `VITE_SERVER_URL` - Server URL
+- `VITE_WEB_URL` - Web app URL
+- `CUSTOM_WEB_DOMAIN` - Custom domain
+- `CORS_ORIGIN` - CORS origin
+- `BETTER_AUTH_URL` - Auth URL
+- `API_ROUTE_PATTERN` - API route pattern
 
 **Secrets** (Settings → Secrets and variables → Actions → Secrets):
 - `ALCHEMY_PASSWORD` - Alchemy state encryption password
