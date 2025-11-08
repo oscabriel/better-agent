@@ -242,6 +242,20 @@ Automated deployment via GitHub Actions on push to `main` or `staging` branches.
 3. Deploys via Alchemy CLI to Cloudflare
 4. Prevents concurrent deployments with concurrency groups
 
+### Automatic GitHub Actions Variables
+
+The workflow uses GitHub-provided automatic variables (no manual configuration needed):
+
+- **`GITHUB_TOKEN`** - Automatic authentication token for GitHub API
+  - Set by GitHub Actions automatically
+  - Permissions: `contents: read` (defined in workflow)
+  - Used by Alchemy CLI for repository metadata/deployment artifacts
+
+- **`GITHUB_SHA`** - Commit SHA that triggered the workflow
+  - Set by GitHub Actions automatically
+  - Example: `8a817b1...` (full 40-character SHA)
+  - Used for deployment versioning, tracking, and rollback capabilities
+
 ## Environment Setup
 
 Create stage-specific environment files:
