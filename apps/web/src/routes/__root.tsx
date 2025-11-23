@@ -32,9 +32,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootComponent() {
-	// force scroll to top on route change -- router default behavior doesn't seem to be working?
 	const router = useRouterState();
 
+	// force scroll to top on route change -- router default behavior doesn't seem to be working?
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [router.location.pathname]);

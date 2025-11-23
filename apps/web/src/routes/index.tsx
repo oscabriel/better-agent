@@ -13,6 +13,7 @@ export const Route = createFileRoute("/")({
 	beforeLoad: async (opts) => {
 		await redirectIfAuthenticated({
 			authClient: opts.context.authClient,
+			queryClient: opts.context.queryClient,
 			to: "/chat",
 		});
 	},

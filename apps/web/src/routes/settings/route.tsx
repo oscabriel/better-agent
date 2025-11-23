@@ -25,6 +25,7 @@ export const Route = createFileRoute("/settings")({
 	beforeLoad: async (opts) => {
 		await requireAuthenticated({
 			authClient: opts.context.authClient,
+			queryClient: opts.context.queryClient,
 			location: opts.location,
 		});
 
