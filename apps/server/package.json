@@ -18,33 +18,33 @@
 		"do:generate": "drizzle-kit generate --config=./drizzle.do.config.ts"
 	},
 	"dependencies": {
-		"@ai-sdk/anthropic": "^2.0.45",
-		"@ai-sdk/google": "^2.0.42",
-		"@ai-sdk/mcp": "^0.0.8",
-		"@ai-sdk/openai": "^2.0.71",
+		"@ai-sdk/anthropic": "^2.0.56",
+		"@ai-sdk/google": "^2.0.46",
+		"@ai-sdk/mcp": "^0.0.12",
+		"@ai-sdk/openai": "^2.0.85",
 		"@ai-sdk/provider": "^2.0.0",
 		"@libsql/client": "^0.15.15",
-		"@modelcontextprotocol/sdk": "^1.22.0",
-		"@orpc/server": "^1.11.3",
+		"@modelcontextprotocol/sdk": "^1.24.3",
+		"@orpc/server": "^1.12.2",
 		"@react-email/render": "^2.0.0",
-		"ai": "^5.0.100",
-		"better-auth": "1.4.1",
+		"ai": "^5.0.112",
+		"better-auth": "1.4.5",
 		"dotenv": "^17.2.2",
-		"drizzle-orm": "^0.44.7",
-		"exa-js": "^2.0.9",
-		"hono": "^4.10.6",
+		"drizzle-orm": "^0.45.1",
+		"exa-js": "^2.0.11",
+		"hono": "^4.10.8",
 		"nanoid": "^5.1.6",
-		"resend": "^6.5.2",
-		"zod": "^4.1.12"
+		"resend": "^6.6.0",
+		"zod": "^4.1.13"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20251121.0",
-		"@types/node": "^24.10.1",
-		"alchemy": "^0.78.0",
+		"@cloudflare/workers-types": "^4.20251212.0",
+		"@types/node": "^25.0.1",
+		"alchemy": "^0.81.1",
 		"dotenv": "^17.2.3",
-		"drizzle-kit": "^0.31.7",
-		"tsdown": "^0.16.6",
+		"drizzle-kit": "^0.31.8",
+		"tsdown": "^0.17.3",
 		"typescript": "^5.9.3",
-		"wrangler": "^4.50.0"
+		"wrangler": "^4.54.0"
 	}
 }
