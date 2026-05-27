@@ -8,328 +8,115 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as DocsRouteImport } from './routes/docs'
-import { Route as SettingsRouteRouteImport } from './routes/settings/route'
-import { Route as ChatRouteRouteImport } from './routes/chat/route'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
-import { Route as SettingsToolsRouteImport } from './routes/settings/tools'
-import { Route as SettingsProvidersRouteImport } from './routes/settings/providers'
-import { Route as SettingsProfileRouteImport } from './routes/settings/profile'
-import { Route as SettingsModelsRouteImport } from './routes/settings/models'
-import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
-import { Route as ChatChatIdRouteImport } from './routes/chat/$chatId'
-import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as LoginRouteImport } from "./routes/login";
+import { Route as DashboardRouteImport } from "./routes/dashboard";
+import { Route as AiRouteImport } from "./routes/ai";
+import { Route as IndexRouteImport } from "./routes/index";
 
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocsRoute = DocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRouteRoute = SettingsRouteRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChatRouteRoute = ChatRouteRouteImport.update({
-  id: '/chat',
-  path: '/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const LoginRoute = LoginRouteImport.update({
+	id: "/login",
+	path: "/login",
+	getParentRoute: () => rootRouteImport,
+} as any);
+const DashboardRoute = DashboardRouteImport.update({
+	id: "/dashboard",
+	path: "/dashboard",
+	getParentRoute: () => rootRouteImport,
+} as any);
+const AiRoute = AiRouteImport.update({
+	id: "/ai",
+	path: "/ai",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsUsageRoute = SettingsUsageRouteImport.update({
-  id: '/usage',
-  path: '/usage',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsToolsRoute = SettingsToolsRouteImport.update({
-  id: '/tools',
-  path: '/tools',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsProfileRoute = SettingsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsModelsRoute = SettingsModelsRouteImport.update({
-  id: '/models',
-  path: '/models',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
-  id: '/appearance',
-  path: '/appearance',
-  getParentRoute: () => SettingsRouteRoute,
-} as any)
-const ChatChatIdRoute = ChatChatIdRouteImport.update({
-  id: '/$chatId',
-  path: '/$chatId',
-  getParentRoute: () => ChatRouteRoute,
-} as any)
-const AuthSignInRoute = AuthSignInRouteImport.update({
-  id: '/auth/sign-in',
-  path: '/auth/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/chat': typeof ChatRouteRouteWithChildren
-  '/settings': typeof SettingsRouteRouteWithChildren
-  '/docs': typeof DocsRoute
-  '/privacy': typeof PrivacyRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/chat/$chatId': typeof ChatChatIdRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
-  '/settings/models': typeof SettingsModelsRoute
-  '/settings/profile': typeof SettingsProfileRoute
-  '/settings/providers': typeof SettingsProvidersRoute
-  '/settings/tools': typeof SettingsToolsRoute
-  '/settings/usage': typeof SettingsUsageRoute
+	"/": typeof IndexRoute;
+	"/ai": typeof AiRoute;
+	"/dashboard": typeof DashboardRoute;
+	"/login": typeof LoginRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/chat': typeof ChatRouteRouteWithChildren
-  '/settings': typeof SettingsRouteRouteWithChildren
-  '/docs': typeof DocsRoute
-  '/privacy': typeof PrivacyRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/chat/$chatId': typeof ChatChatIdRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
-  '/settings/models': typeof SettingsModelsRoute
-  '/settings/profile': typeof SettingsProfileRoute
-  '/settings/providers': typeof SettingsProvidersRoute
-  '/settings/tools': typeof SettingsToolsRoute
-  '/settings/usage': typeof SettingsUsageRoute
+	"/": typeof IndexRoute;
+	"/ai": typeof AiRoute;
+	"/dashboard": typeof DashboardRoute;
+	"/login": typeof LoginRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/chat': typeof ChatRouteRouteWithChildren
-  '/settings': typeof SettingsRouteRouteWithChildren
-  '/docs': typeof DocsRoute
-  '/privacy': typeof PrivacyRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/chat/$chatId': typeof ChatChatIdRoute
-  '/settings/appearance': typeof SettingsAppearanceRoute
-  '/settings/models': typeof SettingsModelsRoute
-  '/settings/profile': typeof SettingsProfileRoute
-  '/settings/providers': typeof SettingsProvidersRoute
-  '/settings/tools': typeof SettingsToolsRoute
-  '/settings/usage': typeof SettingsUsageRoute
+	__root__: typeof rootRouteImport;
+	"/": typeof IndexRoute;
+	"/ai": typeof AiRoute;
+	"/dashboard": typeof DashboardRoute;
+	"/login": typeof LoginRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/chat'
-    | '/settings'
-    | '/docs'
-    | '/privacy'
-    | '/auth/sign-in'
-    | '/chat/$chatId'
-    | '/settings/appearance'
-    | '/settings/models'
-    | '/settings/profile'
-    | '/settings/providers'
-    | '/settings/tools'
-    | '/settings/usage'
-  fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/chat'
-    | '/settings'
-    | '/docs'
-    | '/privacy'
-    | '/auth/sign-in'
-    | '/chat/$chatId'
-    | '/settings/appearance'
-    | '/settings/models'
-    | '/settings/profile'
-    | '/settings/providers'
-    | '/settings/tools'
-    | '/settings/usage'
-  id:
-    | '__root__'
-    | '/'
-    | '/chat'
-    | '/settings'
-    | '/docs'
-    | '/privacy'
-    | '/auth/sign-in'
-    | '/chat/$chatId'
-    | '/settings/appearance'
-    | '/settings/models'
-    | '/settings/profile'
-    | '/settings/providers'
-    | '/settings/tools'
-    | '/settings/usage'
-  fileRoutesById: FileRoutesById
+	fileRoutesByFullPath: FileRoutesByFullPath;
+	fullPaths: "/" | "/ai" | "/dashboard" | "/login";
+	fileRoutesByTo: FileRoutesByTo;
+	to: "/" | "/ai" | "/dashboard" | "/login";
+	id: "__root__" | "/" | "/ai" | "/dashboard" | "/login";
+	fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ChatRouteRoute: typeof ChatRouteRouteWithChildren
-  SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
-  DocsRoute: typeof DocsRoute
-  PrivacyRoute: typeof PrivacyRoute
-  AuthSignInRoute: typeof AuthSignInRoute
+	IndexRoute: typeof IndexRoute;
+	AiRoute: typeof AiRoute;
+	DashboardRoute: typeof DashboardRoute;
+	LoginRoute: typeof LoginRoute;
 }
 
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings/usage': {
-      id: '/settings/usage'
-      path: '/usage'
-      fullPath: '/settings/usage'
-      preLoaderRoute: typeof SettingsUsageRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/tools': {
-      id: '/settings/tools'
-      path: '/tools'
-      fullPath: '/settings/tools'
-      preLoaderRoute: typeof SettingsToolsRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/providers': {
-      id: '/settings/providers'
-      path: '/providers'
-      fullPath: '/settings/providers'
-      preLoaderRoute: typeof SettingsProvidersRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/profile': {
-      id: '/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof SettingsProfileRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/models': {
-      id: '/settings/models'
-      path: '/models'
-      fullPath: '/settings/models'
-      preLoaderRoute: typeof SettingsModelsRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/settings/appearance': {
-      id: '/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof SettingsAppearanceRouteImport
-      parentRoute: typeof SettingsRouteRoute
-    }
-    '/chat/$chatId': {
-      id: '/chat/$chatId'
-      path: '/$chatId'
-      fullPath: '/chat/$chatId'
-      preLoaderRoute: typeof ChatChatIdRouteImport
-      parentRoute: typeof ChatRouteRoute
-    }
-    '/auth/sign-in': {
-      id: '/auth/sign-in'
-      path: '/auth/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-  }
+declare module "@tanstack/react-router" {
+	interface FileRoutesByPath {
+		"/login": {
+			id: "/login";
+			path: "/login";
+			fullPath: "/login";
+			preLoaderRoute: typeof LoginRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/dashboard": {
+			id: "/dashboard";
+			path: "/dashboard";
+			fullPath: "/dashboard";
+			preLoaderRoute: typeof DashboardRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/ai": {
+			id: "/ai";
+			path: "/ai";
+			fullPath: "/ai";
+			preLoaderRoute: typeof AiRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/": {
+			id: "/";
+			path: "/";
+			fullPath: "/";
+			preLoaderRoute: typeof IndexRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+	}
 }
-
-interface ChatRouteRouteChildren {
-  ChatChatIdRoute: typeof ChatChatIdRoute
-}
-
-const ChatRouteRouteChildren: ChatRouteRouteChildren = {
-  ChatChatIdRoute: ChatChatIdRoute,
-}
-
-const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(
-  ChatRouteRouteChildren,
-)
-
-interface SettingsRouteRouteChildren {
-  SettingsAppearanceRoute: typeof SettingsAppearanceRoute
-  SettingsModelsRoute: typeof SettingsModelsRoute
-  SettingsProfileRoute: typeof SettingsProfileRoute
-  SettingsProvidersRoute: typeof SettingsProvidersRoute
-  SettingsToolsRoute: typeof SettingsToolsRoute
-  SettingsUsageRoute: typeof SettingsUsageRoute
-}
-
-const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
-  SettingsAppearanceRoute: SettingsAppearanceRoute,
-  SettingsModelsRoute: SettingsModelsRoute,
-  SettingsProfileRoute: SettingsProfileRoute,
-  SettingsProvidersRoute: SettingsProvidersRoute,
-  SettingsToolsRoute: SettingsToolsRoute,
-  SettingsUsageRoute: SettingsUsageRoute,
-}
-
-const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
-  SettingsRouteRouteChildren,
-)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  ChatRouteRoute: ChatRouteRouteWithChildren,
-  SettingsRouteRoute: SettingsRouteRouteWithChildren,
-  DocsRoute: DocsRoute,
-  PrivacyRoute: PrivacyRoute,
-  AuthSignInRoute: AuthSignInRoute,
-}
+	IndexRoute: IndexRoute,
+	AiRoute: AiRoute,
+	DashboardRoute: DashboardRoute,
+	LoginRoute: LoginRoute,
+};
 export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+	._addFileChildren(rootRouteChildren)
+	._addFileTypes<FileRouteTypes>();
+
+import type { getRouter } from "./router.tsx";
+import type { createStart } from "@tanstack/react-start";
+declare module "@tanstack/react-start" {
+	interface Register {
+		ssr: true;
+		router: Awaited<ReturnType<typeof getRouter>>;
+	}
+}

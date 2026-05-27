@@ -1,55 +1,57 @@
+import { Toaster } from "@better-agent/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import {
-	createRootRouteWithContext,
-	Outlet,
-	useRouterState,
-} from "@tanstack/react-router";
+import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import type { AuthContextValue } from "@/web/components/auth-provider";
-import { BackgroundLayout } from "@/web/components/background";
-import { ErrorBoundary } from "@/web/components/error-boundary";
-import Header from "@/web/components/navigation/header";
-import { NotFound } from "@/web/components/not-found";
-import { ThemeProvider } from "@/web/components/theme-provider";
-import { Toaster } from "@/web/components/ui/sonner";
-import type { authClient } from "@/web/lib/auth-client";
-import type { orpc } from "@/web/lib/orpc";
-import "@/web/index.css";
-import { useEffect } from "react";
+
+import Header from "../components/header";
+import appCss from "../index.css?url";
+
+import type { orpc } from "@/utils/orpc";
 
 export interface RouterAppContext {
 	orpc: typeof orpc;
 	queryClient: QueryClient;
-	authClient: typeof authClient;
-	auth: AuthContextValue;
 }
 
-export const Route = createRootRouteWithContext<RouterAppContext>()({
-	component: RootComponent,
-	notFoundComponent: NotFound,
-	errorComponent: ErrorBoundary,
-});
-
-function RootComponent() {
-	const router = useRouterState();
-
-	// force scroll to top on route change -- router default behavior doesn't seem to be working?
-	useEffect(() => {
-		window.scrollTo(0, 0);
-	}, [router.location.pathname]);
-
-	return (
-		<>
-			<ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-				<BackgroundLayout contentClassName="flex min-h-svh max-w-[100vw] flex-col overflow-x-hidden">
-					<Header />
-					<Outlet />
-				</BackgroundLayout>
-				<Toaster richColors />
-			</ThemeProvider>
+const RootDocument = () => (
+	<html lang="en" className="dark">
+		<head>
+			<HeadContent />
+		</head>
+		<body>
+			<div className="grid h-svh grid-rows-[auto_1fr]">
+				<Header />
+				<Outlet />
+			</div>
+			<Toaster richColors />
 			<TanStackRouterDevtools position="bottom-left" />
 			<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-		</>
-	);
-}
+			<Scripts />
+		</body>
+	</html>
+);
+
+export const Route = createRootRouteWithContext<RouterAppContext>()({
+	component: RootDocument,
+	head: () => ({
+		links: [
+			{
+				href: appCss,
+				rel: "stylesheet",
+			},
+		],
+		meta: [
+			{
+				charSet: "utf-8",
+			},
+			{
+				content: "width=device-width, initial-scale=1",
+				name: "viewport",
+			},
+			{
+				title: "My App",
+			},
+		],
+	}),
+});
