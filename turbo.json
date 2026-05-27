@@ -10,39 +10,24 @@
 		"lint": {
 			"dependsOn": ["^lint"]
 		},
-		"typecheck": {
-			"dependsOn": ["^typecheck"]
+		"check-types": {
+			"dependsOn": ["^check-types"]
 		},
 		"dev": {
 			"cache": false,
 			"persistent": true
 		},
 		"db:push": {
-			"cache": false,
-			"persistent": true
-		},
-		"db:studio": {
-			"cache": false,
-			"persistent": true
-		},
-		"db:migrate": {
-			"cache": false,
-			"persistent": true
-		},
-		"db:generate": {
-			"cache": false,
-			"persistent": true
-		},
-		"do:generate": {
-			"cache": false,
-			"persistent": true
-		},
-		"vite:clean": {
 			"cache": false
 		},
-		"a:clean": {
-			"cache": false,
-			"persistent": true
+		"db:generate": {
+			"cache": false
+		},
+		"deploy": {
+			"cache": false
+		},
+		"destroy": {
+			"cache": false
 		}
 	}
 }

@@ -1,0 +1,29 @@
+{
+	"name": "@better-agent/api",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@better-agent/auth": "workspace:*",
+		"@better-agent/db": "workspace:*",
+		"@better-agent/env": "workspace:*",
+		"@orpc/client": "catalog:",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@better-agent/config": "workspace:*",
+		"hono": "catalog:",
+		"typescript": "catalog:"
+	}
+}
