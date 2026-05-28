@@ -8,8 +8,8 @@
 		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server"
 	},
 	"dependencies": {
-		"@ai-sdk/devtools": "^0.0.2",
-		"@ai-sdk/google": "^3.0.1",
+		"@ai-sdk/devtools": "^0.0.18",
+		"@ai-sdk/google": "^3.0.80",
 		"@better-agent/api": "workspace:*",
 		"@better-agent/auth": "workspace:*",
 		"@better-agent/db": "workspace:*",
@@ -28,7 +28,7 @@
 		"@cloudflare/workers-types": "catalog:",
 		"@types/node": "catalog:",
 		"alchemy": "catalog:",
-		"tsdown": "^0.21.9",
+		"tsdown": "^0.22.1",
 		"typescript": "catalog:",
 		"wrangler": "catalog:"
 	}
