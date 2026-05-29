@@ -1,9 +1,7 @@
-import type { server } from "@better-agent/infra/alchemy.run";
+import type { CloudflareEnv } from "./src/types";
 
-// This file infers types for the cloudflare:workers environment from your Alchemy Worker.
-// @see https://alchemy.run/concepts/bindings/#type-safe-bindings
-
-export type CloudflareEnv = typeof server.Env;
+// This file declares the cloudflare:workers environment shape used by the app.
+// Runtime bindings are configured in packages/infra/alchemy.run.ts.
 
 declare global {
 	type Env = CloudflareEnv;
