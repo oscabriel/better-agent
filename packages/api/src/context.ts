@@ -1,16 +1,26 @@
 import { createAuth } from "@better-agent/auth";
-import type { Context as HonoContext } from "hono";
+import { createDb } from "@better-agent/db";
+import type { CloudflareEnv } from "@better-agent/env/types";
+
+export type ControlPlaneEnv = CloudflareEnv;
 
 export interface CreateContextOptions {
-	context: HonoContext;
+	env: ControlPlaneEnv;
+	executionCtx?: ExecutionContext;
+	headers: Headers;
 }
 
-export const createContext = async ({ context }: CreateContextOptions) => {
-	const session = await createAuth().api.getSession({
-		headers: context.req.raw.headers,
+export const createContext = async ({ env, executionCtx, headers }: CreateContextOptions) => {
+	const db = createDb(env.DB);
+	const session = await createAuth({ db, env }).api.getSession({
+		headers,
 	});
+
 	return {
-		auth: null,
+		db,
+		env,
+		executionCtx,
+		headers,
 		session,
 	};
 };

@@ -1,21 +1,47 @@
-import { createContext } from "@better-agent/api/context";
-import { appRouter } from "@better-agent/api/routers/index";
+import { appRouter, createContext } from "@better-agent/api";
 import { createAuth } from "@better-agent/auth";
+import { createDb } from "@better-agent/db";
 import { env } from "@better-agent/env/server";
+import type { CloudflareEnv } from "@better-agent/env/types";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
+import type { ErrorHandler } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
-const app = new Hono();
+const app = new Hono<{ Bindings: CloudflareEnv }>();
 
 const logError = (error: unknown) => {
 	console.error(error);
 };
+
+const errorHandler: ErrorHandler<{ Bindings: CloudflareEnv }> = (error, c) => {
+	logError(error);
+
+	if (error instanceof HTTPException) {
+		return error.getResponse();
+	}
+
+	return c.json({ error: "Internal Server Error" }, 500);
+};
+
+const apiHandler = new OpenAPIHandler(appRouter, {
+	interceptors: [onError(logError)],
+	plugins: [
+		new OpenAPIReferencePlugin({
+			schemaConverters: [new ZodToJsonSchemaConverter()],
+		}),
+	],
+});
+
+const rpcHandler = new RPCHandler(appRouter, {
+	interceptors: [onError(logError)],
+});
 
 app.use(logger());
 app.use(
@@ -28,45 +54,56 @@ app.use(
 	}),
 );
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => createAuth().handler(c.req.raw));
+app.on(["GET", "POST"], "/api/auth/*", (c) =>
+	createAuth({
+		db: createDb(c.env.DB),
+		env: c.env,
+	}).handler(c.req.raw),
+);
 
-export const apiHandler = new OpenAPIHandler(appRouter, {
-	interceptors: [onError(logError)],
-	plugins: [
-		new OpenAPIReferencePlugin({
-			schemaConverters: [new ZodToJsonSchemaConverter()],
+app.use("/api/rpc/*", async (c, next) => {
+	const result = await rpcHandler.handle(c.req.raw, {
+		context: await createContext({
+			env: c.env,
+			executionCtx: c.executionCtx,
+			headers: c.req.raw.headers,
 		}),
-	],
-});
-
-export const rpcHandler = new RPCHandler(appRouter, {
-	interceptors: [onError(logError)],
-});
-
-app.use("/*", async (c, next) => {
-	const context = await createContext({ context: c });
-
-	const rpcResult = await rpcHandler.handle(c.req.raw, {
-		context,
-		prefix: "/rpc",
+		prefix: "/api/rpc",
 	});
 
-	if (rpcResult.matched) {
-		return c.newResponse(rpcResult.response.body, rpcResult.response);
+	if (!result.matched) {
+		return next();
 	}
 
-	const apiResult = await apiHandler.handle(c.req.raw, {
-		context,
-		prefix: "/api-reference",
+	return c.newResponse(result.response.body, result.response);
+});
+
+app.use("/api/openapi/*", async (c, next) => {
+	const result = await apiHandler.handle(c.req.raw, {
+		context: await createContext({
+			env: c.env,
+			executionCtx: c.executionCtx,
+			headers: c.req.raw.headers,
+		}),
+		prefix: "/api/openapi",
 	});
 
-	if (apiResult.matched) {
-		return c.newResponse(apiResult.response.body, apiResult.response);
+	if (!result.matched) {
+		return next();
 	}
 
-	await next();
+	return c.newResponse(result.response.body, result.response);
 });
+
+app.onError(errorHandler);
 
 app.get("/", (c) => c.text("OK"));
+app.get("/api/health", (c) => c.text("OK"));
 
-export default app;
+const worker: ExportedHandler = {
+	fetch(request, bindings, executionCtx) {
+		return app.fetch(request, bindings as CloudflareEnv, executionCtx);
+	},
+};
+
+export default worker;
