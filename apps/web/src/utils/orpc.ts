@@ -1,4 +1,4 @@
-import type { AppRouter } from "@better-agent/api/routers/index";
+import type { AppRouter } from "@better-agent/api";
 import { env } from "@better-agent/env/web";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -27,7 +27,7 @@ const link = new RPCLink({
 			credentials: "include",
 		});
 	},
-	url: `${env.VITE_SERVER_URL}/rpc`,
+	url: `${env.VITE_SERVER_URL}/api/rpc`,
 });
 
 const getORPCClient = () => createORPCClient(link) as RouterClient<AppRouter>;
