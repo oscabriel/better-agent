@@ -1,6 +1,6 @@
-import type { RouterClient } from "@orpc/server";
+import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 
-import { protectedProcedure, publicProcedure } from "../index";
+import { protectedProcedure, publicProcedure } from "../procedures";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => "OK"),
@@ -10,4 +10,6 @@ export const appRouter = {
 	})),
 };
 export type AppRouter = typeof appRouter;
-export type AppRouterClient = RouterClient<typeof appRouter>;
+export type AppRouterClient = RouterClient<AppRouter>;
+export type RouterInputs = InferRouterInputs<AppRouter>;
+export type RouterOutputs = InferRouterOutputs<AppRouter>;
