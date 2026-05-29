@@ -9,24 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root";
+import { Route as ThinkspacesRouteImport } from "./routes/thinkspaces";
 import { Route as LoginRouteImport } from "./routes/login";
-import { Route as DashboardRouteImport } from "./routes/dashboard";
-import { Route as AiRouteImport } from "./routes/ai";
 import { Route as IndexRouteImport } from "./routes/index";
 
+const ThinkspacesRoute = ThinkspacesRouteImport.update({
+	id: "/thinkspaces",
+	path: "/thinkspaces",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const LoginRoute = LoginRouteImport.update({
 	id: "/login",
 	path: "/login",
-	getParentRoute: () => rootRouteImport,
-} as any);
-const DashboardRoute = DashboardRouteImport.update({
-	id: "/dashboard",
-	path: "/dashboard",
-	getParentRoute: () => rootRouteImport,
-} as any);
-const AiRoute = AiRouteImport.update({
-	id: "/ai",
-	path: "/ai",
 	getParentRoute: () => rootRouteImport,
 } as any);
 const IndexRoute = IndexRouteImport.update({
@@ -37,59 +31,48 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
 	"/": typeof IndexRoute;
-	"/ai": typeof AiRoute;
-	"/dashboard": typeof DashboardRoute;
 	"/login": typeof LoginRoute;
+	"/thinkspaces": typeof ThinkspacesRoute;
 }
 export interface FileRoutesByTo {
 	"/": typeof IndexRoute;
-	"/ai": typeof AiRoute;
-	"/dashboard": typeof DashboardRoute;
 	"/login": typeof LoginRoute;
+	"/thinkspaces": typeof ThinkspacesRoute;
 }
 export interface FileRoutesById {
 	__root__: typeof rootRouteImport;
 	"/": typeof IndexRoute;
-	"/ai": typeof AiRoute;
-	"/dashboard": typeof DashboardRoute;
 	"/login": typeof LoginRoute;
+	"/thinkspaces": typeof ThinkspacesRoute;
 }
 export interface FileRouteTypes {
 	fileRoutesByFullPath: FileRoutesByFullPath;
-	fullPaths: "/" | "/ai" | "/dashboard" | "/login";
+	fullPaths: "/" | "/login" | "/thinkspaces";
 	fileRoutesByTo: FileRoutesByTo;
-	to: "/" | "/ai" | "/dashboard" | "/login";
-	id: "__root__" | "/" | "/ai" | "/dashboard" | "/login";
+	to: "/" | "/login" | "/thinkspaces";
+	id: "__root__" | "/" | "/login" | "/thinkspaces";
 	fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
 	IndexRoute: typeof IndexRoute;
-	AiRoute: typeof AiRoute;
-	DashboardRoute: typeof DashboardRoute;
 	LoginRoute: typeof LoginRoute;
+	ThinkspacesRoute: typeof ThinkspacesRoute;
 }
 
 declare module "@tanstack/react-router" {
 	interface FileRoutesByPath {
+		"/thinkspaces": {
+			id: "/thinkspaces";
+			path: "/thinkspaces";
+			fullPath: "/thinkspaces";
+			preLoaderRoute: typeof ThinkspacesRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
 		"/login": {
 			id: "/login";
 			path: "/login";
 			fullPath: "/login";
 			preLoaderRoute: typeof LoginRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-		"/dashboard": {
-			id: "/dashboard";
-			path: "/dashboard";
-			fullPath: "/dashboard";
-			preLoaderRoute: typeof DashboardRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-		"/ai": {
-			id: "/ai";
-			path: "/ai";
-			fullPath: "/ai";
-			preLoaderRoute: typeof AiRouteImport;
 			parentRoute: typeof rootRouteImport;
 		};
 		"/": {
@@ -104,9 +87,8 @@ declare module "@tanstack/react-router" {
 
 const rootRouteChildren: RootRouteChildren = {
 	IndexRoute: IndexRoute,
-	AiRoute: AiRoute,
-	DashboardRoute: DashboardRoute,
 	LoginRoute: LoginRoute,
+	ThinkspacesRoute: ThinkspacesRoute,
 };
 export const routeTree = rootRouteImport
 	._addFileChildren(rootRouteChildren)

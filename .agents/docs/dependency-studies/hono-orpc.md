@@ -41,27 +41,35 @@ Inspected Better Agent API/server and Better Chat server routers listed in the t
 Recommended Hono shape for Better Agent:
 
 ```ts
-const app = new Hono<{ Bindings: Env }>().basePath('/api')
+const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
-app.use('*', logger())
-app.use('*', cors({ origin: env.CORS_ORIGIN, credentials: true, allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type', 'Authorization'] }))
-app.on(['GET', 'POST'], '/auth/*', c => auth.handler(c.req.raw))
+app.use("*", logger());
+app.use(
+	"*",
+	cors({
+		origin: env.CORS_ORIGIN,
+		credentials: true,
+		allowMethods: ["GET", "POST", "OPTIONS"],
+		allowHeaders: ["Content-Type", "Authorization"],
+	}),
+);
+app.on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw));
 
-app.use('/rpc/*', async (c, next) => {
-  const result = await rpcHandler.handle(c.req.raw, {
-    prefix: '/api/rpc',
-    context: await createContext({ context: c }),
-  })
-  return result.matched ? c.newResponse(result.response.body, result.response) : next()
-})
+app.use("/rpc/*", async (c, next) => {
+	const result = await rpcHandler.handle(c.req.raw, {
+		prefix: "/api/rpc",
+		context: await createContext({ context: c }),
+	});
+	return result.matched ? c.newResponse(result.response.body, result.response) : next();
+});
 
-app.use('/openapi/*', async (c, next) => {
-  const result = await openAPIHandler.handle(c.req.raw, {
-    prefix: '/api/openapi',
-    context: await createContext({ context: c }),
-  })
-  return result.matched ? c.newResponse(result.response.body, result.response) : next()
-})
+app.use("/openapi/*", async (c, next) => {
+	const result = await openAPIHandler.handle(c.req.raw, {
+		prefix: "/api/openapi",
+		context: await createContext({ context: c }),
+	});
+	return result.matched ? c.newResponse(result.response.body, result.response) : next();
+});
 ```
 
 Notes:
@@ -146,18 +154,18 @@ Porting guidance:
 
 ```ts
 export const appRouter = {
-  healthCheck: publicProcedure.handler(() => 'OK'),
-  models: modelsRouter,
-  mcpCatalog: mcpCatalogRouter,
-  thinkspaceTools: thinkspaceToolsRouter,
-  accountSettings: accountSettingsRouter,
-  thinkspaceSettings: thinkspaceSettingsRouter,
-} as const
+	healthCheck: publicProcedure.handler(() => "OK"),
+	models: modelsRouter,
+	mcpCatalog: mcpCatalogRouter,
+	thinkspaceTools: thinkspaceToolsRouter,
+	accountSettings: accountSettingsRouter,
+	thinkspaceSettings: thinkspaceSettingsRouter,
+} as const;
 
-export type AppRouter = typeof appRouter
-export type AppRouterClient = RouterClient<AppRouter>
-export type RouterInputs = InferRouterInputs<AppRouter>
-export type RouterOutputs = InferRouterOutputs<AppRouter>
+export type AppRouter = typeof appRouter;
+export type AppRouterClient = RouterClient<AppRouter>;
+export type RouterInputs = InferRouterInputs<AppRouter>;
+export type RouterOutputs = InferRouterOutputs<AppRouter>;
 ```
 
 Principles:

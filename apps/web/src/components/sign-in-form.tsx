@@ -33,7 +33,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
 					},
 					onSuccess: () => {
 						navigate({
-							to: "/dashboard",
+							to: "/thinkspaces",
 						});
 						toast.success("Sign in successful");
 					},

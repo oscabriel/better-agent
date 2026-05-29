@@ -83,35 +83,35 @@ Recommended Alchemy PRD shape:
 
 ```ts
 const app = await alchemy("better-chat", {
-  stage: process.env.ALCHEMY_STAGE ?? "dev",
-  stateStore: (scope) =>
-    new CloudflareStateStore(scope, {
-      stateToken: alchemy.secret.env.ALCHEMY_STATE_TOKEN,
-    }),
+	stage: process.env.ALCHEMY_STAGE ?? "dev",
+	stateStore: (scope) =>
+		new CloudflareStateStore(scope, {
+			stateToken: alchemy.secret.env.ALCHEMY_STATE_TOKEN,
+		}),
 });
 
 const prefix = `${app.name}-${app.stage}`;
 
 const db = await D1Database("product-db", {
-  name: `${prefix}-db`,
-  migrationsDir: "apps/server/src/db/d1/migrations",
-  adopt: true,
-  readReplication: { mode: "auto" },
+	name: `${prefix}-db`,
+	migrationsDir: "apps/server/src/db/d1/migrations",
+	adopt: true,
+	readReplication: { mode: "auto" },
 });
 
 const sessions = await KVNamespace("sessions", {
-  title: `${prefix}-sessions`,
-  adopt: true,
+	title: `${prefix}-sessions`,
+	adopt: true,
 });
 
 const artifacts = await R2Bucket("artifacts", {
-  name: `${prefix}-artifacts`,
-  adopt: true,
+	name: `${prefix}-artifacts`,
+	adopt: true,
 });
 
 const thinkspaces = DurableObjectNamespace("thinkspace-agent", {
-  className: "ThinkspaceAgent",
-  sqlite: true,
+	className: "ThinkspaceAgent",
+	sqlite: true,
 });
 ```
 
@@ -170,27 +170,27 @@ The PRD should require a Cloudflare Agents class approximately like:
 import { Agent, callable } from "agents";
 
 export type ThinkspaceState = {
-  status: "idle" | "thinking" | "waiting_for_approval" | "error";
-  activeRunId?: string;
+	status: "idle" | "thinking" | "waiting_for_approval" | "error";
+	activeRunId?: string;
 };
 
 export class ThinkspaceAgent extends Agent<Env, ThinkspaceState> {
-  initialState = { status: "idle" as const };
+	initialState = { status: "idle" as const };
 
-  async onStart() {
-    await this.scheduleEvery(300, "compactMemory");
-  }
+	async onStart() {
+		await this.scheduleEvery(300, "compactMemory");
+	}
 
-  @callable()
-  async startRun(input: { prompt: string; conversationId?: string }) {
-    this.setState({ ...this.state, status: "thinking" });
-    // Persist run/message/tool rows with this.sql`...`.
-  }
+	@callable()
+	async startRun(input: { prompt: string; conversationId?: string }) {
+		this.setState({ ...this.state, status: "thinking" });
+		// Persist run/message/tool rows with this.sql`...`.
+	}
 
-  @callable()
-  async approveAction(input: { approvalId: string }) {
-    // Validate permission + approval policy; persist audit row.
-  }
+	@callable()
+	async approveAction(input: { approvalId: string }) {
+		// Validate permission + approval policy; persist audit row.
+	}
 }
 ```
 

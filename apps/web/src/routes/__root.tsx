@@ -22,7 +22,9 @@ const RootDocument = () => (
 		<body>
 			<div className="grid h-svh grid-rows-[auto_1fr]">
 				<Header />
-				<Outlet />
+				<main className="min-h-0 overflow-auto">
+					<Outlet />
+				</main>
 			</div>
 			<Toaster richColors />
 			<TanStackRouterDevtools position="bottom-left" />
@@ -50,7 +52,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				name: "viewport",
 			},
 			{
-				title: "My App",
+				title: "Better Agent",
+			},
+			{
+				content: "Create scoped Thinkspaces for durable agent work.",
+				name: "description",
 			},
 		],
 	}),

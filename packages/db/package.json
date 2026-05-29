@@ -15,10 +15,10 @@
 	},
 	"dependencies": {
 		"@better-agent/env": "workspace:*",
-		"@libsql/client": "0.15.15",
+		"@libsql/client": "0.17.3",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.1",
-		"libsql": "0.5.22",
+		"libsql": "0.5.29",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

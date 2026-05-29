@@ -386,11 +386,11 @@ Current AI SDK guidance:
 
 ```ts
 type ModelResolver = {
-  resolveLanguageModel(input: {
-    userId: string;
-    thinkspaceId?: string;
-    modelId: string;
-  }): Promise<LanguageModel>;
+	resolveLanguageModel(input: {
+		userId: string;
+		thinkspaceId?: string;
+		modelId: string;
+	}): Promise<LanguageModel>;
 };
 ```
 
