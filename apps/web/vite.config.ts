@@ -9,15 +9,6 @@ import { defineConfig } from "vite";
 
 const alchemyConfigPath = fileURLToPath(new URL(".alchemy/local/wrangler.jsonc", import.meta.url));
 const shouldUseAlchemy = existsSync(alchemyConfigPath);
-const cloudflareWorkersShimPath = fileURLToPath(
-	new URL("../../packages/env/src/cloudflare-local.ts", import.meta.url),
-);
-const cloudflareWorkersAlias = shouldUseAlchemy
-	? {}
-	: {
-			"cloudflare:workers": cloudflareWorkersShimPath,
-		};
-
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
@@ -26,7 +17,6 @@ export default defineConfig({
 		...(shouldUseAlchemy ? [alchemy({ configPath: alchemyConfigPath })] : []),
 	],
 	resolve: {
-		alias: cloudflareWorkersAlias,
 		tsconfigPaths: true,
 	},
 	server: {
