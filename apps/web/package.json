@@ -9,6 +9,8 @@
 	},
 	"dependencies": {
 		"@better-agent/api": "workspace:*",
+		"@better-agent/auth": "workspace:*",
+		"@better-agent/db": "workspace:*",
 		"@better-agent/env": "workspace:*",
 		"@better-agent/ui": "workspace:*",
 		"@orpc/client": "catalog:",

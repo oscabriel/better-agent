@@ -1,23 +1,21 @@
-import { createDb } from "@better-agent/db";
 import type { ProductDb } from "@better-agent/db";
 import * as schema from "@better-agent/db/schema/auth";
-import { env as serverEnv } from "@better-agent/env/server";
-import type { CloudflareEnv } from "@better-agent/env/types";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
-type AuthEnv = Pick<CloudflareEnv, "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "CORS_ORIGIN">;
-
-export interface CreateAuthOptions {
-	db?: ProductDb;
-	env?: AuthEnv;
+export interface AuthBindings {
+	BETTER_AUTH_SECRET: string;
+	BETTER_AUTH_URL: string;
+	CORS_ORIGIN: string;
 }
 
-export const createAuth = (options: CreateAuthOptions = {}) => {
-	const bindings = options.env ?? serverEnv;
-	const db = options.db ?? createDb();
+export interface CreateAuthOptions {
+	db: ProductDb;
+	env: AuthBindings;
+}
 
-	return betterAuth({
+export const createAuth = ({ db, env }: CreateAuthOptions) =>
+	betterAuth({
 		advanced: {
 			defaultCookieAttributes: {
 				httpOnly: true,
@@ -25,7 +23,8 @@ export const createAuth = (options: CreateAuthOptions = {}) => {
 				secure: true,
 			},
 		},
-		baseURL: bindings.BETTER_AUTH_URL,
+		basePath: "/api/auth",
+		baseURL: env.BETTER_AUTH_URL,
 		database: drizzleAdapter(db, {
 			provider: "sqlite",
 			schema,
@@ -33,7 +32,6 @@ export const createAuth = (options: CreateAuthOptions = {}) => {
 		emailAndPassword: {
 			enabled: true,
 		},
-		secret: bindings.BETTER_AUTH_SECRET,
-		trustedOrigins: [bindings.CORS_ORIGIN],
+		secret: env.BETTER_AUTH_SECRET,
+		trustedOrigins: [env.CORS_ORIGIN],
 	});
-};
