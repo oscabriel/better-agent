@@ -28,9 +28,11 @@
 ## Env/binding requirements
 
 Already present in Better Agent Alchemy common bindings:
+
 - `DB`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `CORS_ORIGIN` (`packages/infra/alchemy.run.ts:23-28`). Runtime access is through `cloudflare:workers` in `@better-agent/env/server` (`packages/env/src/server.ts:1-7`).
 
 Needed only if porting Better Chat features:
+
 - Google OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Better Chat source: `apps/server/src/lib/auth.ts:21-25`).
 - GitHub OAuth: `GH_CLIENT_ID`, `GH_CLIENT_SECRET` (`apps/server/src/lib/auth.ts:26-29`).
 - Email OTP via Resend: add `resend` dependency to the Better Agent auth/server package as appropriate; bind `RESEND_API_KEY`; define sender constants/templates or replace with Better Agent mail abstraction (`apps/server/src/lib/auth.ts:6,39-47`).
