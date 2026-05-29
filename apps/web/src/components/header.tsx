@@ -5,25 +5,33 @@ import UserMenu from "./user-menu";
 export default function Header() {
 	const links = [
 		{ label: "Home", to: "/" },
-		{ label: "Dashboard", to: "/dashboard" },
-		{ label: "AI Chat", to: "/ai" },
+		{ label: "Thinkspaces", to: "/thinkspaces" },
 	] as const;
 
 	return (
-		<div>
-			<div className="flex flex-row items-center justify-between px-2 py-1">
-				<nav className="flex gap-4 text-lg">
-					{links.map(({ to, label }) => (
-						<Link key={to} to={to}>
-							{label}
-						</Link>
-					))}
-				</nav>
+		<header className="border-b border-border bg-background/95 backdrop-blur">
+			<div className="mx-auto flex h-12 max-w-6xl flex-row items-center justify-between px-4">
+				<div className="flex items-center gap-6">
+					<Link className="font-semibold text-sm tracking-tight" to="/">
+						Better Agent
+					</Link>
+					<nav aria-label="Primary" className="flex gap-1 text-sm">
+						{links.map(({ to, label }) => (
+							<Link
+								activeProps={{ className: "bg-muted text-foreground" }}
+								className="px-2 py-1 text-muted-foreground transition-colors hover:text-foreground"
+								key={to}
+								to={to}
+							>
+								{label}
+							</Link>
+						))}
+					</nav>
+				</div>
 				<div className="flex items-center gap-2">
 					<UserMenu />
 				</div>
 			</div>
-			<hr />
-		</div>
+		</header>
 	);
 }

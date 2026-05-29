@@ -61,7 +61,7 @@ Date: 2026-05-27
 ## Recommended D1 schema practices for Better Agent
 
 1. **Use `timestamp_ms` everywhere in new D1 schema.** It preserves ordering precision and matches Better Agent's existing auth schema. Use a shared SQL expression such as:
-   - `sql\`(cast(unixepoch('subsecond') * 1000 as integer))\`` if accepted by D1's SQLite version; or
+   - `sql\`(cast(unixepoch('subsecond') \* 1000 as integer))\`` if accepted by D1's SQLite version; or
    - Drizzle's deprecated `defaultNow()` expression as a compatibility reference: `cast((julianday('now') - 2440587.5)*86400000 as integer)` (`drizzle-orm/src/sqlite-core/columns/integer.ts:120-126`).
 2. **Use SQL defaults for `createdAt` and `updatedAt`; use `$onUpdate` only as a runtime convenience.** `$onUpdate` is not migration DDL. A `notNull` timestamp with only `$onUpdate` is fragile for direct writes and external adapters.
 3. **Use `text(...).notNull()` plus application/domain validation for enums.** SQLite/Drizzle does not give a first-class enum type for D1. Add `status` text with a default and enforce `active | archived` in the lifecycle module; optionally add a SQL check if the team wants stricter DDL.

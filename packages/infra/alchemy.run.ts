@@ -25,10 +25,6 @@ const commonBindings = {
 	BETTER_AUTH_URL: requiredEnv(alchemy.env.BETTER_AUTH_URL, "BETTER_AUTH_URL"),
 	CORS_ORIGIN: requiredEnv(alchemy.env.CORS_ORIGIN, "CORS_ORIGIN"),
 	DB: db,
-	GOOGLE_GENERATIVE_AI_API_KEY: requiredEnv(
-		alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
-		"GOOGLE_GENERATIVE_AI_API_KEY",
-	),
 };
 
 export const web = await TanStackStart("web", {
