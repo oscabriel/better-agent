@@ -1,13 +1,41 @@
-import dotenv from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-dotenv.config({
-	path: "../../apps/server/.env",
-});
+import {
+	getDrizzleD1Mode,
+	loadDrizzleEnv,
+	resolveLocalD1DatabaseUrl,
+	resolveRemoteD1DatabaseCredentials,
+} from "./src/utils";
 
-export default defineConfig({
+loadDrizzleEnv();
+
+const baseConfig = {
 	dialect: "sqlite",
-	driver: "d1-http",
 	out: "./src/migrations",
-	schema: "./src/schema",
-});
+	schema: "./src/schema/index.ts",
+} as const;
+
+const drizzleConfig = () => {
+	const mode = getDrizzleD1Mode();
+
+	if (mode === "local") {
+		return {
+			...baseConfig,
+			dbCredentials: {
+				url: resolveLocalD1DatabaseUrl(),
+			},
+		};
+	}
+
+	if (mode === "remote") {
+		return {
+			...baseConfig,
+			dbCredentials: resolveRemoteD1DatabaseCredentials(),
+			driver: "d1-http" as const,
+		};
+	}
+
+	return baseConfig;
+};
+
+export default defineConfig(drizzleConfig());

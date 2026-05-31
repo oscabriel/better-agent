@@ -1,7 +1,7 @@
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-const timestampMsNow = sql`(cast(unixepoch('subsecond') * 1000 as integer))`;
+import { timestampMsNow } from "./common";
 
 export const user = sqliteTable("user", {
 	createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampMsNow).notNull(),
