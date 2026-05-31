@@ -5,7 +5,7 @@
 Draft created from:
 
 - `CONTEXT.md`
-- ADRs `0001` through `0004`
+- ADRs `0001` through `0005`
 - GitHub issue `#3`: `PRD: Replace Better Chat product core with the first Better Agent Thinkspace slice`
 - `docs/salvage-map-better-chat.md`
 - local source inspection of:
@@ -52,20 +52,23 @@ Implement a dependency-aligned salvage layer in `better-agent` that ports only t
 - API routing patterns;
 - TanStack route/query patterns.
 
-The result should make Better Agent ready to build and ship the first Thinkspace dashboard/create/detail/archive product slice without reintroducing Better Chat's chat-first runtime model.
+The result should make Better Agent ready to build and ship the first Thinkspace list/create/detail/archive product slice — where `/thinkspaces` is a Thinkspace list with a Review Queue entry point — without reintroducing Better Chat's chat-first runtime model or a producer-side orchestration dashboard.
 
 ## Non-Negotiable Domain Constraints
 
 - Better Agent is the product name.
 - Thinkspace is the top-level work container.
 - Goal is the bounded outcome a Thinkspace is created around.
-- Coordinator is a setup/routing role, not a global assistant.
+- Coordinator is a setup/routing role and the per-user owner of the Review Queue; it is not a global assistant.
 - Thinkspace Agent is the future bounded runtime for one Thinkspace.
 - Connected Account does not grant Thinkspace access by itself.
 - Permission is Thinkspace-scoped possible access.
-- Approval is user consent for an action within a Permission.
+- Approval is user consent for an action within a Permission; an Approval is a holdpoint that enters the Review Queue.
 - Source is input material; Memory is retained understanding; Artifact is durable output.
 - Audit Trail is user-facing Thinkspace history, not developer logs.
+- Attention is the scarce serial resource the product is architected around; agent supply is not the constraint.
+- Review Queue is the batched, prioritized, cross-Thinkspace set of items awaiting the user's judgement (pending Approvals, drafts, Memory to accept, Goal assessments).
+- Backpressure paces Thinkspace Agent production to the user's review rate; the product must never auto-merge work past the user's judgement, and must not sell agent count or live activity over shipped, understood outcomes.
 
 ## Architecture Constraints From ADRs
 
@@ -73,6 +76,7 @@ The result should make Better Agent ready to build and ship the first Thinkspace
 - ADR-0002: D1 stores product indexes and authorization metadata; Durable Object SQLite stores Thinkspace runtime-local state; R2 stores large Sources and Artifacts.
 - ADR-0003: external mutations default to drafts or explicit Approvals.
 - ADR-0004: tools and Skills are explicitly enabled per Thinkspace and never globally inherited by default.
+- ADR-0005: the product is architected around the user's Attention; judgement-bearing work batches under Backpressure into a per-user Review Queue owned by the Coordinator and never auto-merges. The landing surface is a Thinkspace list with a Review Queue entry point, not a producer-side orchestration dashboard.
 
 ## Dependency-Informed Implementation Decisions
 
@@ -719,7 +723,8 @@ Acceptance:
 
 Requirements:
 
-- Add authenticated Thinkspace dashboard.
+- Add authenticated Thinkspace list at `/thinkspaces` (a list of bounded work areas, not an orchestration dashboard).
+- Add a Review Queue entry point on `/thinkspaces` that links to the per-user, cross-Thinkspace set of items awaiting judgement; in this slice it may be an empty/placeholder Review Queue surface, since holdpoints are runtime-dependent.
 - Add create/review flow.
 - Add Thinkspace detail route with empty states for Sources, Memory, Skills, Permissions, Approvals, Audit Trail, and Artifacts.
 - Port settings shell/providers/tools/profile UI selectively.
@@ -728,6 +733,7 @@ Requirements:
 Acceptance:
 
 - User can create, list, open, and archive Thinkspaces.
+- `/thinkspaces` shows a Review Queue entry point alongside the Thinkspace list; it does not surface running-agent counts or live activity as the primary signal.
 - Empty states describe target modules without pretending implementation is complete.
 - Settings UI distinguishes product-level Connected Accounts/catalogs from Thinkspace Permissions.
 
@@ -756,11 +762,12 @@ Acceptance:
 6. As a Better Agent user, I can configure product-level model providers/BYOK keys without those keys automatically granting a Thinkspace access.
 7. As a Better Agent user, I can configure MCP catalog entries without exposing all tools to every Thinkspace.
 8. As a Better Agent user, I can see empty states for Sources, Memory, Skills, Permissions, Approvals, Audit Trail, and Artifacts so that the product communicates the target architecture.
-9. As a developer, I can port Better Chat auth into Better Agent without downgrading Better Auth or copying stale schema assumptions.
-10. As a developer, I can port model/BYOK code behind a resolver seam without preserving Better Chat's request-scoped chat completion.
-11. As a developer, I can port MCP code as catalog/connection infrastructure without preserving global tool enablement.
-12. As a developer, I can generate D1 migrations from Better Agent schema and verify they contain product indexes, not chat runtime state.
-13. As a developer, I can deploy with Alchemy using deliberate stage/resource naming and without binding the old `UserDurableObject`.
+9. As a Better Agent user, I can reach a Review Queue entry point from `/thinkspaces` so that the product is oriented around what needs my judgement, not around how many agents are running.
+10. As a developer, I can port Better Chat auth into Better Agent without downgrading Better Auth or copying stale schema assumptions.
+11. As a developer, I can port model/BYOK code behind a resolver seam without preserving Better Chat's request-scoped chat completion.
+12. As a developer, I can port MCP code as catalog/connection infrastructure without preserving global tool enablement.
+13. As a developer, I can generate D1 migrations from Better Agent schema and verify they contain product indexes, not chat runtime state.
+14. As a developer, I can deploy with Alchemy using deliberate stage/resource naming and without binding the old `UserDurableObject`.
 
 ## Out of Scope
 
@@ -775,6 +782,7 @@ Acceptance:
 - Approval execution workflows beyond policy placeholders.
 - Local Node support.
 - Multi-user Thinkspaces/membership beyond first-slice ownership.
+- A populated Review Queue and cross-Thinkspace Backpressure pacing (runtime-dependent); this slice ships only the Review Queue entry point and its empty state, reserving the seam for later population.
 - Usage accounting unless explicitly pulled from quarantine.
 - Chat markdown/code/tool-call renderers as first-slice architecture.
 
@@ -786,6 +794,7 @@ Acceptance:
 - Thinkspace create/list/get/archive works through API and UI.
 - Archived Thinkspaces are inert but inspectable.
 - No primary `/chat` or `/ai` product path exists.
+- `/thinkspaces` is a Thinkspace list with a Review Queue entry point; no surface frames the product as an orchestration dashboard or sells running-agent count/live activity as the primary value.
 - No old conversation compatibility layer exists.
 - No globally configured model/tool/MCP catalog item is automatically enabled for a Thinkspace.
 - Product-facing UI uses Better Agent, Thinkspace, Goal, Permission, Approval, Source, Memory, Skill, Artifact, and Audit Trail language.

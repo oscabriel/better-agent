@@ -2,6 +2,9 @@
 
 Better Agent is the target product context for a web-native system that helps people create scoped agents for durable project thinking, research, planning, monitoring, and handoff work.
 
+Better Agent is architected around the user's **Attention** as the scarce, serial resource. Agent supply is cheap and parallel; human judgement is not. The product's job is to make one person's judgement go further — by pacing, batching, and gating agent work — not to make spawning agents easier or to make the user feel busy.
+_Avoid_ framing the product as: an orchestration dashboard, a multi-agent control center, a way to run many agents at once, anything that sells agent count over shipped, understood outcomes.
+
 ## Language
 
 **Better Agent**:
@@ -21,8 +24,8 @@ The bounded, assessable outcome a Thinkspace is created to pursue.
 _Avoid_: Task, objective, prompt, request
 
 **Coordinator**:
-The thin product-level agent role that helps users create, find, configure, and route between Thinkspaces.
-_Avoid_: Jarvis, personal assistant, global agent, universal agent
+The thin product-level agent role, one per user, that helps users create, find, configure, and route between Thinkspaces, and that protects the user's Attention by maintaining and surfacing the cross-Thinkspace Review Queue.
+_Avoid_: Jarvis, personal assistant, global agent, universal agent, orchestration dashboard
 
 **Thinkspace Agent**:
 The dedicated agent role configured for one Thinkspace's bounded purpose.
@@ -64,6 +67,18 @@ _Avoid_: Agent host, local runtime, full machine access, laptop
 The user-facing history of meaningful actions and changes within a Thinkspace.
 _Avoid_: Logs, telemetry, debugging output, transcript
 
+**Attention**:
+The user's finite, serial judgement capacity — the scarce resource Better Agent is architected around and cannot parallelize or clone.
+_Avoid_: Time, availability, focus mode, bandwidth-as-a-metric, agent slots
+
+**Review Queue**:
+The batched, prioritized, cross-Thinkspace set of items awaiting the user's judgement — pending Approvals, drafts, Memory to accept, and Goal assessments.
+_Avoid_: Inbox, notification feed, dashboard, task list, agent activity stream
+
+**Backpressure**:
+The system behavior that paces Thinkspace Agent production to the user's review rate, so produced work accumulates for review instead of auto-merging.
+_Avoid_: Rate limit, throttle, queue depth, hard pause
+
 ## Relationships
 
 - **Better Agent** evolves from **Better Chat**.
@@ -82,6 +97,11 @@ _Avoid_: Logs, telemetry, debugging output, transcript
 - An **Artifact** may cite **Sources** and reflect **Memory**, but it is an output of the **Thinkspace**.
 - A **Local Node** can provide resources governed by **Permissions**, but it does not host the **Thinkspace Agent**.
 - An **Audit Trail** belongs to one **Thinkspace**.
+- Better Agent is architected around the user's **Attention** as the single serial resource; agent supply is not the constraint.
+- The **Coordinator** maintains one per-user **Review Queue** spanning all **Thinkspaces**.
+- A **Review Queue** batches items that require the user's judgement, including pending **Approvals**, drafts, **Memory** to accept, and **Goal** assessments.
+- **Backpressure** paces **Thinkspace Agent** production to the user's review rate; an **Approval** is a holdpoint that enters the **Review Queue** rather than auto-executing.
+- A **Thinkspace** externalizes context into **Memory**, **Sources**, **Artifacts**, and the **Audit Trail** so the user does not reload it from memory on every return.
 
 ## Example dialogue
 
@@ -121,6 +141,15 @@ _Avoid_: Logs, telemetry, debugging output, transcript
 > **Dev:** "Can we just keep agent tool history in backend logs?"
 > **Domain expert:** "No — meaningful actions belong in the **Audit Trail** so the user can inspect what happened inside the **Thinkspace**."
 
+> **Dev:** "Should the home screen show how many agents are running right now?"
+> **Domain expert:** "No — running agent count is producer-side vanity. Surface the **Review Queue**: what needs the user's judgement, batched and prioritized."
+
+> **Dev:** "Can we let users spin up as many Thinkspaces in parallel as they want and show them all live?"
+> **Domain expert:** "You can create many, but design for **Backpressure** — scale visible, in-progress work to the user's review rate, because **Attention** is the bottleneck, not Thinkspace count."
+
+> **Dev:** "A draft is ready and the Thinkspace has a Permission — can we just merge it to save the user a step?"
+> **Domain expert:** "No — that holdpoint enters the **Review Queue** for an **Approval**. Auto-merging spends the user's judgement without their consent and accrues cognitive debt."
+
 ## Flagged ambiguities
 
 - "Better Chat" and "Better Agent" were both used around the repo; resolved: **Better Agent** is the target product context, while **Better Chat** names the predecessor lineage only.
@@ -135,3 +164,6 @@ _Avoid_: Logs, telemetry, debugging output, transcript
 - "document" sounded too narrow for generated outputs; resolved: use **Artifact** because outputs may include diagrams, bundles, exports, snapshots, scripts, and handoff packages.
 - "local machine" sounded like the agent runtime location; resolved: a **Local Node** is only an optional provider of scoped local resources.
 - "logs" sounded like developer-only implementation data; resolved: **Audit Trail** is a user-facing Thinkspace history.
+- "orchestration", "dashboard", and "running agents" framed the product as a producer-side control center; resolved: Better Agent is architected around **Attention** as the scarce serial resource, and the consumer-side **Review Queue** plus **Backpressure** are the canonical framing.
+- "inbox" and "notifications" sounded like the right surface for pending work; resolved: use **Review Queue** — a batched, prioritized set of items needing judgement, not a real-time feed.
+- "busy" vs "productive" blurred in early messaging; resolved: agent count and live activity are not the value; shipped, understood outcomes gated by the user's judgement are.
