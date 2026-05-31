@@ -15,13 +15,34 @@
 		},
 		"dev": {
 			"cache": false,
-			"persistent": true
+			"persistent": true,
+			"with": ["@better-agent/db#db:studio:local"]
+		},
+		"db:generate": {
+			"cache": false
+		},
+		"db:migrate:local": {
+			"cache": false
+		},
+		"db:migrate:remote": {
+			"cache": false
 		},
 		"db:push": {
 			"cache": false
 		},
-		"db:generate": {
+		"db:push:local": {
 			"cache": false
+		},
+		"db:push:remote": {
+			"cache": false
+		},
+		"db:studio:local": {
+			"cache": false,
+			"persistent": true
+		},
+		"db:studio:remote": {
+			"cache": false,
+			"persistent": true
 		},
 		"deploy": {
 			"cache": false

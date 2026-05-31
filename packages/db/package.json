@@ -10,8 +10,14 @@
 		}
 	},
 	"scripts": {
-		"db:push": "drizzle-kit push",
-		"db:generate": "drizzle-kit generate"
+		"db:generate": "drizzle-kit generate",
+		"db:migrate:local": "DRIZZLE_D1_MODE=local drizzle-kit migrate",
+		"db:migrate:remote": "DRIZZLE_D1_MODE=remote drizzle-kit migrate",
+		"db:push": "bun run db:push:local",
+		"db:push:local": "DRIZZLE_D1_MODE=local drizzle-kit push",
+		"db:push:remote": "DRIZZLE_D1_MODE=remote drizzle-kit push",
+		"db:studio:local": "DRIZZLE_D1_MODE=local drizzle-kit studio",
+		"db:studio:remote": "DRIZZLE_D1_MODE=remote drizzle-kit studio"
 	},
 	"dependencies": {
 		"@better-agent/env": "workspace:*",
