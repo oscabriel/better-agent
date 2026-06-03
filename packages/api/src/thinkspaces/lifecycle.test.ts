@@ -1,0 +1,77 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+	createThinkspaceCreationRecord,
+	THINKSPACE_CREATION_DEFAULTS,
+	ThinkspaceLifecycleValidationError,
+} from "./lifecycle";
+
+test("creates an active Thinkspace record around a trimmed Goal and reviewable configuration", () => {
+	const record = createThinkspaceCreationRecord({
+		configurationSummary:
+			"  Review repository shape, sources, permissions, and expected artifact.  ",
+		goal: "  Prepare a dependency-aligned salvage plan  ",
+		id: "thinkspace_test",
+		initialInstructions: "  Start with the existing ADRs.  ",
+		ownerUserId: "user_123",
+	});
+
+	assert.equal(record.id, "thinkspace_test");
+	assert.equal(record.ownerUserId, "user_123");
+	assert.equal(record.goal, "Prepare a dependency-aligned salvage plan");
+	assert.equal(record.initialInstructions, "Start with the existing ADRs.");
+	assert.equal(
+		record.configurationSummary,
+		"Review repository shape, sources, permissions, and expected artifact.",
+	);
+	assert.equal(record.status, "active");
+	assert.equal(record.selectedSkillIds, "[]");
+	assert.equal(record.enabledToolIds, "[]");
+	assert.equal(record.requestedPermissions, "[]");
+	assert.equal(
+		record.approvalDefaults,
+		JSON.stringify(THINKSPACE_CREATION_DEFAULTS.approvalDefaults),
+	);
+	assert.equal(
+		record.memoryGovernance,
+		JSON.stringify(THINKSPACE_CREATION_DEFAULTS.memoryGovernance),
+	);
+});
+
+test("builds a deterministic configuration summary when none is supplied", () => {
+	const record = createThinkspaceCreationRecord({
+		goal: "Compare release notes",
+		id: "thinkspace_defaults",
+		ownerUserId: "user_123",
+	});
+
+	assert.match(record.configurationSummary ?? "", /Goal: Compare release notes/u);
+	assert.match(record.configurationSummary ?? "", /Skills, tools, requested Permissions/u);
+	assert.match(
+		record.configurationSummary ?? "",
+		/Memory governance starts in user-reviewed mode/u,
+	);
+});
+
+test("rejects missing Goal or owner before persistence", () => {
+	assert.throws(
+		() =>
+			createThinkspaceCreationRecord({
+				goal: "   ",
+				id: "thinkspace_missing_goal",
+				ownerUserId: "user_123",
+			}),
+		ThinkspaceLifecycleValidationError,
+	);
+
+	assert.throws(
+		() =>
+			createThinkspaceCreationRecord({
+				goal: "Prepare a bounded plan",
+				id: "thinkspace_missing_owner",
+				ownerUserId: "",
+			}),
+		ThinkspaceLifecycleValidationError,
+	);
+});
