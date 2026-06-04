@@ -1,10 +1,12 @@
 import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 
+import { profileRouter } from "../profile/router";
 import { publicProcedure } from "../procedures";
 import { thinkspacesRouter } from "../thinkspaces/router";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => "OK"),
+	profile: profileRouter,
 	thinkspaces: thinkspacesRouter,
 };
 export type AppRouter = typeof appRouter;
