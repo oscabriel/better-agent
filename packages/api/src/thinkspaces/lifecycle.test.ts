@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	createThinkspaceArchivePatch,
 	createThinkspaceCreationRecord,
 	THINKSPACE_CREATION_DEFAULTS,
 	ThinkspaceLifecycleValidationError,
@@ -52,6 +53,18 @@ test("builds a deterministic configuration summary when none is supplied", () =>
 		record.configurationSummary ?? "",
 		/Memory governance starts in user-reviewed mode/u,
 	);
+});
+
+test("archives an active Thinkspace by marking it inert without deleting it", () => {
+	const patch = createThinkspaceArchivePatch("active");
+
+	assert.equal(patch.status, "archived");
+	assert.ok(patch.archivedAt instanceof Date);
+	assert.equal(patch.updatedAt, patch.archivedAt);
+});
+
+test("rejects archiving a Thinkspace that is already archived", () => {
+	assert.throws(() => createThinkspaceArchivePatch("archived"), ThinkspaceLifecycleValidationError);
 });
 
 test("rejects missing Goal or owner before persistence", () => {
