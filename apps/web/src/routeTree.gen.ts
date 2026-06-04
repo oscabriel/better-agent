@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from "./routes/__root";
 import { Route as ThinkspacesRouteImport } from "./routes/thinkspaces";
 import { Route as LoginRouteImport } from "./routes/login";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as ThinkspacesIndexRouteImport } from "./routes/thinkspaces.index";
+import { Route as ThinkspacesThinkspaceIdRouteImport } from "./routes/thinkspaces.$thinkspaceId";
 
 const ThinkspacesRoute = ThinkspacesRouteImport.update({
 	id: "/thinkspaces",
@@ -28,35 +30,50 @@ const IndexRoute = IndexRouteImport.update({
 	path: "/",
 	getParentRoute: () => rootRouteImport,
 } as any);
+const ThinkspacesIndexRoute = ThinkspacesIndexRouteImport.update({
+	id: "/",
+	path: "/",
+	getParentRoute: () => ThinkspacesRoute,
+} as any);
+const ThinkspacesThinkspaceIdRoute = ThinkspacesThinkspaceIdRouteImport.update({
+	id: "/$thinkspaceId",
+	path: "/$thinkspaceId",
+	getParentRoute: () => ThinkspacesRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
 	"/": typeof IndexRoute;
 	"/login": typeof LoginRoute;
-	"/thinkspaces": typeof ThinkspacesRoute;
+	"/thinkspaces": typeof ThinkspacesRouteWithChildren;
+	"/thinkspaces/$thinkspaceId": typeof ThinkspacesThinkspaceIdRoute;
+	"/thinkspaces/": typeof ThinkspacesIndexRoute;
 }
 export interface FileRoutesByTo {
 	"/": typeof IndexRoute;
 	"/login": typeof LoginRoute;
-	"/thinkspaces": typeof ThinkspacesRoute;
+	"/thinkspaces/$thinkspaceId": typeof ThinkspacesThinkspaceIdRoute;
+	"/thinkspaces": typeof ThinkspacesIndexRoute;
 }
 export interface FileRoutesById {
 	__root__: typeof rootRouteImport;
 	"/": typeof IndexRoute;
 	"/login": typeof LoginRoute;
-	"/thinkspaces": typeof ThinkspacesRoute;
+	"/thinkspaces": typeof ThinkspacesRouteWithChildren;
+	"/thinkspaces/$thinkspaceId": typeof ThinkspacesThinkspaceIdRoute;
+	"/thinkspaces/": typeof ThinkspacesIndexRoute;
 }
 export interface FileRouteTypes {
 	fileRoutesByFullPath: FileRoutesByFullPath;
-	fullPaths: "/" | "/login" | "/thinkspaces";
+	fullPaths: "/" | "/login" | "/thinkspaces" | "/thinkspaces/$thinkspaceId" | "/thinkspaces/";
 	fileRoutesByTo: FileRoutesByTo;
-	to: "/" | "/login" | "/thinkspaces";
-	id: "__root__" | "/" | "/login" | "/thinkspaces";
+	to: "/" | "/login" | "/thinkspaces/$thinkspaceId" | "/thinkspaces";
+	id: "__root__" | "/" | "/login" | "/thinkspaces" | "/thinkspaces/$thinkspaceId" | "/thinkspaces/";
 	fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
 	IndexRoute: typeof IndexRoute;
 	LoginRoute: typeof LoginRoute;
-	ThinkspacesRoute: typeof ThinkspacesRoute;
+	ThinkspacesRoute: typeof ThinkspacesRouteWithChildren;
 }
 
 declare module "@tanstack/react-router" {
@@ -82,13 +99,39 @@ declare module "@tanstack/react-router" {
 			preLoaderRoute: typeof IndexRouteImport;
 			parentRoute: typeof rootRouteImport;
 		};
+		"/thinkspaces/": {
+			id: "/thinkspaces/";
+			path: "/";
+			fullPath: "/thinkspaces/";
+			preLoaderRoute: typeof ThinkspacesIndexRouteImport;
+			parentRoute: typeof ThinkspacesRoute;
+		};
+		"/thinkspaces/$thinkspaceId": {
+			id: "/thinkspaces/$thinkspaceId";
+			path: "/$thinkspaceId";
+			fullPath: "/thinkspaces/$thinkspaceId";
+			preLoaderRoute: typeof ThinkspacesThinkspaceIdRouteImport;
+			parentRoute: typeof ThinkspacesRoute;
+		};
 	}
 }
+
+interface ThinkspacesRouteChildren {
+	ThinkspacesThinkspaceIdRoute: typeof ThinkspacesThinkspaceIdRoute;
+	ThinkspacesIndexRoute: typeof ThinkspacesIndexRoute;
+}
+
+const ThinkspacesRouteChildren: ThinkspacesRouteChildren = {
+	ThinkspacesThinkspaceIdRoute: ThinkspacesThinkspaceIdRoute,
+	ThinkspacesIndexRoute: ThinkspacesIndexRoute,
+};
+
+const ThinkspacesRouteWithChildren = ThinkspacesRoute._addFileChildren(ThinkspacesRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
 	IndexRoute: IndexRoute,
 	LoginRoute: LoginRoute,
-	ThinkspacesRoute: ThinkspacesRoute,
+	ThinkspacesRoute: ThinkspacesRouteWithChildren,
 };
 export const routeTree = rootRouteImport
 	._addFileChildren(rootRouteChildren)

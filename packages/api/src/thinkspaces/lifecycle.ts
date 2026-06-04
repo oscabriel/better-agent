@@ -49,6 +49,26 @@ const buildDefaultConfigurationSummary = (goal: string): string =>
 		"Memory governance starts in user-reviewed mode so retained understanding is accepted intentionally.",
 	].join("\n");
 
+export const createThinkspaceArchivePatch = (
+	status: string,
+): Pick<NewThinkspace, "archivedAt" | "status" | "updatedAt"> => {
+	if (status === THINKSPACE_STATUS.ARCHIVED) {
+		throw new ThinkspaceLifecycleValidationError("This Thinkspace is already archived.");
+	}
+
+	if (status !== THINKSPACE_STATUS.ACTIVE) {
+		throw new ThinkspaceLifecycleValidationError("Only active Thinkspaces can be archived.");
+	}
+
+	const archivedAt = new Date();
+
+	return {
+		archivedAt,
+		status: THINKSPACE_STATUS.ARCHIVED,
+		updatedAt: archivedAt,
+	};
+};
+
 export const createThinkspaceCreationRecord = ({
 	configurationSummary,
 	goal,
