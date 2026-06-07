@@ -8,249 +8,245 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as ThinkspacesRouteImport } from './routes/thinkspaces'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ThinkspacesIndexRouteImport } from './routes/thinkspaces.index'
-import { Route as SettingsIndexRouteImport } from './routes/settings.index'
-import { Route as ThinkspacesThinkspaceIdRouteImport } from './routes/thinkspaces.$thinkspaceId'
-import { Route as SettingsProfileRouteImport } from './routes/settings.profile'
-import { Route as SettingsProductRouteImport } from './routes/settings.product'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as ThinkspacesRouteImport } from "./routes/thinkspaces";
+import { Route as SettingsRouteImport } from "./routes/settings";
+import { Route as LoginRouteImport } from "./routes/login";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as ThinkspacesIndexRouteImport } from "./routes/thinkspaces.index";
+import { Route as SettingsIndexRouteImport } from "./routes/settings.index";
+import { Route as ThinkspacesThinkspaceIdRouteImport } from "./routes/thinkspaces.$thinkspaceId";
+import { Route as SettingsProfileRouteImport } from "./routes/settings.profile";
+import { Route as SettingsProductRouteImport } from "./routes/settings.product";
 
 const ThinkspacesRoute = ThinkspacesRouteImport.update({
-  id: '/thinkspaces',
-  path: '/thinkspaces',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/thinkspaces",
+	path: "/thinkspaces",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/settings",
+	path: "/settings",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/login",
+	path: "/login",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const ThinkspacesIndexRoute = ThinkspacesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ThinkspacesRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => ThinkspacesRoute,
+} as any);
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => SettingsRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => SettingsRoute,
+} as any);
 const ThinkspacesThinkspaceIdRoute = ThinkspacesThinkspaceIdRouteImport.update({
-  id: '/$thinkspaceId',
-  path: '/$thinkspaceId',
-  getParentRoute: () => ThinkspacesRoute,
-} as any)
+	id: "/$thinkspaceId",
+	path: "/$thinkspaceId",
+	getParentRoute: () => ThinkspacesRoute,
+} as any);
 const SettingsProfileRoute = SettingsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => SettingsRoute,
-} as any)
+	id: "/profile",
+	path: "/profile",
+	getParentRoute: () => SettingsRoute,
+} as any);
 const SettingsProductRoute = SettingsProductRouteImport.update({
-  id: '/product',
-  path: '/product',
-  getParentRoute: () => SettingsRoute,
-} as any)
+	id: "/product",
+	path: "/product",
+	getParentRoute: () => SettingsRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/settings': typeof SettingsRouteWithChildren
-  '/thinkspaces': typeof ThinkspacesRouteWithChildren
-  '/settings/product': typeof SettingsProductRoute
-  '/settings/profile': typeof SettingsProfileRoute
-  '/thinkspaces/$thinkspaceId': typeof ThinkspacesThinkspaceIdRoute
-  '/settings/': typeof SettingsIndexRoute
-  '/thinkspaces/': typeof ThinkspacesIndexRoute
+	"/": typeof IndexRoute;
+	"/login": typeof LoginRoute;
+	"/settings": typeof SettingsRouteWithChildren;
+	"/thinkspaces": typeof ThinkspacesRouteWithChildren;
+	"/settings/product": typeof SettingsProductRoute;
+	"/settings/profile": typeof SettingsProfileRoute;
+	"/thinkspaces/$thinkspaceId": typeof ThinkspacesThinkspaceIdRoute;
+	"/settings/": typeof SettingsIndexRoute;
+	"/thinkspaces/": typeof ThinkspacesIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/settings/product': typeof SettingsProductRoute
-  '/settings/profile': typeof SettingsProfileRoute
-  '/thinkspaces/$thinkspaceId': typeof ThinkspacesThinkspaceIdRoute
-  '/settings': typeof SettingsIndexRoute
-  '/thinkspaces': typeof ThinkspacesIndexRoute
+	"/": typeof IndexRoute;
+	"/login": typeof LoginRoute;
+	"/settings/product": typeof SettingsProductRoute;
+	"/settings/profile": typeof SettingsProfileRoute;
+	"/thinkspaces/$thinkspaceId": typeof ThinkspacesThinkspaceIdRoute;
+	"/settings": typeof SettingsIndexRoute;
+	"/thinkspaces": typeof ThinkspacesIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/settings': typeof SettingsRouteWithChildren
-  '/thinkspaces': typeof ThinkspacesRouteWithChildren
-  '/settings/product': typeof SettingsProductRoute
-  '/settings/profile': typeof SettingsProfileRoute
-  '/thinkspaces/$thinkspaceId': typeof ThinkspacesThinkspaceIdRoute
-  '/settings/': typeof SettingsIndexRoute
-  '/thinkspaces/': typeof ThinkspacesIndexRoute
+	__root__: typeof rootRouteImport;
+	"/": typeof IndexRoute;
+	"/login": typeof LoginRoute;
+	"/settings": typeof SettingsRouteWithChildren;
+	"/thinkspaces": typeof ThinkspacesRouteWithChildren;
+	"/settings/product": typeof SettingsProductRoute;
+	"/settings/profile": typeof SettingsProfileRoute;
+	"/thinkspaces/$thinkspaceId": typeof ThinkspacesThinkspaceIdRoute;
+	"/settings/": typeof SettingsIndexRoute;
+	"/thinkspaces/": typeof ThinkspacesIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/login'
-    | '/settings'
-    | '/thinkspaces'
-    | '/settings/product'
-    | '/settings/profile'
-    | '/thinkspaces/$thinkspaceId'
-    | '/settings/'
-    | '/thinkspaces/'
-  fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/login'
-    | '/settings/product'
-    | '/settings/profile'
-    | '/thinkspaces/$thinkspaceId'
-    | '/settings'
-    | '/thinkspaces'
-  id:
-    | '__root__'
-    | '/'
-    | '/login'
-    | '/settings'
-    | '/thinkspaces'
-    | '/settings/product'
-    | '/settings/profile'
-    | '/thinkspaces/$thinkspaceId'
-    | '/settings/'
-    | '/thinkspaces/'
-  fileRoutesById: FileRoutesById
+	fileRoutesByFullPath: FileRoutesByFullPath;
+	fullPaths:
+		| "/"
+		| "/login"
+		| "/settings"
+		| "/thinkspaces"
+		| "/settings/product"
+		| "/settings/profile"
+		| "/thinkspaces/$thinkspaceId"
+		| "/settings/"
+		| "/thinkspaces/";
+	fileRoutesByTo: FileRoutesByTo;
+	to:
+		| "/"
+		| "/login"
+		| "/settings/product"
+		| "/settings/profile"
+		| "/thinkspaces/$thinkspaceId"
+		| "/settings"
+		| "/thinkspaces";
+	id:
+		| "__root__"
+		| "/"
+		| "/login"
+		| "/settings"
+		| "/thinkspaces"
+		| "/settings/product"
+		| "/settings/profile"
+		| "/thinkspaces/$thinkspaceId"
+		| "/settings/"
+		| "/thinkspaces/";
+	fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  LoginRoute: typeof LoginRoute
-  SettingsRoute: typeof SettingsRouteWithChildren
-  ThinkspacesRoute: typeof ThinkspacesRouteWithChildren
+	IndexRoute: typeof IndexRoute;
+	LoginRoute: typeof LoginRoute;
+	SettingsRoute: typeof SettingsRouteWithChildren;
+	ThinkspacesRoute: typeof ThinkspacesRouteWithChildren;
 }
 
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/thinkspaces': {
-      id: '/thinkspaces'
-      path: '/thinkspaces'
-      fullPath: '/thinkspaces'
-      preLoaderRoute: typeof ThinkspacesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/thinkspaces/': {
-      id: '/thinkspaces/'
-      path: '/'
-      fullPath: '/thinkspaces/'
-      preLoaderRoute: typeof ThinkspacesIndexRouteImport
-      parentRoute: typeof ThinkspacesRoute
-    }
-    '/settings/': {
-      id: '/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/thinkspaces/$thinkspaceId': {
-      id: '/thinkspaces/$thinkspaceId'
-      path: '/$thinkspaceId'
-      fullPath: '/thinkspaces/$thinkspaceId'
-      preLoaderRoute: typeof ThinkspacesThinkspaceIdRouteImport
-      parentRoute: typeof ThinkspacesRoute
-    }
-    '/settings/profile': {
-      id: '/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof SettingsProfileRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/product': {
-      id: '/settings/product'
-      path: '/product'
-      fullPath: '/settings/product'
-      preLoaderRoute: typeof SettingsProductRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-  }
+declare module "@tanstack/react-router" {
+	interface FileRoutesByPath {
+		"/thinkspaces": {
+			id: "/thinkspaces";
+			path: "/thinkspaces";
+			fullPath: "/thinkspaces";
+			preLoaderRoute: typeof ThinkspacesRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/settings": {
+			id: "/settings";
+			path: "/settings";
+			fullPath: "/settings";
+			preLoaderRoute: typeof SettingsRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/login": {
+			id: "/login";
+			path: "/login";
+			fullPath: "/login";
+			preLoaderRoute: typeof LoginRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/": {
+			id: "/";
+			path: "/";
+			fullPath: "/";
+			preLoaderRoute: typeof IndexRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/thinkspaces/": {
+			id: "/thinkspaces/";
+			path: "/";
+			fullPath: "/thinkspaces/";
+			preLoaderRoute: typeof ThinkspacesIndexRouteImport;
+			parentRoute: typeof ThinkspacesRoute;
+		};
+		"/settings/": {
+			id: "/settings/";
+			path: "/";
+			fullPath: "/settings/";
+			preLoaderRoute: typeof SettingsIndexRouteImport;
+			parentRoute: typeof SettingsRoute;
+		};
+		"/thinkspaces/$thinkspaceId": {
+			id: "/thinkspaces/$thinkspaceId";
+			path: "/$thinkspaceId";
+			fullPath: "/thinkspaces/$thinkspaceId";
+			preLoaderRoute: typeof ThinkspacesThinkspaceIdRouteImport;
+			parentRoute: typeof ThinkspacesRoute;
+		};
+		"/settings/profile": {
+			id: "/settings/profile";
+			path: "/profile";
+			fullPath: "/settings/profile";
+			preLoaderRoute: typeof SettingsProfileRouteImport;
+			parentRoute: typeof SettingsRoute;
+		};
+		"/settings/product": {
+			id: "/settings/product";
+			path: "/product";
+			fullPath: "/settings/product";
+			preLoaderRoute: typeof SettingsProductRouteImport;
+			parentRoute: typeof SettingsRoute;
+		};
+	}
 }
 
 interface SettingsRouteChildren {
-  SettingsProductRoute: typeof SettingsProductRoute
-  SettingsProfileRoute: typeof SettingsProfileRoute
-  SettingsIndexRoute: typeof SettingsIndexRoute
+	SettingsProductRoute: typeof SettingsProductRoute;
+	SettingsProfileRoute: typeof SettingsProfileRoute;
+	SettingsIndexRoute: typeof SettingsIndexRoute;
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
-  SettingsProductRoute: SettingsProductRoute,
-  SettingsProfileRoute: SettingsProfileRoute,
-  SettingsIndexRoute: SettingsIndexRoute,
-}
+	SettingsProductRoute: SettingsProductRoute,
+	SettingsProfileRoute: SettingsProfileRoute,
+	SettingsIndexRoute: SettingsIndexRoute,
+};
 
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
-)
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(SettingsRouteChildren);
 
 interface ThinkspacesRouteChildren {
-  ThinkspacesThinkspaceIdRoute: typeof ThinkspacesThinkspaceIdRoute
-  ThinkspacesIndexRoute: typeof ThinkspacesIndexRoute
+	ThinkspacesThinkspaceIdRoute: typeof ThinkspacesThinkspaceIdRoute;
+	ThinkspacesIndexRoute: typeof ThinkspacesIndexRoute;
 }
 
 const ThinkspacesRouteChildren: ThinkspacesRouteChildren = {
-  ThinkspacesThinkspaceIdRoute: ThinkspacesThinkspaceIdRoute,
-  ThinkspacesIndexRoute: ThinkspacesIndexRoute,
-}
+	ThinkspacesThinkspaceIdRoute: ThinkspacesThinkspaceIdRoute,
+	ThinkspacesIndexRoute: ThinkspacesIndexRoute,
+};
 
-const ThinkspacesRouteWithChildren = ThinkspacesRoute._addFileChildren(
-  ThinkspacesRouteChildren,
-)
+const ThinkspacesRouteWithChildren = ThinkspacesRoute._addFileChildren(ThinkspacesRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  LoginRoute: LoginRoute,
-  SettingsRoute: SettingsRouteWithChildren,
-  ThinkspacesRoute: ThinkspacesRouteWithChildren,
-}
+	IndexRoute: IndexRoute,
+	LoginRoute: LoginRoute,
+	SettingsRoute: SettingsRouteWithChildren,
+	ThinkspacesRoute: ThinkspacesRouteWithChildren,
+};
 export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+	._addFileChildren(rootRouteChildren)
+	._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
+import type { getRouter } from "./router.tsx";
+import type { createStart } from "@tanstack/react-start";
+declare module "@tanstack/react-start" {
+	interface Register {
+		ssr: true;
+		router: Awaited<ReturnType<typeof getRouter>>;
+	}
 }
