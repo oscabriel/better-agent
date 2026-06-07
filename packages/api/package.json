@@ -13,6 +13,10 @@
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^3.0.81",
+		"@ai-sdk/google": "^3.0.80",
+		"@ai-sdk/openai": "^3.0.68",
+		"@ai-sdk/provider": "^3.0.0",
 		"@better-agent/auth": "workspace:*",
 		"@better-agent/db": "workspace:*",
 		"@better-agent/env": "workspace:*",
@@ -20,6 +24,7 @@
 		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",
 		"@orpc/zod": "catalog:",
+		"ai": "catalog:",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.1",
 		"zod": "catalog:"
