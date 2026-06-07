@@ -3,11 +3,22 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../procedures";
 import {
+	createToolPermissionPlaceholder,
+	DEFAULT_APPROVAL_POLICY,
+	serializeThinkspaceToolSelections,
+} from "./policy";
+import {
 	createThinkspaceArchivePatch,
 	createThinkspaceCreationRecord,
 	ThinkspaceLifecycleValidationError,
 } from "./lifecycle";
-import { archiveThinkspace, createThinkspace, getThinkspace, listThinkspaces } from "./repository";
+import {
+	archiveThinkspace,
+	createThinkspace,
+	getThinkspace,
+	listThinkspaces,
+	updateThinkspaceConfiguration,
+} from "./repository";
 
 const createThinkspaceInput = z.object({
 	configurationSummary: z.string().optional(),
@@ -16,6 +27,17 @@ const createThinkspaceInput = z.object({
 });
 
 const thinkspaceIdInput = z.object({
+	thinkspaceId: z.string().min(1),
+});
+
+const toolSelectionSchema = z.object({
+	risk: z.enum(["read_only", "mutating", "unknown"]),
+	serverId: z.string().trim().min(1),
+	toolName: z.string().trim().min(1).optional(),
+});
+
+const updateToolSelectionsInput = z.object({
+	selections: z.array(toolSelectionSchema),
 	thinkspaceId: z.string().min(1),
 });
 
@@ -94,4 +116,41 @@ export const thinkspacesRouter = {
 		async ({ context }) =>
 			await listThinkspaces(context.db, { ownerUserId: context.session.user.id }),
 	),
+	updateToolSelections: protectedProcedure
+		.input(updateToolSelectionsInput)
+		.handler(async ({ context, input }) => {
+			const thinkspace = await getThinkspace(context.db, {
+				ownerUserId: context.session.user.id,
+				thinkspaceId: input.thinkspaceId,
+			});
+
+			if (!thinkspace) {
+				throw toNotFound();
+			}
+
+			if (thinkspace.status === "archived") {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Archived Thinkspaces cannot change tool enablement.",
+				});
+			}
+
+			const updated = await updateThinkspaceConfiguration(context.db, {
+				ownerUserId: context.session.user.id,
+				patch: {
+					approvalDefaults: JSON.stringify(DEFAULT_APPROVAL_POLICY),
+					enabledToolIds: serializeThinkspaceToolSelections(input.selections),
+					requestedPermissions: JSON.stringify(
+						input.selections.map((selection) => createToolPermissionPlaceholder(selection)),
+					),
+					updatedAt: new Date(),
+				},
+				thinkspaceId: input.thinkspaceId,
+			});
+
+			if (!updated) {
+				throw toNotFound();
+			}
+
+			return updated;
+		}),
 };
