@@ -70,9 +70,20 @@ const submitTurnInput = z.object({
 
 const createThinkspaceId = (): string => `thinkspace_${crypto.randomUUID()}`;
 
+/**
+ * Runtime resolution failures (missing/misconfigured Durable Object binding)
+ * are infrastructure details. The product surface only learns that the
+ * runtime is unavailable, never which binding or runtime internals failed.
+ */
+const RUNTIME_UNAVAILABLE_MESSAGE =
+	"The Thinkspace Agent runtime is not available right now. Try again shortly.";
+
 const toBadRequest = (
 	error: ThinkspaceLifecycleValidationError,
 ): ORPCError<"BAD_REQUEST", undefined> => new ORPCError("BAD_REQUEST", { message: error.message });
+
+const toRuntimeUnavailable = (): ORPCError<"INTERNAL_SERVER_ERROR", undefined> =>
+	new ORPCError("INTERNAL_SERVER_ERROR", { message: RUNTIME_UNAVAILABLE_MESSAGE });
 
 const toNotFound = (): ORPCError<"NOT_FOUND", undefined> =>
 	new ORPCError("NOT_FOUND", { message: "Thinkspace was not found." });
@@ -160,7 +171,7 @@ export const thinkspacesRouter = {
 			}
 
 			if (error instanceof ThinkspaceRuntimeResolutionError) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+				throw toRuntimeUnavailable();
 			}
 
 			throw error;
@@ -217,7 +228,7 @@ export const thinkspacesRouter = {
 				return readiness;
 			} catch (error) {
 				if (error instanceof ThinkspaceRuntimeResolutionError) {
-					throw new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+					throw toRuntimeUnavailable();
 				}
 
 				throw error;
@@ -249,7 +260,7 @@ export const thinkspacesRouter = {
 			}
 
 			if (error instanceof ThinkspaceRuntimeResolutionError) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+				throw toRuntimeUnavailable();
 			}
 
 			throw error;
