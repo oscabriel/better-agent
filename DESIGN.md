@@ -100,6 +100,7 @@ The system is achromatic by default. Color enters only with intention: destructi
 The Workbench rejects orchestration theater. There are no agent-count badges, no throughput graphs, no node graphs, no encouragement to scale. The interface shows what the user needs to judge (the Review Queue) and what the agent produced (Artifacts, Memory), not what the agent is doing. PRODUCT.md's framing holds: "Activity is not the value; reviewed outcomes are."
 
 **Key Characteristics:**
+
 - Achromatic palette with sage accent (provisional, restrained use)
 - Sharp corners on every surface and control (border-radius: 0)
 - Flat: no shadows, no elevation, no blur-as-decoration

@@ -1,275 +1,295 @@
 {
-  "schemaVersion": 2,
-  "generatedAt": "2026-06-08T00:00:00Z",
-  "title": "Design System: Better Agent",
-  "extensions": {
-    "colorMeta": {
-      "ink": {
-        "role": "neutral",
-        "displayName": "Ink",
-        "canonical": "oklch(0.985 0 0)",
-        "tonalRamp": [
-          "oklch(0.15 0 0)",
-          "oklch(0.27 0 0)",
-          "oklch(0.37 0 0)",
-          "oklch(0.50 0 0)",
-          "oklch(0.63 0 0)",
-          "oklch(0.71 0 0)",
-          "oklch(0.87 0 0)",
-          "oklch(0.985 0 0)"
-        ]
-      },
-      "ink-muted": {
-        "role": "neutral",
-        "displayName": "Ink Muted",
-        "canonical": "oklch(0.708 0 0)",
-        "tonalRamp": [
-          "oklch(0.15 0 0)",
-          "oklch(0.27 0 0)",
-          "oklch(0.37 0 0)",
-          "oklch(0.50 0 0)",
-          "oklch(0.63 0 0)",
-          "oklch(0.708 0 0)",
-          "oklch(0.82 0 0)",
-          "oklch(0.95 0 0)"
-        ]
-      },
-      "surface": {
-        "role": "neutral",
-        "displayName": "Surface",
-        "canonical": "oklch(0.145 0 0)",
-        "tonalRamp": [
-          "oklch(0.08 0 0)",
-          "oklch(0.145 0 0)",
-          "oklch(0.205 0 0)",
-          "oklch(0.269 0 0)",
-          "oklch(0.371 0 0)",
-          "oklch(0.50 0 0)",
-          "oklch(0.65 0 0)",
-          "oklch(0.85 0 0)"
-        ]
-      },
-      "surface-raised": {
-        "role": "neutral",
-        "displayName": "Surface Raised",
-        "canonical": "oklch(0.205 0 0)",
-        "tonalRamp": [
-          "oklch(0.08 0 0)",
-          "oklch(0.145 0 0)",
-          "oklch(0.205 0 0)",
-          "oklch(0.269 0 0)",
-          "oklch(0.371 0 0)",
-          "oklch(0.50 0 0)",
-          "oklch(0.65 0 0)",
-          "oklch(0.85 0 0)"
-        ]
-      },
-      "primary": {
-        "role": "primary",
-        "displayName": "Primary",
-        "canonical": "oklch(0.87 0 0)",
-        "tonalRamp": [
-          "oklch(0.15 0 0)",
-          "oklch(0.27 0 0)",
-          "oklch(0.40 0 0)",
-          "oklch(0.55 0 0)",
-          "oklch(0.70 0 0)",
-          "oklch(0.80 0 0)",
-          "oklch(0.87 0 0)",
-          "oklch(0.95 0 0)"
-        ]
-      },
-      "destructive": {
-        "role": "semantic",
-        "displayName": "Destructive",
-        "canonical": "oklch(0.704 0.191 22.216)",
-        "tonalRamp": [
-          "oklch(0.20 0.08 22)",
-          "oklch(0.30 0.12 22)",
-          "oklch(0.40 0.15 22)",
-          "oklch(0.50 0.17 22)",
-          "oklch(0.60 0.19 22)",
-          "oklch(0.704 0.191 22)",
-          "oklch(0.80 0.15 22)",
-          "oklch(0.92 0.06 22)"
-        ]
-      },
-      "sage": {
-        "role": "accent",
-        "displayName": "Sage",
-        "canonical": "oklch(0.65 0.06 148)",
-        "tonalRamp": [
-          "oklch(0.20 0.02 148)",
-          "oklch(0.30 0.03 148)",
-          "oklch(0.40 0.04 148)",
-          "oklch(0.50 0.05 148)",
-          "oklch(0.58 0.06 148)",
-          "oklch(0.65 0.06 148)",
-          "oklch(0.75 0.04 148)",
-          "oklch(0.90 0.02 148)"
-        ]
-      },
-      "sage-muted": {
-        "role": "accent",
-        "displayName": "Sage Muted",
-        "canonical": "oklch(0.72 0.03 148)",
-        "tonalRamp": [
-          "oklch(0.20 0.01 148)",
-          "oklch(0.30 0.015 148)",
-          "oklch(0.40 0.02 148)",
-          "oklch(0.50 0.025 148)",
-          "oklch(0.60 0.03 148)",
-          "oklch(0.72 0.03 148)",
-          "oklch(0.82 0.02 148)",
-          "oklch(0.92 0.01 148)"
-        ]
-      }
-    },
-    "typographyMeta": {
-      "display": {
-        "displayName": "Display",
-        "purpose": "Page-level headings only. Route titles like Settings, Thinkspaces."
-      },
-      "headline": {
-        "displayName": "Headline",
-        "purpose": "Section headings within a page. Card group titles."
-      },
-      "title": {
-        "displayName": "Title",
-        "purpose": "Component-level headings. Card titles, dialog titles."
-      },
-      "body": {
-        "displayName": "Body",
-        "purpose": "Default text. Descriptions, paragraphs, help text. 65ch max for prose."
-      },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Badges, metadata, button text, input labels. Smallest text in the system."
-      }
-    },
-    "shadows": [],
-    "motion": [
-      {
-        "name": "state-transition",
-        "value": "150ms ease-out",
-        "purpose": "Default for hover/focus state changes on buttons, inputs, nav links."
-      },
-      {
-        "name": "popup-enter",
-        "value": "100ms ease-out",
-        "purpose": "Dialog, popover, dropdown entrance. Fade + scale from 95%."
-      },
-      {
-        "name": "popup-exit",
-        "value": "100ms ease-in",
-        "purpose": "Dialog, popover, dropdown exit. Fade + scale to 95%."
-      }
-    ],
-    "breakpoints": [
-      { "name": "sm", "value": "640px" },
-      { "name": "md", "value": "768px" },
-      { "name": "lg", "value": "1024px" },
-      { "name": "xl", "value": "1280px" }
-    ]
-  },
-  "components": [
-    {
-      "name": "Primary Button",
-      "kind": "button",
-      "refersTo": "button-primary",
-      "description": "The main action button. Light grey on dark, sharp corners.",
-      "html": "<button class=\"ds-btn-primary\">Open Thinkspaces</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; background: oklch(0.87 0 0); color: oklch(0.205 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; border-radius: 0; cursor: pointer; transition: background 150ms ease-out; } .ds-btn-primary:hover { background: oklch(0.87 0 0 / 80%); } .ds-btn-primary:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
-    },
-    {
-      "name": "Outline Button",
-      "kind": "button",
-      "refersTo": "button-outline",
-      "description": "Secondary action. Transparent with visible border.",
-      "html": "<button class=\"ds-btn-outline\">Sign in</button>",
-      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; background: transparent; color: oklch(0.985 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid oklch(1 0 0 / 10%); border-radius: 0; cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out; } .ds-btn-outline:hover { background: oklch(0.269 0 0); } .ds-btn-outline:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
-    },
-    {
-      "name": "Ghost Button",
-      "kind": "button",
-      "refersTo": "button-ghost",
-      "description": "Minimal button for nav, menus, toolbars. Invisible at rest.",
-      "html": "<button class=\"ds-btn-ghost\">Settings</button>",
-      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; background: transparent; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; border-radius: 0; cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out; } .ds-btn-ghost:hover { background: oklch(0.269 0 0); color: oklch(0.985 0 0); } .ds-btn-ghost:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
-    },
-    {
-      "name": "Input",
-      "kind": "input",
-      "refersTo": "input-default",
-      "description": "Text input field. Sharp corners, subtle transparent background.",
-      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Thinkspace name\" />",
-      "css": ".ds-input { display: block; width: 100%; height: 32px; padding: 4px 10px; background: oklch(1 0 0 / 15%); color: oklch(0.985 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.875rem; font-weight: 400; border: 1px solid oklch(1 0 0 / 15%); border-radius: 0; outline: none; transition: border-color 150ms ease-out; } .ds-input::placeholder { color: oklch(0.556 0 0); } .ds-input:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
-    },
-    {
-      "name": "Card",
-      "kind": "card",
-      "refersTo": "card-default",
-      "description": "Content container. Flat, sharp, one tonal step above the page.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><div class=\"ds-card-title\">Thinkspace</div><div class=\"ds-card-desc\">Bounded thinking work with a dedicated agent.</div></div></div>",
-      "css": ".ds-card { display: flex; flex-direction: column; gap: 16px; padding: 16px 0; background: oklch(0.205 0 0); color: oklch(0.985 0 0); border-radius: 0; outline: 1px solid oklch(1 0 0 / 10%); } .ds-card-header { display: grid; gap: 4px; padding: 0 16px; } .ds-card-title { font-size: 0.875rem; font-weight: 500; font-family: 'Inter Variable', sans-serif; } .ds-card-desc { font-size: 0.875rem; font-weight: 400; line-height: 1.6; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; }"
-    },
-    {
-      "name": "Badge",
-      "kind": "chip",
-      "refersTo": "badge-default",
-      "description": "Small label for status, categories, counts.",
-      "html": "<span class=\"ds-badge\">Active</span>",
-      "css": ".ds-badge { display: inline-flex; align-items: center; justify-content: center; height: 20px; padding: 0 8px; background: oklch(0.87 0 0); color: oklch(0.205 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; border-radius: 0; }"
-    },
-    {
-      "name": "Nav Link",
-      "kind": "nav",
-      "refersTo": "nav-link",
-      "description": "Header navigation link. Ghost style, muted at rest, filled when active.",
-      "html": "<a class=\"ds-nav-link\" href=\"#\">Thinkspaces</a>",
-      "css": ".ds-nav-link { display: inline-flex; align-items: center; padding: 4px 8px; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.875rem; font-weight: 400; text-decoration: none; border-radius: 0; transition: color 150ms ease-out, background 150ms ease-out; } .ds-nav-link:hover { color: oklch(0.985 0 0); } .ds-nav-link[aria-current='page'], .ds-nav-link.ds-active { background: oklch(0.269 0 0); color: oklch(0.985 0 0); }"
-    }
-  ],
-  "narrative": {
-    "northStar": "The Workbench",
-    "overview": "A clean, purpose-made surface where every tool has a fixed place. Nothing decorative; everything functional. The Workbench is not a dashboard with dials and readouts. It is the surface you compose on: you place a Goal, attach Sources, grant Permissions, and the Thinkspace Agent works while you step away. When you return, the Artifacts and Audit Trail are laid out where you left them.\n\nThe system is achromatic by default. Color enters only with intention: destructive red for danger, sage green for deliberate accent, and nothing else. Surfaces are flat and sharp-cornered. There are no shadows, no gradients, no rounded edges.\n\nThe Workbench rejects orchestration theater. There are no agent-count badges, no throughput graphs, no node graphs, no encouragement to scale. The interface shows what the user needs to judge and what the agent produced, not what the agent is doing.",
-    "keyCharacteristics": [
-      "Achromatic palette with sage accent (provisional, restrained use)",
-      "Sharp corners on every surface and control (border-radius: 0)",
-      "Flat: no shadows, no elevation, no blur-as-decoration",
-      "Not dense: generous whitespace, 14px body text, legible at a glance",
-      "One typeface (Inter Variable) across all roles",
-      "Dark mode as the primary theme"
-    ],
-    "rules": [
-      { "name": "The Achromatic Default Rule", "body": "Sage is the only non-greyscale, non-destructive color in the system. If you reach for a second accent hue, you are wrong. One accent, restrained use (≤5% of any surface), or none.", "section": "colors" },
-      { "name": "The 10% Border Rule", "body": "Borders use oklch(1 0 0 / 10%), not a fixed grey. This keeps them adaptive: lighter on darker surfaces, proportional everywhere.", "section": "colors" },
-      { "name": "The One Family Rule", "body": "Inter Variable is the only typeface. Do not introduce a display font, a serif, or a mono family.", "section": "typography" },
-      { "name": "The Fixed Scale Rule", "body": "No clamp() on type sizes. Product UI runs at consistent viewport sizes; fluid typography creates more problems than it solves in app shells.", "section": "typography" },
-      { "name": "The No Shadow Rule", "body": "Shadows are prohibited. Not flat by default with shadows on hover. Not shadows only on popovers. Zero shadows, zero exceptions.", "section": "elevation" }
-    ],
-    "dos": [
-      "Do use the achromatic palette as the default. Sage accent earns its place through deliberate, sparse use.",
-      "Do use ring-1 ring-foreground/10 for surface boundaries.",
-      "Do keep body text at 14px minimum. Legibility at a glance is a design principle.",
-      "Do use tonal layering (surface → surface-raised → surface-active) to create depth.",
-      "Do give every interactive element all six states: default, hover, focus, active, disabled, error.",
-      "Do use generous whitespace. Restrained, not dense.",
-      "Do use text-wrap: balance on display and headline text.",
-      "Do respect prefers-reduced-motion: fall back to instant transitions or crossfades."
-    ],
-    "donts": [
-      "Don't add shadows. The No Shadow Rule has zero exceptions.",
-      "Don't round corners. Every surface uses border-radius: 0.",
-      "Don't build a generic chat window with a sidebar.",
-      "Don't show agent metrics, running counts, or throughput graphs.",
-      "Don't build node graphs or visual orchestration.",
-      "Don't build busy multi-panel layouts.",
-      "Don't use more than one typeface.",
-      "Don't use clamp() for type sizing.",
-      "Don't introduce opaque grey border values.",
-      "Don't use text-xs (12px) as the default body size.",
-      "Don't introduce a second accent color."
-    ]
-  }
+	"schemaVersion": 2,
+	"generatedAt": "2026-06-08T00:00:00Z",
+	"title": "Design System: Better Agent",
+	"extensions": {
+		"colorMeta": {
+			"ink": {
+				"role": "neutral",
+				"displayName": "Ink",
+				"canonical": "oklch(0.985 0 0)",
+				"tonalRamp": [
+					"oklch(0.15 0 0)",
+					"oklch(0.27 0 0)",
+					"oklch(0.37 0 0)",
+					"oklch(0.50 0 0)",
+					"oklch(0.63 0 0)",
+					"oklch(0.71 0 0)",
+					"oklch(0.87 0 0)",
+					"oklch(0.985 0 0)"
+				]
+			},
+			"ink-muted": {
+				"role": "neutral",
+				"displayName": "Ink Muted",
+				"canonical": "oklch(0.708 0 0)",
+				"tonalRamp": [
+					"oklch(0.15 0 0)",
+					"oklch(0.27 0 0)",
+					"oklch(0.37 0 0)",
+					"oklch(0.50 0 0)",
+					"oklch(0.63 0 0)",
+					"oklch(0.708 0 0)",
+					"oklch(0.82 0 0)",
+					"oklch(0.95 0 0)"
+				]
+			},
+			"surface": {
+				"role": "neutral",
+				"displayName": "Surface",
+				"canonical": "oklch(0.145 0 0)",
+				"tonalRamp": [
+					"oklch(0.08 0 0)",
+					"oklch(0.145 0 0)",
+					"oklch(0.205 0 0)",
+					"oklch(0.269 0 0)",
+					"oklch(0.371 0 0)",
+					"oklch(0.50 0 0)",
+					"oklch(0.65 0 0)",
+					"oklch(0.85 0 0)"
+				]
+			},
+			"surface-raised": {
+				"role": "neutral",
+				"displayName": "Surface Raised",
+				"canonical": "oklch(0.205 0 0)",
+				"tonalRamp": [
+					"oklch(0.08 0 0)",
+					"oklch(0.145 0 0)",
+					"oklch(0.205 0 0)",
+					"oklch(0.269 0 0)",
+					"oklch(0.371 0 0)",
+					"oklch(0.50 0 0)",
+					"oklch(0.65 0 0)",
+					"oklch(0.85 0 0)"
+				]
+			},
+			"primary": {
+				"role": "primary",
+				"displayName": "Primary",
+				"canonical": "oklch(0.87 0 0)",
+				"tonalRamp": [
+					"oklch(0.15 0 0)",
+					"oklch(0.27 0 0)",
+					"oklch(0.40 0 0)",
+					"oklch(0.55 0 0)",
+					"oklch(0.70 0 0)",
+					"oklch(0.80 0 0)",
+					"oklch(0.87 0 0)",
+					"oklch(0.95 0 0)"
+				]
+			},
+			"destructive": {
+				"role": "semantic",
+				"displayName": "Destructive",
+				"canonical": "oklch(0.704 0.191 22.216)",
+				"tonalRamp": [
+					"oklch(0.20 0.08 22)",
+					"oklch(0.30 0.12 22)",
+					"oklch(0.40 0.15 22)",
+					"oklch(0.50 0.17 22)",
+					"oklch(0.60 0.19 22)",
+					"oklch(0.704 0.191 22)",
+					"oklch(0.80 0.15 22)",
+					"oklch(0.92 0.06 22)"
+				]
+			},
+			"sage": {
+				"role": "accent",
+				"displayName": "Sage",
+				"canonical": "oklch(0.65 0.06 148)",
+				"tonalRamp": [
+					"oklch(0.20 0.02 148)",
+					"oklch(0.30 0.03 148)",
+					"oklch(0.40 0.04 148)",
+					"oklch(0.50 0.05 148)",
+					"oklch(0.58 0.06 148)",
+					"oklch(0.65 0.06 148)",
+					"oklch(0.75 0.04 148)",
+					"oklch(0.90 0.02 148)"
+				]
+			},
+			"sage-muted": {
+				"role": "accent",
+				"displayName": "Sage Muted",
+				"canonical": "oklch(0.72 0.03 148)",
+				"tonalRamp": [
+					"oklch(0.20 0.01 148)",
+					"oklch(0.30 0.015 148)",
+					"oklch(0.40 0.02 148)",
+					"oklch(0.50 0.025 148)",
+					"oklch(0.60 0.03 148)",
+					"oklch(0.72 0.03 148)",
+					"oklch(0.82 0.02 148)",
+					"oklch(0.92 0.01 148)"
+				]
+			}
+		},
+		"typographyMeta": {
+			"display": {
+				"displayName": "Display",
+				"purpose": "Page-level headings only. Route titles like Settings, Thinkspaces."
+			},
+			"headline": {
+				"displayName": "Headline",
+				"purpose": "Section headings within a page. Card group titles."
+			},
+			"title": {
+				"displayName": "Title",
+				"purpose": "Component-level headings. Card titles, dialog titles."
+			},
+			"body": {
+				"displayName": "Body",
+				"purpose": "Default text. Descriptions, paragraphs, help text. 65ch max for prose."
+			},
+			"label": {
+				"displayName": "Label",
+				"purpose": "Badges, metadata, button text, input labels. Smallest text in the system."
+			}
+		},
+		"shadows": [],
+		"motion": [
+			{
+				"name": "state-transition",
+				"value": "150ms ease-out",
+				"purpose": "Default for hover/focus state changes on buttons, inputs, nav links."
+			},
+			{
+				"name": "popup-enter",
+				"value": "100ms ease-out",
+				"purpose": "Dialog, popover, dropdown entrance. Fade + scale from 95%."
+			},
+			{
+				"name": "popup-exit",
+				"value": "100ms ease-in",
+				"purpose": "Dialog, popover, dropdown exit. Fade + scale to 95%."
+			}
+		],
+		"breakpoints": [
+			{ "name": "sm", "value": "640px" },
+			{ "name": "md", "value": "768px" },
+			{ "name": "lg", "value": "1024px" },
+			{ "name": "xl", "value": "1280px" }
+		]
+	},
+	"components": [
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "The main action button. Light grey on dark, sharp corners.",
+			"html": "<button class=\"ds-btn-primary\">Open Thinkspaces</button>",
+			"css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; background: oklch(0.87 0 0); color: oklch(0.205 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; border-radius: 0; cursor: pointer; transition: background 150ms ease-out; } .ds-btn-primary:hover { background: oklch(0.87 0 0 / 80%); } .ds-btn-primary:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
+		},
+		{
+			"name": "Outline Button",
+			"kind": "button",
+			"refersTo": "button-outline",
+			"description": "Secondary action. Transparent with visible border.",
+			"html": "<button class=\"ds-btn-outline\">Sign in</button>",
+			"css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; background: transparent; color: oklch(0.985 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid oklch(1 0 0 / 10%); border-radius: 0; cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out; } .ds-btn-outline:hover { background: oklch(0.269 0 0); } .ds-btn-outline:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
+		},
+		{
+			"name": "Ghost Button",
+			"kind": "button",
+			"refersTo": "button-ghost",
+			"description": "Minimal button for nav, menus, toolbars. Invisible at rest.",
+			"html": "<button class=\"ds-btn-ghost\">Settings</button>",
+			"css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; background: transparent; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; border-radius: 0; cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out; } .ds-btn-ghost:hover { background: oklch(0.269 0 0); color: oklch(0.985 0 0); } .ds-btn-ghost:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
+		},
+		{
+			"name": "Input",
+			"kind": "input",
+			"refersTo": "input-default",
+			"description": "Text input field. Sharp corners, subtle transparent background.",
+			"html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Thinkspace name\" />",
+			"css": ".ds-input { display: block; width: 100%; height: 32px; padding: 4px 10px; background: oklch(1 0 0 / 15%); color: oklch(0.985 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.875rem; font-weight: 400; border: 1px solid oklch(1 0 0 / 15%); border-radius: 0; outline: none; transition: border-color 150ms ease-out; } .ds-input::placeholder { color: oklch(0.556 0 0); } .ds-input:focus-visible { border-color: oklch(0.556 0 0); outline: 1px solid oklch(0.556 0 0 / 50%); outline-offset: 0; }"
+		},
+		{
+			"name": "Card",
+			"kind": "card",
+			"refersTo": "card-default",
+			"description": "Content container. Flat, sharp, one tonal step above the page.",
+			"html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><div class=\"ds-card-title\">Thinkspace</div><div class=\"ds-card-desc\">Bounded thinking work with a dedicated agent.</div></div></div>",
+			"css": ".ds-card { display: flex; flex-direction: column; gap: 16px; padding: 16px 0; background: oklch(0.205 0 0); color: oklch(0.985 0 0); border-radius: 0; outline: 1px solid oklch(1 0 0 / 10%); } .ds-card-header { display: grid; gap: 4px; padding: 0 16px; } .ds-card-title { font-size: 0.875rem; font-weight: 500; font-family: 'Inter Variable', sans-serif; } .ds-card-desc { font-size: 0.875rem; font-weight: 400; line-height: 1.6; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; }"
+		},
+		{
+			"name": "Badge",
+			"kind": "chip",
+			"refersTo": "badge-default",
+			"description": "Small label for status, categories, counts.",
+			"html": "<span class=\"ds-badge\">Active</span>",
+			"css": ".ds-badge { display: inline-flex; align-items: center; justify-content: center; height: 20px; padding: 0 8px; background: oklch(0.87 0 0); color: oklch(0.205 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.75rem; font-weight: 500; white-space: nowrap; border: 1px solid transparent; border-radius: 0; }"
+		},
+		{
+			"name": "Nav Link",
+			"kind": "nav",
+			"refersTo": "nav-link",
+			"description": "Header navigation link. Ghost style, muted at rest, filled when active.",
+			"html": "<a class=\"ds-nav-link\" href=\"#\">Thinkspaces</a>",
+			"css": ".ds-nav-link { display: inline-flex; align-items: center; padding: 4px 8px; color: oklch(0.708 0 0); font-family: 'Inter Variable', sans-serif; font-size: 0.875rem; font-weight: 400; text-decoration: none; border-radius: 0; transition: color 150ms ease-out, background 150ms ease-out; } .ds-nav-link:hover { color: oklch(0.985 0 0); } .ds-nav-link[aria-current='page'], .ds-nav-link.ds-active { background: oklch(0.269 0 0); color: oklch(0.985 0 0); }"
+		}
+	],
+	"narrative": {
+		"northStar": "The Workbench",
+		"overview": "A clean, purpose-made surface where every tool has a fixed place. Nothing decorative; everything functional. The Workbench is not a dashboard with dials and readouts. It is the surface you compose on: you place a Goal, attach Sources, grant Permissions, and the Thinkspace Agent works while you step away. When you return, the Artifacts and Audit Trail are laid out where you left them.\n\nThe system is achromatic by default. Color enters only with intention: destructive red for danger, sage green for deliberate accent, and nothing else. Surfaces are flat and sharp-cornered. There are no shadows, no gradients, no rounded edges.\n\nThe Workbench rejects orchestration theater. There are no agent-count badges, no throughput graphs, no node graphs, no encouragement to scale. The interface shows what the user needs to judge and what the agent produced, not what the agent is doing.",
+		"keyCharacteristics": [
+			"Achromatic palette with sage accent (provisional, restrained use)",
+			"Sharp corners on every surface and control (border-radius: 0)",
+			"Flat: no shadows, no elevation, no blur-as-decoration",
+			"Not dense: generous whitespace, 14px body text, legible at a glance",
+			"One typeface (Inter Variable) across all roles",
+			"Dark mode as the primary theme"
+		],
+		"rules": [
+			{
+				"name": "The Achromatic Default Rule",
+				"body": "Sage is the only non-greyscale, non-destructive color in the system. If you reach for a second accent hue, you are wrong. One accent, restrained use (≤5% of any surface), or none.",
+				"section": "colors"
+			},
+			{
+				"name": "The 10% Border Rule",
+				"body": "Borders use oklch(1 0 0 / 10%), not a fixed grey. This keeps them adaptive: lighter on darker surfaces, proportional everywhere.",
+				"section": "colors"
+			},
+			{
+				"name": "The One Family Rule",
+				"body": "Inter Variable is the only typeface. Do not introduce a display font, a serif, or a mono family.",
+				"section": "typography"
+			},
+			{
+				"name": "The Fixed Scale Rule",
+				"body": "No clamp() on type sizes. Product UI runs at consistent viewport sizes; fluid typography creates more problems than it solves in app shells.",
+				"section": "typography"
+			},
+			{
+				"name": "The No Shadow Rule",
+				"body": "Shadows are prohibited. Not flat by default with shadows on hover. Not shadows only on popovers. Zero shadows, zero exceptions.",
+				"section": "elevation"
+			}
+		],
+		"dos": [
+			"Do use the achromatic palette as the default. Sage accent earns its place through deliberate, sparse use.",
+			"Do use ring-1 ring-foreground/10 for surface boundaries.",
+			"Do keep body text at 14px minimum. Legibility at a glance is a design principle.",
+			"Do use tonal layering (surface → surface-raised → surface-active) to create depth.",
+			"Do give every interactive element all six states: default, hover, focus, active, disabled, error.",
+			"Do use generous whitespace. Restrained, not dense.",
+			"Do use text-wrap: balance on display and headline text.",
+			"Do respect prefers-reduced-motion: fall back to instant transitions or crossfades."
+		],
+		"donts": [
+			"Don't add shadows. The No Shadow Rule has zero exceptions.",
+			"Don't round corners. Every surface uses border-radius: 0.",
+			"Don't build a generic chat window with a sidebar.",
+			"Don't show agent metrics, running counts, or throughput graphs.",
+			"Don't build node graphs or visual orchestration.",
+			"Don't build busy multi-panel layouts.",
+			"Don't use more than one typeface.",
+			"Don't use clamp() for type sizing.",
+			"Don't introduce opaque grey border values.",
+			"Don't use text-xs (12px) as the default body size.",
+			"Don't introduce a second accent color."
+		]
+	}
 }

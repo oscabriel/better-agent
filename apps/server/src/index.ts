@@ -14,6 +14,8 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
+export { ThinkspaceAgent } from "./agents/thinkspace-agent";
+
 const app = new Hono<{ Bindings: CloudflareEnv }>();
 
 const logError = (error: unknown) => {

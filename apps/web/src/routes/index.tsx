@@ -8,8 +8,8 @@ const HomeComponent = () => (
 				Better Agent
 			</h1>
 			<p className="max-w-lg text-muted-foreground text-sm leading-relaxed">
-				Scoped agents for durable thinking work. Create Thinkspaces around bounded Goals,
-				configure Permissions, and return when work needs your judgement.
+				Scoped agents for durable thinking work. Create Thinkspaces around bounded Goals, configure
+				Permissions, and return when work needs your judgement.
 			</p>
 		</div>
 		<div className="flex gap-2">

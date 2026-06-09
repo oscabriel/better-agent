@@ -19,6 +19,10 @@ import {
 	listThinkspaces,
 	updateThinkspaceConfiguration,
 } from "./repository";
+import {
+	getOwnedThinkspaceAgentRuntimeReadiness,
+	ThinkspaceRuntimeResolutionError,
+} from "./runtime";
 
 const createThinkspaceInput = z.object({
 	configurationSummary: z.string().optional(),
@@ -116,6 +120,30 @@ export const thinkspacesRouter = {
 		async ({ context }) =>
 			await listThinkspaces(context.db, { ownerUserId: context.session.user.id }),
 	),
+	runtimeReadiness: protectedProcedure
+		.input(thinkspaceIdInput)
+		.handler(async ({ context, input }) => {
+			try {
+				const readiness = await getOwnedThinkspaceAgentRuntimeReadiness({
+					db: context.db,
+					env: context.env,
+					ownerUserId: context.session.user.id,
+					thinkspaceId: input.thinkspaceId,
+				});
+
+				if (!readiness) {
+					throw toNotFound();
+				}
+
+				return readiness;
+			} catch (error) {
+				if (error instanceof ThinkspaceRuntimeResolutionError) {
+					throw new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+				}
+
+				throw error;
+			}
+		}),
 	updateToolSelections: protectedProcedure
 		.input(updateToolSelectionsInput)
 		.handler(async ({ context, input }) => {

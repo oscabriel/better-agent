@@ -143,13 +143,7 @@ const RouteComponent = () => {
 					Your Thinkspaces
 				</h2>
 
-				{!hasThinkspaces ? (
-					<div className="border border-border p-6 text-center">
-						<p className="text-muted-foreground text-sm">
-							No Thinkspaces yet. Create one above to get started.
-						</p>
-					</div>
-				) : (
+				{hasThinkspaces ? (
 					<div className="border border-border">
 						{thinkspacesQuery.data.map((thinkspace, index) => (
 							<Link
@@ -172,6 +166,12 @@ const RouteComponent = () => {
 								</p>
 							</Link>
 						))}
+					</div>
+				) : (
+					<div className="border border-border p-6 text-center">
+						<p className="text-muted-foreground text-sm">
+							No Thinkspaces yet. Create one above to get started.
+						</p>
 					</div>
 				)}
 			</section>

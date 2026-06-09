@@ -54,14 +54,16 @@ A manual Worker can export a `Think` subclass and call `routeAgentRequest(reques
 This shape is closest to the current `apps/server/src/index.ts`, which already exports a custom Worker object that delegates to Hono. It would mean:
 
 ```ts
-export class ThinkspaceAgent extends Think<CloudflareEnv> { /* ... */ }
+export class ThinkspaceAgent extends Think<CloudflareEnv> {
+	/* ... */
+}
 
 export default {
-  async fetch(request, env, ctx) {
-    const agentResponse = await routeAgentRequest(request, env);
-    if (agentResponse) return agentResponse;
-    return app.fetch(request, env, ctx);
-  }
+	async fetch(request, env, ctx) {
+		const agentResponse = await routeAgentRequest(request, env);
+		if (agentResponse) return agentResponse;
+		return app.fetch(request, env, ctx);
+	},
 };
 ```
 
@@ -86,9 +88,9 @@ Alchemy's installed `DurableObjectNamespace` helper accepts:
 
 ```ts
 DurableObjectNamespace("thinkspace-agent", {
-  className: "ThinkspaceAgent",
-  sqlite: true
-})
+	className: "ThinkspaceAgent",
+	sqlite: true,
+});
 ```
 
 Evidence: local installed Alchemy `node_modules/alchemy/src/cloudflare/durable-object-namespace.ts:6-18,64-75`.

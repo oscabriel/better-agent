@@ -122,8 +122,8 @@ Suggested binding shape:
 
 ```ts
 DurableObjectNamespace("thinkspace-agent", {
-  className: "ThinkspaceAgent",
-  sqlite: true,
+	className: "ThinkspaceAgent",
+	sqlite: true,
 });
 ```
 
