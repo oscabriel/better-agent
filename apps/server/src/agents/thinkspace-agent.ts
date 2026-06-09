@@ -3,6 +3,16 @@ import {
 	ThinkspaceTurnModelUnavailableError,
 } from "@better-agent/api/models/readiness";
 import {
+	extractThinkspaceTurnResultText,
+	mapThinkspaceTurnInspection,
+	markThinkspaceTurnProductSafeError,
+	validateThinkspaceTurnSubmissionId,
+} from "@better-agent/api/thinkspaces/inspect";
+import type {
+	ThinkspaceTurnInspection,
+	ThinkspaceTurnInspectionRequest,
+} from "@better-agent/api/thinkspaces/inspect";
+import {
 	createThinkspaceRuntimeToolSet,
 	createThinkspaceRuntimeTurnConfig,
 	THINKSPACE_RUNTIME_POLICY,
@@ -81,6 +91,24 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		};
 	}
 
+	async inspectTurnSubmission(
+		request: ThinkspaceTurnInspectionRequest,
+	): Promise<ThinkspaceTurnInspection> {
+		const submissionId = validateThinkspaceTurnSubmissionId(request.submissionId);
+		const snapshot = await this.inspectSubmission(submissionId);
+		const resultText =
+			snapshot?.status === "completed"
+				? extractThinkspaceTurnResultText(await this.getMessages())
+				: null;
+
+		return mapThinkspaceTurnInspection({
+			resultText,
+			snapshot,
+			submissionId,
+			thinkspaceId: request.thinkspaceId,
+		});
+	}
+
 	override getModel(): LanguageModel {
 		return this.turnModelPlaceholder;
 	}
@@ -97,7 +125,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		const turnContext = await this.ctx.storage.get<ThinkspaceTurnContext>(TURN_CONTEXT_STORAGE_KEY);
 
 		if (!turnContext) {
-			throw new Error(MISSING_TURN_CONTEXT_MESSAGE);
+			throw new Error(markThinkspaceTurnProductSafeError(MISSING_TURN_CONTEXT_MESSAGE));
 		}
 
 		const resolved = await this.resolveTurnModel(turnContext);
@@ -124,11 +152,11 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 				error instanceof ThinkspaceTurnModelUnavailableError
 					? error.message
 					: MISSING_THINKSPACE_MESSAGE;
-			throw new Error(productSafeMessage, { cause: error });
+			throw new Error(markThinkspaceTurnProductSafeError(productSafeMessage), { cause: error });
 		}
 
 		if (!resolved) {
-			throw new Error(MISSING_THINKSPACE_MESSAGE);
+			throw new Error(markThinkspaceTurnProductSafeError(MISSING_THINKSPACE_MESSAGE));
 		}
 
 		return resolved.model;
