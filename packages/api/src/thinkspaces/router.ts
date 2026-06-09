@@ -24,6 +24,7 @@ import {
 	getOwnedThinkspaceAgentRuntimeReadiness,
 	ThinkspaceRuntimeResolutionError,
 } from "./runtime";
+import { getOwnedThinkspaceRuntimePolicy } from "./runtime-policy";
 
 const createThinkspaceInput = z.object({
 	configurationSummary: z.string().optional(),
@@ -137,6 +138,19 @@ export const thinkspacesRouter = {
 
 			return readiness;
 		}),
+	runtimePolicy: protectedProcedure.input(thinkspaceIdInput).handler(async ({ context, input }) => {
+		const policy = await getOwnedThinkspaceRuntimePolicy({
+			db: context.db,
+			ownerUserId: context.session.user.id,
+			thinkspaceId: input.thinkspaceId,
+		});
+
+		if (!policy) {
+			throw toNotFound();
+		}
+
+		return policy;
+	}),
 	runtimeReadiness: protectedProcedure
 		.input(thinkspaceIdInput)
 		.handler(async ({ context, input }) => {

@@ -60,6 +60,9 @@ const RouteComponent = () => {
 	const modelReadinessQuery = useSuspenseQuery(
 		context.orpc.thinkspaces.modelReadiness.queryOptions({ input: { thinkspaceId } }),
 	);
+	const runtimePolicyQuery = useSuspenseQuery(
+		context.orpc.thinkspaces.runtimePolicy.queryOptions({ input: { thinkspaceId } }),
+	);
 	const mcpCatalogQuery = useSuspenseQuery(context.orpc.mcp.listCatalog.queryOptions());
 	const archiveMutation = useMutation(
 		context.orpc.thinkspaces.archive.mutationOptions({
@@ -88,6 +91,7 @@ const RouteComponent = () => {
 	const thinkspace = thinkspaceQuery.data;
 	const runtimeReadiness = runtimeReadinessQuery.data;
 	const modelReadiness = modelReadinessQuery.data;
+	const runtimePolicy = runtimePolicyQuery.data;
 	const isArchived = thinkspace.status === "archived";
 	const enabledTools = parseJsonArray<EnabledToolSelection>(thinkspace.enabledToolIds);
 	const requestedPermissions = parseJsonArray<PermissionPlaceholder>(
@@ -181,6 +185,26 @@ const RouteComponent = () => {
 							{modelReadiness.modelName ?? modelReadiness.modelId} ·{" "}
 							{modelReadiness.providerName ?? "Unknown provider"}
 						</p>
+					</div>
+					<div className="grid gap-2 border-border border-t pt-4">
+						<div className="flex items-center justify-between gap-4">
+							<p className="text-sm font-medium">Runtime safety policy</p>
+							<Badge variant="outline">
+								{runtimePolicy.mode === "model_only" ? "model-only" : runtimePolicy.mode}
+							</Badge>
+						</div>
+						<p className="text-muted-foreground text-sm">{runtimePolicy.message}</p>
+						<ul className="grid gap-1">
+							{runtimePolicy.capabilities.map((capability) => (
+								<li
+									className="flex items-center justify-between gap-4 text-muted-foreground text-xs"
+									key={capability.id}
+								>
+									<span>{capability.label}</span>
+									<span>{capability.enabled ? "enabled" : "disabled"}</span>
+								</li>
+							))}
+						</ul>
 					</div>
 				</div>
 			</section>
@@ -329,6 +353,11 @@ export const Route = createFileRoute("/thinkspaces/$thinkspaceId")({
 			),
 			context.queryClient.ensureQueryData(
 				context.orpc.thinkspaces.modelReadiness.queryOptions({
+					input: { thinkspaceId: params.thinkspaceId },
+				}),
+			),
+			context.queryClient.ensureQueryData(
+				context.orpc.thinkspaces.runtimePolicy.queryOptions({
 					input: { thinkspaceId: params.thinkspaceId },
 				}),
 			),
