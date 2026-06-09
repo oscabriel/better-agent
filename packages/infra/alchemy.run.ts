@@ -35,8 +35,6 @@ const requiredEnv = <T>(value: T | undefined, name: string): T => {
 	return value;
 };
 
-const optionalEnv = <T>(value: T | undefined): T | undefined => value;
-
 const db = await D1Database("product-db", {
 	adopt: adoptPersistentResources,
 	migrationsDir: "../../packages/db/src/migrations",
@@ -55,14 +53,17 @@ const sourcesAndArtifacts = await R2Bucket("sources-artifacts", {
 });
 
 const commonBindings = {
-	ANTHROPIC_API_KEY: optionalEnv(alchemy.secret.env.ANTHROPIC_API_KEY),
-	API_ENCRYPTION_KEY: optionalEnv(alchemy.secret.env.API_ENCRYPTION_KEY),
+	ANTHROPIC_API_KEY: requiredEnv(alchemy.secret.env.ANTHROPIC_API_KEY, "ANTHROPIC_API_KEY"),
+	API_ENCRYPTION_KEY: requiredEnv(alchemy.secret.env.API_ENCRYPTION_KEY, "API_ENCRYPTION_KEY"),
 	BETTER_AUTH_SECRET: requiredEnv(alchemy.secret.env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET"),
 	BETTER_AUTH_URL: requiredEnv(alchemy.env.BETTER_AUTH_URL, "BETTER_AUTH_URL"),
 	CORS_ORIGIN: requiredEnv(alchemy.env.CORS_ORIGIN, "CORS_ORIGIN"),
 	DB: db,
-	GOOGLE_GENERATIVE_AI_API_KEY: optionalEnv(alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY),
-	OPENAI_API_KEY: optionalEnv(alchemy.secret.env.OPENAI_API_KEY),
+	GOOGLE_GENERATIVE_AI_API_KEY: requiredEnv(
+		alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
+		"GOOGLE_GENERATIVE_AI_API_KEY",
+	),
+	OPENAI_API_KEY: requiredEnv(alchemy.secret.env.OPENAI_API_KEY, "OPENAI_API_KEY"),
 	SESSION_KV: sessions,
 	SOURCES_ARTIFACTS: sourcesAndArtifacts,
 };
@@ -70,6 +71,7 @@ const commonBindings = {
 export const web = await TanStackStart("web", {
 	adopt: adoptPersistentResources,
 	bindings: {
+		...commonBindings,
 		VITE_SERVER_URL: requiredEnv(alchemy.env.VITE_SERVER_URL, "VITE_SERVER_URL"),
 	},
 	cwd: "../../apps/web",
