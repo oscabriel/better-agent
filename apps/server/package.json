@@ -8,6 +8,11 @@
 		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^3.0.81",
+		"@ai-sdk/google": "^3.0.80",
+		"@ai-sdk/openai": "^3.0.68",
+		"@ai-sdk/provider": "^3.0.0",
+		"@ai-sdk/provider-utils": "^4.0.27",
 		"@better-agent/api": "workspace:*",
 		"@better-agent/auth": "workspace:*",
 		"@better-agent/db": "workspace:*",
@@ -20,6 +25,7 @@
 		"ai": "catalog:",
 		"better-auth": "catalog:",
 		"dotenv": "catalog:",
+		"eventsource-parser": "^3.0.8",
 		"hono": "catalog:",
 		"zod": "catalog:"
 	},

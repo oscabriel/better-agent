@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { getOwnedThinkspaceModelReadiness } from "../models/readiness";
 import { protectedProcedure } from "../procedures";
 import {
 	createToolPermissionPlaceholder,
@@ -120,6 +121,22 @@ export const thinkspacesRouter = {
 		async ({ context }) =>
 			await listThinkspaces(context.db, { ownerUserId: context.session.user.id }),
 	),
+	modelReadiness: protectedProcedure
+		.input(thinkspaceIdInput)
+		.handler(async ({ context, input }) => {
+			const readiness = await getOwnedThinkspaceModelReadiness({
+				db: context.db,
+				env: context.env,
+				ownerUserId: context.session.user.id,
+				thinkspaceId: input.thinkspaceId,
+			});
+
+			if (!readiness) {
+				throw toNotFound();
+			}
+
+			return readiness;
+		}),
 	runtimeReadiness: protectedProcedure
 		.input(thinkspaceIdInput)
 		.handler(async ({ context, input }) => {
