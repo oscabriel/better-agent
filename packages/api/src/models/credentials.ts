@@ -1,5 +1,5 @@
 import type { ProductDb } from "@better-agent/db";
-import { schema } from "@better-agent/db";
+import { userProviderCredentials } from "@better-agent/db/schema/settings";
 import { and, eq } from "drizzle-orm";
 
 import type { ModelProviderId } from "./catalog";
@@ -64,7 +64,7 @@ export const upsertProviderCredential = async (
 ) => {
 	const now = new Date();
 	await db
-		.insert(schema.userProviderCredentials)
+		.insert(userProviderCredentials)
 		.values({
 			encryptedCredential: input.encryptedCredential,
 			id: input.id,
@@ -76,15 +76,12 @@ export const upsertProviderCredential = async (
 		})
 		.onConflictDoUpdate({
 			set: { encryptedCredential: input.encryptedCredential, label: input.label, updatedAt: now },
-			target: [schema.userProviderCredentials.userId, schema.userProviderCredentials.providerId],
+			target: [userProviderCredentials.userId, userProviderCredentials.providerId],
 		});
 };
 
 export const listProviderCredentials = async (db: ProductDb, userId: string) =>
-	await db
-		.select()
-		.from(schema.userProviderCredentials)
-		.where(eq(schema.userProviderCredentials.userId, userId));
+	await db.select().from(userProviderCredentials).where(eq(userProviderCredentials.userId, userId));
 
 export const getCredentialMap = async (
 	db: ProductDb,
@@ -102,11 +99,11 @@ export const getDecryptedCredential = async (
 ): Promise<string | null> => {
 	const [row] = await db
 		.select()
-		.from(schema.userProviderCredentials)
+		.from(userProviderCredentials)
 		.where(
 			and(
-				eq(schema.userProviderCredentials.userId, input.userId),
-				eq(schema.userProviderCredentials.providerId, input.providerId),
+				eq(userProviderCredentials.userId, input.userId),
+				eq(userProviderCredentials.providerId, input.providerId),
 			),
 		)
 		.limit(1);
