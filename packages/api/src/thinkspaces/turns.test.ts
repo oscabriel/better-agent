@@ -9,6 +9,7 @@ import type { ThinkspaceModelReadiness } from "../models/readiness";
 import { ThinkspaceRuntimeResolutionError } from "./runtime";
 import {
 	submitOwnedThinkspaceTurn,
+	THINKSPACE_TURN_IDEMPOTENCY_KEY_MAX_LENGTH,
 	THINKSPACE_TURN_INSTRUCTION_MAX_LENGTH,
 	ThinkspaceTurnValidationError,
 	validateThinkspaceTurnIdempotencyKey,
@@ -151,6 +152,63 @@ test("repeated submission with the same idempotency key returns the same handle 
 	assert.equal(retry?.deduplicated, true);
 	assert.equal(first?.submissionId, retry?.submissionId);
 	assert.equal(acceptedKeys.size, 1);
+});
+
+test("whitespace-padded idempotency keys dedupe to the same accepted submission", async () => {
+	const acceptedKeys = new Map<string, ThinkspaceTurnAcceptance>();
+	const submit = (idempotencyKey: string) =>
+		submitOwnedThinkspaceTurn({
+			acceptTurnSubmission: ({ request }) => {
+				const existing = acceptedKeys.get(request.idempotencyKey);
+				if (existing) {
+					return Promise.resolve({ ...existing, deduplicated: true });
+				}
+				const handle = acceptedHandle(request.idempotencyKey);
+				acceptedKeys.set(request.idempotencyKey, handle);
+				return Promise.resolve(handle);
+			},
+			checkModelReadiness: () => Promise.resolve(readyReadiness),
+			db,
+			env: createEnv(),
+			getThinkspaceByOwner: () => Promise.resolve(createOwnedThinkspace()),
+			getUserSettings: () => Promise.resolve(null),
+			idempotencyKey,
+			instruction: "Summarize the Thinkspace goal.",
+			ownerUserId: "owner_user",
+			thinkspaceId: "thinkspace_turns",
+		});
+
+	const first = await submit("retry-key-1");
+	const padded = await submit("  retry-key-1  ");
+
+	assert.equal(first?.deduplicated, false);
+	assert.equal(padded?.deduplicated, true);
+	assert.equal(first?.submissionId, padded?.submissionId);
+	assert.equal(acceptedKeys.size, 1);
+});
+
+test("idempotency keys at the documented bound are accepted and forwarded intact", async () => {
+	const boundaryKey = "k".repeat(THINKSPACE_TURN_IDEMPOTENCY_KEY_MAX_LENGTH);
+	const forwardedKeys: string[] = [];
+
+	const acceptance = await submitOwnedThinkspaceTurn({
+		acceptTurnSubmission: ({ request }) => {
+			forwardedKeys.push(request.idempotencyKey);
+			return Promise.resolve(acceptedHandle(request.idempotencyKey));
+		},
+		checkModelReadiness: () => Promise.resolve(readyReadiness),
+		db,
+		env: createEnv(),
+		getThinkspaceByOwner: () => Promise.resolve(createOwnedThinkspace()),
+		getUserSettings: () => Promise.resolve(null),
+		idempotencyKey: boundaryKey,
+		instruction: "Summarize the Thinkspace goal.",
+		ownerUserId: "owner_user",
+		thinkspaceId: "thinkspace_turns",
+	});
+
+	assert.equal(acceptance?.status, "accepted");
+	assert.deepEqual(forwardedKeys, [boundaryKey]);
 });
 
 test("non-owners cannot submit runtime work to another user's Thinkspace", async () => {

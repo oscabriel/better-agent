@@ -4,7 +4,7 @@ import type { CloudflareEnv } from "@better-agent/env/types";
 
 import { getThinkspace } from "./repository";
 import { resolveThinkspaceAgentRuntime, THINKSPACE_AGENT_BINDING_NAME } from "./runtime";
-import { ThinkspaceTurnValidationError } from "./turns";
+import { THINKSPACE_TURN_SOURCE, ThinkspaceTurnValidationError } from "./turns";
 
 export const THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH = 128;
 export const THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH = 8000;
@@ -214,7 +214,11 @@ export const mapThinkspaceTurnInspection = ({
 	submissionId: string;
 	thinkspaceId: string;
 }): ThinkspaceTurnInspection => {
-	if (!snapshot || snapshot.metadata?.thinkspaceId !== thinkspaceId) {
+	if (
+		!snapshot ||
+		snapshot.metadata?.thinkspaceId !== thinkspaceId ||
+		snapshot.metadata?.source !== THINKSPACE_TURN_SOURCE
+	) {
 		return createUnknownTurnInspection(submissionId, thinkspaceId);
 	}
 
