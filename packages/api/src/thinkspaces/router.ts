@@ -6,6 +6,7 @@ import {
 	ThinkspaceTurnModelUnavailableError,
 } from "../models/readiness";
 import { protectedProcedure } from "../procedures";
+import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } from "./inspect";
 import {
 	createToolPermissionPlaceholder,
 	DEFAULT_APPROVAL_POLICY,
@@ -53,6 +54,11 @@ const toolSelectionSchema = z.object({
 
 const updateToolSelectionsInput = z.object({
 	selections: z.array(toolSelectionSchema),
+	thinkspaceId: z.string().min(1),
+});
+
+const inspectTurnInput = z.object({
+	submissionId: z.string().min(1).max(THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH),
 	thinkspaceId: z.string().min(1),
 });
 
@@ -132,6 +138,33 @@ export const thinkspacesRouter = {
 		}
 
 		return thinkspace;
+	}),
+	inspectTurn: protectedProcedure.input(inspectTurnInput).handler(async ({ context, input }) => {
+		try {
+			const inspection = await inspectOwnedThinkspaceTurn({
+				db: context.db,
+				env: context.env,
+				ownerUserId: context.session.user.id,
+				submissionId: input.submissionId,
+				thinkspaceId: input.thinkspaceId,
+			});
+
+			if (!inspection) {
+				throw toNotFound();
+			}
+
+			return inspection;
+		} catch (error) {
+			if (error instanceof ThinkspaceTurnValidationError) {
+				throw new ORPCError("BAD_REQUEST", { message: error.message });
+			}
+
+			if (error instanceof ThinkspaceRuntimeResolutionError) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+			}
+
+			throw error;
+		}
 	}),
 	list: protectedProcedure.handler(
 		async ({ context }) =>

@@ -1,9 +1,10 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import { Input } from "@better-agent/ui/components/input";
 import { Label } from "@better-agent/ui/components/label";
 import { Separator } from "@better-agent/ui/components/separator";
 import { Textarea } from "@better-agent/ui/components/textarea";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -48,6 +49,107 @@ const parseJsonArray = <T,>(value: string): T[] => {
 	} catch {
 		return [];
 	}
+};
+
+type TurnInspectionStatus = "accepted" | "completed" | "failed" | "running" | "unknown";
+
+const TURN_STATUS_BADGE_VARIANTS: Record<
+	TurnInspectionStatus,
+	"default" | "destructive" | "outline" | "secondary"
+> = {
+	accepted: "secondary",
+	completed: "default",
+	failed: "destructive",
+	running: "secondary",
+	unknown: "outline",
+};
+
+const TURN_STATUS_POLL_INTERVAL_MS = 2000;
+
+const TurnInspectionPanel = ({
+	initialSubmissionId,
+	thinkspaceId,
+}: {
+	initialSubmissionId: string;
+	thinkspaceId: string;
+}) => {
+	const context = routeApi.useRouteContext();
+	const [submissionIdInput, setSubmissionIdInput] = useState(initialSubmissionId);
+	const [inspectedSubmissionId, setInspectedSubmissionId] = useState(initialSubmissionId);
+	const inspectionQuery = useQuery(
+		context.orpc.thinkspaces.inspectTurn.queryOptions({
+			enabled: Boolean(inspectedSubmissionId),
+			input: { submissionId: inspectedSubmissionId, thinkspaceId },
+			refetchInterval: (query) => {
+				const status = query.state.data?.status;
+				return status === "accepted" || status === "running" ? TURN_STATUS_POLL_INTERVAL_MS : false;
+			},
+		}),
+	);
+	const inspection = inspectionQuery.data;
+
+	return (
+		<div className="grid gap-3 border border-border p-4">
+			<div className="grid gap-1">
+				<p className="text-sm font-medium">Turn status</p>
+				<p className="text-muted-foreground text-xs">
+					Inspect a submitted turn by its submission handle. These runtime diagnostics are for
+					debugging and are not the Audit Trail.
+				</p>
+			</div>
+			<form
+				className="flex items-end gap-2"
+				onSubmit={(event) => {
+					event.preventDefault();
+					setInspectedSubmissionId(submissionIdInput.trim());
+				}}
+			>
+				<div className="grid flex-1 gap-2">
+					<Label htmlFor="turn-submission-id">Submission handle</Label>
+					<Input
+						id="turn-submission-id"
+						maxLength={128}
+						onChange={(event) => setSubmissionIdInput(event.target.value)}
+						placeholder="Paste a submission handle from an accepted turn."
+						value={submissionIdInput}
+					/>
+				</div>
+				<Button
+					disabled={!submissionIdInput.trim() || inspectionQuery.isFetching}
+					type="submit"
+					variant="outline"
+				>
+					Check status
+				</Button>
+			</form>
+			{inspectionQuery.isError ? (
+				<p className="text-destructive text-xs" role="alert">
+					{inspectionQuery.error.message}
+				</p>
+			) : null}
+			{inspection ? (
+				<div className="grid gap-2 border-border border-t pt-3">
+					<div className="flex items-center justify-between gap-4">
+						<p className="break-all text-muted-foreground text-xs">{inspection.submissionId}</p>
+						<Badge variant={TURN_STATUS_BADGE_VARIANTS[inspection.status]}>
+							{inspection.status}
+						</Badge>
+					</div>
+					<p className="text-muted-foreground text-sm">{inspection.message}</p>
+					{inspection.resultText ? (
+						<p className="whitespace-pre-wrap border border-border p-3 text-sm leading-relaxed">
+							{inspection.resultText}
+						</p>
+					) : null}
+					<div className="flex flex-wrap gap-4 text-muted-foreground text-xs">
+						<span>Accepted {formatDateTime(inspection.acceptedAt)}</span>
+						<span>Started {formatDateTime(inspection.startedAt)}</span>
+						<span>Completed {formatDateTime(inspection.completedAt)}</span>
+					</div>
+				</div>
+			) : null}
+		</div>
+	);
 };
 
 const SubmitTurnSection = ({
@@ -145,6 +247,11 @@ const SubmitTurnSection = ({
 					</Button>
 				</div>
 			</form>
+			<TurnInspectionPanel
+				initialSubmissionId={submitTurnMutation.data?.submissionId ?? ""}
+				key={submitTurnMutation.data?.submissionId ?? "no-accepted-turn"}
+				thinkspaceId={thinkspaceId}
+			/>
 		</section>
 	);
 };
