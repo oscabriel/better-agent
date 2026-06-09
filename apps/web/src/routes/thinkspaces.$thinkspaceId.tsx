@@ -54,6 +54,9 @@ const RouteComponent = () => {
 	const thinkspaceQuery = useSuspenseQuery(
 		context.orpc.thinkspaces.get.queryOptions({ input: { thinkspaceId } }),
 	);
+	const runtimeReadinessQuery = useSuspenseQuery(
+		context.orpc.thinkspaces.runtimeReadiness.queryOptions({ input: { thinkspaceId } }),
+	);
 	const mcpCatalogQuery = useSuspenseQuery(context.orpc.mcp.listCatalog.queryOptions());
 	const archiveMutation = useMutation(
 		context.orpc.thinkspaces.archive.mutationOptions({
@@ -80,6 +83,7 @@ const RouteComponent = () => {
 	);
 
 	const thinkspace = thinkspaceQuery.data;
+	const runtimeReadiness = runtimeReadinessQuery.data;
 	const isArchived = thinkspace.status === "archived";
 	const enabledTools = parseJsonArray<EnabledToolSelection>(thinkspace.enabledToolIds);
 	const requestedPermissions = parseJsonArray<PermissionPlaceholder>(
@@ -114,9 +118,7 @@ const RouteComponent = () => {
 
 			<div className="grid gap-4">
 				<div className="flex items-start justify-between gap-4">
-					<h1 className="text-2xl font-semibold tracking-tight text-balance">
-						{thinkspace.goal}
-					</h1>
+					<h1 className="text-2xl font-semibold tracking-tight text-balance">{thinkspace.goal}</h1>
 					<Badge className="shrink-0" variant={isArchived ? "outline" : "default"}>
 						{thinkspace.status}
 					</Badge>
@@ -137,6 +139,32 @@ const RouteComponent = () => {
 					) : null}
 				</div>
 			</div>
+
+			<Separator />
+
+			<section aria-labelledby="runtime-heading" className="grid gap-4">
+				<div className="grid gap-1">
+					<h2 className="text-lg font-semibold tracking-tight" id="runtime-heading">
+						Thinkspace Agent runtime
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						This Thinkspace resolves to one durable Thinkspace Agent using the Thinkspace id as its
+						runtime identity.
+					</p>
+				</div>
+				<div className="grid gap-2 border border-border p-4">
+					<div className="flex items-center justify-between gap-4">
+						<p className="text-sm font-medium">Runtime readiness</p>
+						<Badge variant="outline">{runtimeReadiness.status}</Badge>
+					</div>
+					<p className="text-muted-foreground text-xs">
+						Binding: {runtimeReadiness.bindingName} · Class: {runtimeReadiness.className}
+					</p>
+					<p className="break-all text-muted-foreground text-xs">
+						Runtime identity: {runtimeReadiness.runtimeName}
+					</p>
+				</div>
+			</section>
 
 			<Separator />
 
@@ -223,7 +251,7 @@ const RouteComponent = () => {
 				)}
 			</section>
 
-			{!isArchived ? (
+			{isArchived ? null : (
 				<>
 					<Separator />
 					<section className="grid gap-4">
@@ -251,7 +279,7 @@ const RouteComponent = () => {
 						</div>
 					</section>
 				</>
-			) : null}
+			)}
 		</div>
 	);
 };
@@ -268,10 +296,18 @@ export const Route = createFileRoute("/thinkspaces/$thinkspaceId")({
 		return { session };
 	},
 	component: RouteComponent,
-	loader: async ({ context, params }) =>
-		await context.queryClient.ensureQueryData(
-			context.orpc.thinkspaces.get.queryOptions({
-				input: { thinkspaceId: params.thinkspaceId },
-			}),
-		),
+	loader: async ({ context, params }) => {
+		await Promise.all([
+			context.queryClient.ensureQueryData(
+				context.orpc.thinkspaces.get.queryOptions({
+					input: { thinkspaceId: params.thinkspaceId },
+				}),
+			),
+			context.queryClient.ensureQueryData(
+				context.orpc.thinkspaces.runtimeReadiness.queryOptions({
+					input: { thinkspaceId: params.thinkspaceId },
+				}),
+			),
+		]);
+	},
 });
