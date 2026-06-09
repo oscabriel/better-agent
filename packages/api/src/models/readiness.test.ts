@@ -3,7 +3,12 @@ import test from "node:test";
 
 import type { ProductDb } from "@better-agent/db";
 
-import { checkThinkspaceModelReadiness, getOwnedThinkspaceModelReadiness } from "./readiness";
+import {
+	checkThinkspaceModelReadiness,
+	getOwnedThinkspaceModelReadiness,
+	resolveOwnedThinkspaceTurnModel,
+	ThinkspaceTurnModelUnavailableError,
+} from "./readiness";
 
 const db = {} as ProductDb;
 
@@ -128,6 +133,53 @@ test("owner-gated model readiness reports readiness for owned Thinkspaces", asyn
 
 	assert.equal(readiness?.status, "ready");
 	assert.equal(readiness?.modelId, "google:gemini-2.5-flash-lite");
+});
+
+test("resolves a usable turn model for ready owned Thinkspaces", async () => {
+	const resolved = await resolveOwnedThinkspaceTurnModel({
+		db,
+		env: createEnv(),
+		getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
+		getUserSettings: () => Promise.resolve(null),
+		ownerUserId: "owner_user",
+		thinkspaceId: "thinkspace_owned",
+	});
+
+	assert.equal(resolved?.readiness.status, "ready");
+	assert.equal(resolved?.readiness.modelId, "google:gemini-2.5-flash-lite");
+	assert.ok(resolved?.model);
+});
+
+test("turn model resolution fails closed with a product-safe error when not ready", async () => {
+	await assert.rejects(
+		resolveOwnedThinkspaceTurnModel({
+			db,
+			env: createEnv({ GOOGLE_GENERATIVE_AI_API_KEY: undefined }),
+			getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
+			getUserSettings: () => Promise.resolve(null),
+			ownerUserId: "owner_user",
+			thinkspaceId: "thinkspace_owned",
+		}),
+		(error: unknown) => {
+			assert.ok(error instanceof ThinkspaceTurnModelUnavailableError);
+			assert.equal(error.readiness.reason, "missing_app_credential");
+			assert.equal(error.message, "The app-provided credential for this model is not configured.");
+			return true;
+		},
+	);
+});
+
+test("turn model resolution returns null for non-owned Thinkspaces", async () => {
+	const resolved = await resolveOwnedThinkspaceTurnModel({
+		db,
+		env: createEnv(),
+		getThinkspaceByOwner: () => Promise.resolve(null),
+		getUserSettings: () => Promise.resolve(null),
+		ownerUserId: "other_user",
+		thinkspaceId: "thinkspace_owned",
+	});
+
+	assert.equal(resolved, null);
 });
 
 test("owner-gated model readiness returns null for non-owned Thinkspaces", async () => {

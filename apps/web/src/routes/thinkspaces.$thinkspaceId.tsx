@@ -1,8 +1,11 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import { Label } from "@better-agent/ui/components/label";
 import { Separator } from "@better-agent/ui/components/separator";
+import { Textarea } from "@better-agent/ui/components/textarea";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { getUser } from "@/functions/get-user";
 
@@ -45,6 +48,105 @@ const parseJsonArray = <T,>(value: string): T[] => {
 	} catch {
 		return [];
 	}
+};
+
+const SubmitTurnSection = ({
+	isArchived,
+	modelReady,
+	thinkspaceId,
+}: {
+	isArchived: boolean;
+	modelReady: boolean;
+	thinkspaceId: string;
+}) => {
+	const context = routeApi.useRouteContext();
+	const [turnInstruction, setTurnInstruction] = useState("");
+	const [turnIdempotencyKey, setTurnIdempotencyKey] = useState(() => crypto.randomUUID());
+	const submitTurnMutation = useMutation(
+		context.orpc.thinkspaces.submitTurn.mutationOptions({
+			onSuccess: () => {
+				setTurnInstruction("");
+				setTurnIdempotencyKey(crypto.randomUUID());
+			},
+		}),
+	);
+	const submitDisabled =
+		isArchived || !modelReady || !turnInstruction.trim() || submitTurnMutation.isPending;
+
+	return (
+		<section aria-labelledby="submit-turn-heading" className="grid gap-4">
+			<div className="grid gap-1">
+				<h2 className="text-lg font-semibold tracking-tight" id="submit-turn-heading">
+					Submit a turn
+				</h2>
+				<p className="text-muted-foreground text-sm">
+					Send a bounded instruction to this Thinkspace Agent. Work is durably accepted and can be
+					inspected later; acceptance is separate from completion.
+				</p>
+			</div>
+			<form
+				className="grid gap-3 border border-border p-4"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (submitDisabled) {
+						return;
+					}
+					submitTurnMutation.mutate({
+						idempotencyKey: turnIdempotencyKey,
+						instruction: turnInstruction,
+						thinkspaceId,
+					});
+				}}
+			>
+				<div className="grid gap-2">
+					<Label htmlFor="turn-instruction">Instruction</Label>
+					<Textarea
+						disabled={isArchived || !modelReady}
+						id="turn-instruction"
+						maxLength={4000}
+						onChange={(event) => setTurnInstruction(event.target.value)}
+						placeholder="Describe one bounded piece of work for this Thinkspace Agent."
+						rows={3}
+						value={turnInstruction}
+					/>
+				</div>
+				{isArchived ? (
+					<p className="text-muted-foreground text-xs">
+						Archived Thinkspaces cannot accept new Thinkspace Agent turns.
+					</p>
+				) : null}
+				{isArchived || modelReady ? null : (
+					<p className="text-muted-foreground text-xs">
+						Model configuration must be ready before submitting a turn.
+					</p>
+				)}
+				{submitTurnMutation.isError ? (
+					<p className="text-destructive text-xs">{submitTurnMutation.error.message}</p>
+				) : null}
+				{submitTurnMutation.data ? (
+					<div className="grid gap-1 border-border border-t pt-3">
+						<div className="flex items-center justify-between gap-4">
+							<p className="text-sm font-medium">Last accepted turn</p>
+							<Badge variant={submitTurnMutation.data.deduplicated ? "outline" : "default"}>
+								{submitTurnMutation.data.deduplicated ? "already accepted" : "accepted"}
+							</Badge>
+						</div>
+						<p className="break-all text-muted-foreground text-xs">
+							Submission: {submitTurnMutation.data.submissionId}
+						</p>
+						<p className="text-muted-foreground text-xs">
+							Accepted {formatDateTime(submitTurnMutation.data.acceptedAt)}
+						</p>
+					</div>
+				) : null}
+				<div>
+					<Button disabled={submitDisabled} type="submit">
+						{submitTurnMutation.isPending ? "Submitting…" : "Submit turn"}
+					</Button>
+				</div>
+			</form>
+		</section>
+	);
 };
 
 const RouteComponent = () => {
@@ -208,6 +310,14 @@ const RouteComponent = () => {
 					</div>
 				</div>
 			</section>
+
+			<Separator />
+
+			<SubmitTurnSection
+				isArchived={isArchived}
+				modelReady={modelReadiness.status === "ready"}
+				thinkspaceId={thinkspaceId}
+			/>
 
 			<Separator />
 
