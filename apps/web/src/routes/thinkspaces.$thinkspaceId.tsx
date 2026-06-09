@@ -57,6 +57,9 @@ const RouteComponent = () => {
 	const runtimeReadinessQuery = useSuspenseQuery(
 		context.orpc.thinkspaces.runtimeReadiness.queryOptions({ input: { thinkspaceId } }),
 	);
+	const modelReadinessQuery = useSuspenseQuery(
+		context.orpc.thinkspaces.modelReadiness.queryOptions({ input: { thinkspaceId } }),
+	);
 	const mcpCatalogQuery = useSuspenseQuery(context.orpc.mcp.listCatalog.queryOptions());
 	const archiveMutation = useMutation(
 		context.orpc.thinkspaces.archive.mutationOptions({
@@ -84,6 +87,7 @@ const RouteComponent = () => {
 
 	const thinkspace = thinkspaceQuery.data;
 	const runtimeReadiness = runtimeReadinessQuery.data;
+	const modelReadiness = modelReadinessQuery.data;
 	const isArchived = thinkspace.status === "archived";
 	const enabledTools = parseJsonArray<EnabledToolSelection>(thinkspace.enabledToolIds);
 	const requestedPermissions = parseJsonArray<PermissionPlaceholder>(
@@ -152,17 +156,32 @@ const RouteComponent = () => {
 						runtime identity.
 					</p>
 				</div>
-				<div className="grid gap-2 border border-border p-4">
-					<div className="flex items-center justify-between gap-4">
-						<p className="text-sm font-medium">Runtime readiness</p>
-						<Badge variant="outline">{runtimeReadiness.status}</Badge>
+				<div className="grid gap-4 border border-border p-4">
+					<div className="grid gap-2">
+						<div className="flex items-center justify-between gap-4">
+							<p className="text-sm font-medium">Runtime readiness</p>
+							<Badge variant="outline">{runtimeReadiness.status}</Badge>
+						</div>
+						<p className="text-muted-foreground text-xs">
+							Binding: {runtimeReadiness.bindingName} · Class: {runtimeReadiness.className}
+						</p>
+						<p className="break-all text-muted-foreground text-xs">
+							Runtime identity: {runtimeReadiness.runtimeName}
+						</p>
 					</div>
-					<p className="text-muted-foreground text-xs">
-						Binding: {runtimeReadiness.bindingName} · Class: {runtimeReadiness.className}
-					</p>
-					<p className="break-all text-muted-foreground text-xs">
-						Runtime identity: {runtimeReadiness.runtimeName}
-					</p>
+					<div className="grid gap-2 border-border border-t pt-4">
+						<div className="flex items-center justify-between gap-4">
+							<p className="text-sm font-medium">Model readiness</p>
+							<Badge variant={modelReadiness.status === "ready" ? "default" : "destructive"}>
+								{modelReadiness.status === "ready" ? "ready" : "not ready"}
+							</Badge>
+						</div>
+						<p className="text-muted-foreground text-sm">{modelReadiness.message}</p>
+						<p className="text-muted-foreground text-xs">
+							{modelReadiness.modelName ?? modelReadiness.modelId} ·{" "}
+							{modelReadiness.providerName ?? "Unknown provider"}
+						</p>
+					</div>
 				</div>
 			</section>
 
@@ -305,6 +324,11 @@ export const Route = createFileRoute("/thinkspaces/$thinkspaceId")({
 			),
 			context.queryClient.ensureQueryData(
 				context.orpc.thinkspaces.runtimeReadiness.queryOptions({
+					input: { thinkspaceId: params.thinkspaceId },
+				}),
+			),
+			context.queryClient.ensureQueryData(
+				context.orpc.thinkspaces.modelReadiness.queryOptions({
 					input: { thinkspaceId: params.thinkspaceId },
 				}),
 			),
