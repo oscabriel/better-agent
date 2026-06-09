@@ -48,51 +48,46 @@ const RouteComponent = () => {
 	};
 
 	return (
-		<div className="grid gap-6">
-			<div className="grid gap-1">
-				<h2 className="text-xl font-semibold tracking-tight">Product settings</h2>
-				<p className="text-muted-foreground text-sm leading-6">
-					Configure product-level defaults and Connected Accounts. These choices prepare Better
-					Agent, but a Thinkspace Agent still needs scoped Permissions before it can use a resource.
+		<div className="grid gap-8">
+			<div className="grid gap-2">
+				<h2 className="text-xl font-semibold tracking-tight">Product</h2>
+				<p className="text-muted-foreground text-sm leading-relaxed">
+					Model credentials and product-level defaults. Thinkspace Agents need scoped Permissions
+					before using any resource configured here.
 				</p>
 			</div>
 
-			<section className="grid gap-3" aria-labelledby="model-catalog-heading">
+			<section aria-labelledby="model-catalog-heading" className="grid gap-4">
 				<div className="grid gap-1">
-					<h3 id="model-catalog-heading" className="font-medium">
+					<h3 className="text-sm font-medium" id="model-catalog-heading">
 						Model catalog
 					</h3>
-					<p className="text-muted-foreground text-sm leading-6">
-						Public model metadata is visible here. BYOK credentials make models available to your
-						account, but do not grant access to any Thinkspace by themselves.
+					<p className="text-muted-foreground text-sm">
+						Available models and their access status for your account.
 					</p>
 				</div>
-				<div className="grid gap-2">
-					{catalogQuery.data.map((model) => (
+				<div className="border border-border">
+					{catalogQuery.data.map((model, index) => (
 						<div
 							key={model.id}
-							className="grid gap-2 border border-border p-4 sm:grid-cols-[1fr_auto] sm:items-start"
+							className={`grid gap-1 p-4 ${index < catalogQuery.data.length - 1 ? "border-b border-border" : ""}`}
 						>
-							<div className="grid gap-1">
-								<div className="flex flex-wrap items-center gap-2">
-									<p className="font-medium">{model.name}</p>
-									<Badge variant="outline">{model.providerName}</Badge>
-									<Badge variant={model.availableForAccount ? "default" : "outline"}>
-										{model.access === "app_provided" ? "App-provided" : "BYOK"}
+							<div className="flex flex-wrap items-center gap-2">
+								<p className="text-sm font-medium">{model.name}</p>
+								<Badge variant="outline">{model.providerName}</Badge>
+								{model.availableForAccount ? (
+									<Badge>Available</Badge>
+								) : (
+									<Badge variant="outline">
+										{model.access === "app_provided" ? "App-provided" : "Add credential"}
 									</Badge>
-									{model.requiresThinkspacePermission ? (
-										<Badge variant="outline">Needs Thinkspace Permission</Badge>
-									) : null}
-								</div>
-								<p className="text-muted-foreground text-sm">{model.description}</p>
-								<p className="text-muted-foreground text-xs">
-									{model.id} · {model.contextWindow.toLocaleString()} context · reasoning:{" "}
-									{model.reasoning}
-								</p>
+								)}
 							</div>
-							<span className="text-muted-foreground text-xs">
-								{model.availableForAccount ? "Available" : "Add credential"}
-							</span>
+							<p className="text-muted-foreground text-sm">{model.description}</p>
+							<p className="text-muted-foreground text-xs">
+								{model.id} · {model.contextWindow.toLocaleString()} tokens · reasoning:{" "}
+								{model.reasoning}
+							</p>
 						</div>
 					))}
 				</div>
@@ -100,25 +95,25 @@ const RouteComponent = () => {
 
 			<Separator />
 
-			<section className="grid gap-3" aria-labelledby="provider-credentials-heading">
+			<section aria-labelledby="provider-credentials-heading" className="grid gap-4">
 				<div className="grid gap-1">
-					<h3 id="provider-credentials-heading" className="font-medium">
+					<h3 className="text-sm font-medium" id="provider-credentials-heading">
 						Provider credentials
 					</h3>
-					<p className="text-muted-foreground text-sm leading-6">
-						Credentials are encrypted when saved and only redacted status is returned after save.
+					<p className="text-muted-foreground text-sm">
+						API keys are encrypted at rest. Only a redacted preview is shown after saving.
 					</p>
 				</div>
-				<form className="grid gap-3 border border-border p-4" onSubmit={handleSubmit}>
+				<form className="grid max-w-md gap-4 border border-border p-4" onSubmit={handleSubmit}>
 					<div className="grid gap-1.5">
 						<Label htmlFor="provider">Provider</Label>
 						<select
+							className="h-8 w-full border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30"
 							id="provider"
-							className="border border-input bg-background px-2.5 py-2 text-sm"
-							value={providerId}
 							onChange={(event) =>
 								setProviderId(event.target.value as keyof typeof PROVIDER_LABELS)
 							}
+							value={providerId}
 						>
 							{Object.entries(PROVIDER_LABELS).map(([id, name]) => (
 								<option key={id} value={id}>
@@ -131,53 +126,52 @@ const RouteComponent = () => {
 						<Label htmlFor="credential-label">Label</Label>
 						<Input
 							id="credential-label"
-							value={label}
 							onChange={(event) => setLabel(event.target.value)}
 							placeholder="Optional label"
+							value={label}
 						/>
 					</div>
 					<div className="grid gap-1.5">
 						<Label htmlFor="credential">API key</Label>
 						<Input
 							id="credential"
-							type="password"
-							value={credential}
 							onChange={(event) => setCredential(event.target.value)}
 							placeholder="Paste provider API key"
+							type="password"
+							value={credential}
 						/>
 					</div>
 					{saveCredential.error ? (
-						<p className="text-destructive text-xs" role="alert">
+						<p className="text-destructive text-sm" role="alert">
 							{saveCredential.error.message}
 						</p>
 					) : null}
 					<Button
 						className="w-fit"
-						type="submit"
 						disabled={credential.trim().length < 8 || saveCredential.isPending}
+						type="submit"
 					>
-						{saveCredential.isPending ? "Saving…" : "Save encrypted credential"}
+						{saveCredential.isPending ? "Saving…" : "Save credential"}
 					</Button>
 				</form>
-				<div className="grid gap-2">
-					{credentialsQuery.data.length === 0 ? (
-						<p className="text-muted-foreground text-sm">No provider credentials saved.</p>
-					) : null}
-					{credentialsQuery.data.map((entry) => (
-						<div
-							key={entry.id}
-							className="flex flex-col gap-1 border border-border p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
-						>
-							<span>
-								{PROVIDER_LABELS[entry.providerId as keyof typeof PROVIDER_LABELS]}{" "}
-								{entry.label ? `· ${entry.label}` : ""}
-							</span>
-							<span className="text-muted-foreground">
-								{entry.redactedCredential} · Permission still scoped per Thinkspace
-							</span>
-						</div>
-					))}
-				</div>
+				{credentialsQuery.data.length > 0 ? (
+					<div className="border border-border">
+						{credentialsQuery.data.map((entry, index) => (
+							<div
+								key={entry.id}
+								className={`flex items-center justify-between gap-4 p-4 text-sm ${index < credentialsQuery.data.length - 1 ? "border-b border-border" : ""}`}
+							>
+								<span className="font-medium">
+									{PROVIDER_LABELS[entry.providerId as keyof typeof PROVIDER_LABELS]}
+									{entry.label ? ` · ${entry.label}` : ""}
+								</span>
+								<span className="text-muted-foreground text-xs">{entry.redactedCredential}</span>
+							</div>
+						))}
+					</div>
+				) : (
+					<p className="text-muted-foreground text-sm">No credentials saved.</p>
+				)}
 			</section>
 		</div>
 	);

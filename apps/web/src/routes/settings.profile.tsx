@@ -1,4 +1,3 @@
-import { Alert, AlertDescription, AlertTitle } from "@better-agent/ui/components/alert";
 import { Button } from "@better-agent/ui/components/button";
 import { Input } from "@better-agent/ui/components/input";
 import { Label } from "@better-agent/ui/components/label";
@@ -34,7 +33,7 @@ const RouteComponent = () => {
 	const updateProfile = useMutation(
 		context.orpc.profile.update.mutationOptions({
 			onSuccess: async (profile) => {
-				toast.success("Account profile updated.");
+				toast.success("Profile updated.");
 				setName(profile.name);
 				await queryClient.invalidateQueries({
 					queryKey: context.orpc.profile.get.queryKey(),
@@ -71,32 +70,39 @@ const RouteComponent = () => {
 	};
 
 	return (
-		<div className="grid gap-6">
-			<div className="grid gap-1">
+		<div className="grid gap-8">
+			<div className="grid gap-2">
 				<h2 className="text-xl font-semibold tracking-tight">Account</h2>
-				<p className="text-muted-foreground text-sm leading-6">
-					Your Better Agent identity and session controls. These settings do not grant a Thinkspace
-					Agent access to any Connected Account.
+				<p className="text-muted-foreground text-sm leading-relaxed">
+					Your identity and session controls.
 				</p>
 			</div>
 
 			<div className="flex flex-col gap-4 border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex items-center gap-3">
-					<div className="flex size-12 items-center justify-center border border-border bg-muted font-semibold text-sm">
+					<div className="flex size-10 items-center justify-center border border-border bg-muted text-sm font-medium">
 						{initials}
 					</div>
-					<div className="grid gap-1">
-						<p className="font-medium">{profileQuery.data.name}</p>
+					<div className="grid gap-0.5">
+						<p className="text-sm font-medium">{profileQuery.data.name}</p>
 						<p className="text-muted-foreground text-sm">{profileQuery.data.email}</p>
 					</div>
 				</div>
-				<Button disabled={isSigningOut} onClick={handleSignOut} type="button" variant="outline">
-					<LogOutIcon className="mr-2 size-4" />
+				<Button
+					disabled={isSigningOut}
+					onClick={handleSignOut}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					<LogOutIcon className="mr-1.5 size-3.5" />
 					{isSigningOut ? "Signing out…" : "Sign out"}
 				</Button>
 			</div>
 
-			<form className="grid max-w-md gap-3" onSubmit={handleSubmit}>
+			<Separator />
+
+			<form className="grid max-w-md gap-4" onSubmit={handleSubmit}>
 				<div className="grid gap-1.5">
 					<Label htmlFor="settings-display-name">Display name</Label>
 					<Input
@@ -108,24 +114,14 @@ const RouteComponent = () => {
 					/>
 				</div>
 				{updateProfile.error ? (
-					<p className="text-destructive text-xs" role="alert">
+					<p className="text-destructive text-sm" role="alert">
 						{updateProfile.error.message}
 					</p>
 				) : null}
 				<Button className="w-fit" disabled={!canSave || updateProfile.isPending} type="submit">
-					{updateProfile.isPending ? "Saving…" : "Save account profile"}
+					{updateProfile.isPending ? "Saving…" : "Save profile"}
 				</Button>
 			</form>
-
-			<Separator />
-
-			<Alert>
-				<AlertTitle>Session scope</AlertTitle>
-				<AlertDescription>
-					Sign-out uses the Better Agent auth session. Connected Accounts and Thinkspace Permissions
-					will be managed separately as those surfaces are ported.
-				</AlertDescription>
-			</Alert>
 		</div>
 	);
 };

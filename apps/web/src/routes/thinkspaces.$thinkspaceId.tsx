@@ -1,12 +1,6 @@
+import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@better-agent/ui/components/card";
+import { Separator } from "@better-agent/ui/components/separator";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, redirect } from "@tanstack/react-router";
 
@@ -21,34 +15,11 @@ const dateFormatter = new Intl.DateTimeFormat("en", {
 
 const formatDateTime = (value: Date | number | string | null): string => {
 	if (!value) {
-		return "Not recorded";
+		return "—";
 	}
 
 	return dateFormatter.format(new Date(value));
 };
-
-const referenceSurfaces = [
-	{
-		description:
-			"Sources will hold external or user-provided material made available to this Thinkspace. Source blobs stay out of the product index.",
-		title: "Sources",
-	},
-	{
-		description:
-			"Memory will contain retained understanding accepted into this Thinkspace, not a transcript or hidden model state.",
-		title: "Memory",
-	},
-	{
-		description:
-			"Audit Trail will be the user-facing history of meaningful changes and actions inside this Thinkspace.",
-		title: "Audit Trail",
-	},
-	{
-		description:
-			"Artifacts will be durable outputs produced by the Thinkspace, such as handoffs, plans, diagrams, exports, or snapshots.",
-		title: "Artifacts",
-	},
-] as const;
 
 interface EnabledToolSelection {
 	risk: "read_only" | "mutating" | "unknown";
@@ -114,25 +85,6 @@ const RouteComponent = () => {
 	const requestedPermissions = parseJsonArray<PermissionPlaceholder>(
 		thinkspace.requestedPermissions,
 	);
-	const archiveButtonLabel = (() => {
-		if (isArchived) {
-			return "Thinkspace archived";
-		}
-
-		if (archiveMutation.isPending) {
-			return "Archiving…";
-		}
-
-		return "Archive Thinkspace";
-	})();
-
-	const handleArchive = () => {
-		if (isArchived || archiveMutation.isPending) {
-			return;
-		}
-
-		archiveMutation.mutate({ thinkspaceId });
-	};
 
 	const toggleCatalogTool = (serverId: string, risk: "read_only" | "mutating" | "unknown") => {
 		const selected = enabledTools.some((tool) => tool.serverId === serverId);
@@ -143,224 +95,163 @@ const RouteComponent = () => {
 		updateToolSelectionsMutation.mutate({ selections, thinkspaceId });
 	};
 
+	const handleArchive = () => {
+		if (isArchived || archiveMutation.isPending) {
+			return;
+		}
+
+		archiveMutation.mutate({ thinkspaceId });
+	};
+
 	return (
-		<div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8">
-			<nav aria-label="Thinkspace navigation">
-				<Button render={<Link to="/thinkspaces" />} variant="ghost">
-					← Back to Thinkspaces
-				</Button>
-			</nav>
+		<div className="mx-auto grid w-full max-w-3xl gap-8 px-4 py-8">
+			<Link
+				className="w-fit text-muted-foreground text-sm transition-colors hover:text-foreground"
+				to="/thinkspaces"
+			>
+				← Thinkspaces
+			</Link>
 
-			<Card className={isArchived ? "border-muted bg-muted/20" : undefined}>
-				<CardHeader>
-					<CardTitle>{thinkspace.goal}</CardTitle>
-					<CardDescription>{thinkspace.configurationSummary}</CardDescription>
-					<CardAction>
-						<span className="border border-border px-2 py-1 text-muted-foreground text-xs capitalize">
-							{thinkspace.status}
-						</span>
-					</CardAction>
-				</CardHeader>
-				<CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-					<div className="grid gap-3">
-						<div>
-							<h2 className="font-medium">Initial instructions</h2>
-							<p className="mt-1 text-muted-foreground">
-								{thinkspace.initialInstructions || "No initial instructions were recorded."}
-							</p>
-						</div>
-						{isArchived ? (
-							<output className="block border border-border bg-background p-3">
-								<span className="font-medium">Archived and inert</span>
-								<span className="mt-1 block text-muted-foreground">
-									This Thinkspace remains inspectable, but active Skills, future schedules, tool
-									enablement, and Permission-driven work are disabled for this shell.
-								</span>
-							</output>
-						) : null}
+			<div className="grid gap-4">
+				<div className="flex items-start justify-between gap-4">
+					<h1 className="text-2xl font-semibold tracking-tight text-balance">
+						{thinkspace.goal}
+					</h1>
+					<Badge className="shrink-0" variant={isArchived ? "outline" : "default"}>
+						{thinkspace.status}
+					</Badge>
+				</div>
+				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
+					{thinkspace.configurationSummary}
+				</p>
+				{thinkspace.initialInstructions ? (
+					<div className="border border-border p-4">
+						<p className="mb-1 text-muted-foreground text-xs font-medium">Initial instructions</p>
+						<p className="text-sm leading-relaxed">{thinkspace.initialInstructions}</p>
 					</div>
-					<dl className="grid gap-2 text-xs">
-						<div className="grid gap-1 border border-border p-2">
-							<dt className="text-muted-foreground">Thinkspace ID</dt>
-							<dd className="break-all font-mono">{thinkspace.id}</dd>
-						</div>
-						<div className="grid gap-1 border border-border p-2">
-							<dt className="text-muted-foreground">Updated</dt>
-							<dd>{formatDateTime(thinkspace.updatedAt)}</dd>
-						</div>
-						<div className="grid gap-1 border border-border p-2">
-							<dt className="text-muted-foreground">Archived</dt>
-							<dd>{formatDateTime(thinkspace.archivedAt)}</dd>
-						</div>
-					</dl>
-					{archiveMutation.error ? (
-						<p className="text-destructive text-xs lg:col-span-2" role="alert">
-							{archiveMutation.error.message}
-						</p>
+				) : null}
+				<div className="flex gap-4 text-muted-foreground text-xs">
+					<span>Updated {formatDateTime(thinkspace.updatedAt)}</span>
+					{thinkspace.archivedAt ? (
+						<span>Archived {formatDateTime(thinkspace.archivedAt)}</span>
 					) : null}
-					<div className="lg:col-span-2">
-						<Button
-							disabled={isArchived || archiveMutation.isPending}
-							onClick={handleArchive}
-							type="button"
-							variant="destructive"
-						>
-							{archiveButtonLabel}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
+				</div>
+			</div>
 
-			<section className="grid gap-3" aria-labelledby="tools-heading">
+			<Separator />
+
+			<section aria-labelledby="tools-heading" className="grid gap-4">
 				<div className="grid gap-1">
-					<p className="text-muted-foreground text-xs uppercase tracking-[0.24em]">
-						Thinkspace scoped
-					</p>
-					<h2 id="tools-heading" className="text-xl font-semibold tracking-tight">
-						Skills and tools
+					<h2 className="text-lg font-semibold tracking-tight" id="tools-heading">
+						Tools
 					</h2>
-					<p className="max-w-3xl text-muted-foreground">
-						Product-level MCP catalog entries and Connected Accounts do not grant this Thinkspace
-						access. Select catalog tools explicitly for this Goal; this slice records placeholders
-						and performs no external execution.
+					<p className="text-muted-foreground text-sm">
+						Select catalog tools for this Thinkspace. A Permission is required before execution.
 					</p>
 				</div>
-				<div className="grid gap-3 md:grid-cols-2">
-					{mcpCatalogQuery.data.map((server) => {
-						const selected = enabledTools.some((tool) => tool.serverId === server.id);
-						return (
-							<Card
-								key={server.id}
-								className={selected ? "border-primary/40 bg-primary/5" : undefined}
-							>
-								<CardHeader>
-									<CardTitle>{server.name}</CardTitle>
-									<CardDescription>{server.description}</CardDescription>
-									<CardAction>
-										<span className="border border-border px-2 py-1 text-muted-foreground text-xs">
-											{server.riskLevel}
-										</span>
-									</CardAction>
-								</CardHeader>
-								<CardContent className="grid gap-3">
-									<p className="text-muted-foreground text-xs">
-										Default for new Thinkspaces:{" "}
-										{server.enabledByDefaultForThinkspaces ? "enabled" : "disabled"}
-									</p>
+				{mcpCatalogQuery.data.length === 0 ? (
+					<p className="border border-border p-4 text-muted-foreground text-sm">
+						No tools in the catalog.
+					</p>
+				) : (
+					<div className="border border-border">
+						{mcpCatalogQuery.data.map((server, index) => {
+							const selected = enabledTools.some((tool) => tool.serverId === server.id);
+							return (
+								<div
+									key={server.id}
+									className={`flex items-center justify-between gap-4 p-4 ${index < mcpCatalogQuery.data.length - 1 ? "border-b border-border" : ""} ${selected ? "bg-muted/30" : ""}`}
+								>
+									<div className="grid gap-0.5">
+										<div className="flex items-center gap-2">
+											<p className="text-sm font-medium">{server.name}</p>
+											<span className="text-muted-foreground text-xs">{server.riskLevel}</span>
+										</div>
+										<p className="text-muted-foreground text-sm">{server.description}</p>
+									</div>
 									<Button
 										disabled={isArchived || updateToolSelectionsMutation.isPending}
 										onClick={() => toggleCatalogTool(server.id, server.riskLevel)}
+										size="sm"
 										type="button"
 										variant={selected ? "secondary" : "outline"}
 									>
-										{selected ? "Remove from this Thinkspace" : "Select for this Goal"}
+										{selected ? "Remove" : "Select"}
 									</Button>
-								</CardContent>
-							</Card>
-						);
-					})}
-				</div>
+								</div>
+							);
+						})}
+					</div>
+				)}
 				{updateToolSelectionsMutation.error ? (
-					<p className="text-destructive text-xs" role="alert">
+					<p className="text-destructive text-sm" role="alert">
 						{updateToolSelectionsMutation.error.message}
 					</p>
 				) : null}
 			</section>
 
-			<section className="grid gap-3" aria-labelledby="permissions-heading">
+			<Separator />
+
+			<section aria-labelledby="permissions-heading" className="grid gap-4">
 				<div className="grid gap-1">
-					<h2 id="permissions-heading" className="text-xl font-semibold tracking-tight">
+					<h2 className="text-lg font-semibold tracking-tight" id="permissions-heading">
 						Permissions
 					</h2>
-					<p className="max-w-3xl text-muted-foreground">
-						Permissions describe possible access for this Thinkspace. They are not Approvals for any
-						proposed action.
+					<p className="text-muted-foreground text-sm">
+						Scoped access for this Thinkspace. Permissions are separate from Approvals.
 					</p>
 				</div>
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							{requestedPermissions.length === 0
-								? "No Permissions requested"
-								: "Permission placeholders"}
-						</CardTitle>
-						<CardDescription>
-							{requestedPermissions.length === 0
-								? "New Thinkspaces start with no enabled tools and no Permissions."
-								: "These placeholders can become narrow, reviewable Permissions in a later runtime slice."}
-						</CardDescription>
-					</CardHeader>
-					{requestedPermissions.length > 0 ? (
-						<CardContent className="grid gap-2">
-							{requestedPermissions.map((permission) => (
-								<div
-									key={`${permission.resource.serverId}:${permission.resource.toolName}`}
-									className="border border-border p-3 text-sm"
-								>
-									<p className="font-medium">{permission.resource.serverId}</p>
-									<p className="text-muted-foreground text-xs">
-										Risk: {permission.risk} · Approval required:{" "}
-										{permission.approvalRequired ? "yes" : "no"}
-									</p>
-								</div>
-							))}
-						</CardContent>
-					) : null}
-				</Card>
-			</section>
-
-			<section className="grid gap-3" aria-labelledby="approvals-heading">
-				<div className="grid gap-1">
-					<p className="text-muted-foreground text-xs uppercase tracking-[0.24em]">
-						Judgement holdpoints
+				{requestedPermissions.length === 0 ? (
+					<p className="border border-border p-4 text-muted-foreground text-sm">
+						No Permissions configured.
 					</p>
-					<h2 id="approvals-heading" className="text-xl font-semibold tracking-tight">
-						Approvals
-					</h2>
-					<p className="max-w-3xl text-muted-foreground">
-						Approvals are consent checkpoints for proposed actions inside existing Permissions. When
-						a future runtime creates them, each item should be shaped for aggregation into the
-						per-user Review Queue instead of staying trapped inside this detail view.
-					</p>
-				</div>
-				<Card className="border-primary/20 bg-primary/5">
-					<CardHeader>
-						<CardTitle>No Approvals waiting</CardTitle>
-						<CardDescription>
-							Future Approval items can carry Thinkspace ID, Permission scope, proposed action,
-							risk, recommendation, and expiry so the Coordinator can batch them in the Review
-							Queue.
-						</CardDescription>
-					</CardHeader>
-				</Card>
-			</section>
-
-			<section className="grid gap-3" aria-labelledby="thinkspace-surfaces-heading">
-				<div className="grid gap-1">
-					<h2 id="thinkspace-surfaces-heading" className="text-xl font-semibold tracking-tight">
-						Thinkspace surfaces
-					</h2>
-					<p className="text-muted-foreground">
-						These first-class surfaces make the target architecture visible before runtime-local
-						storage, Sources, Memory, and Artifacts are implemented.
-					</p>
-				</div>
-				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-					{referenceSurfaces.map((surface) => (
-						<Card key={surface.title} className={isArchived ? "opacity-75" : undefined}>
-							<CardHeader>
-								<CardTitle>{surface.title}</CardTitle>
-								<CardDescription>{surface.description}</CardDescription>
-							</CardHeader>
-							<CardContent>
+				) : (
+					<div className="border border-border">
+						{requestedPermissions.map((permission, index) => (
+							<div
+								key={`${permission.resource.serverId}:${permission.resource.toolName}`}
+								className={`grid gap-0.5 p-4 ${index < requestedPermissions.length - 1 ? "border-b border-border" : ""}`}
+							>
+								<p className="text-sm font-medium">{permission.resource.serverId}</p>
 								<p className="text-muted-foreground text-xs">
-									Empty in this slice. No runtime-local records or blobs have been created.
+									Risk: {permission.risk} · Approval required:{" "}
+									{permission.approvalRequired ? "yes" : "no"}
 								</p>
-							</CardContent>
-						</Card>
-					))}
-				</div>
+							</div>
+						))}
+					</div>
+				)}
 			</section>
+
+			{!isArchived ? (
+				<>
+					<Separator />
+					<section className="grid gap-4">
+						<div className="grid gap-1">
+							<h2 className="text-lg font-semibold tracking-tight">Archive</h2>
+							<p className="text-muted-foreground text-sm">
+								Archiving disables active work and scheduled tasks. The Thinkspace remains
+								inspectable.
+							</p>
+						</div>
+						{archiveMutation.error ? (
+							<p className="text-destructive text-sm" role="alert">
+								{archiveMutation.error.message}
+							</p>
+						) : null}
+						<div>
+							<Button
+								disabled={archiveMutation.isPending}
+								onClick={handleArchive}
+								type="button"
+								variant="destructive"
+							>
+								{archiveMutation.isPending ? "Archiving…" : "Archive Thinkspace"}
+							</Button>
+						</div>
+					</section>
+				</>
+			) : null}
 		</div>
 	);
 };
