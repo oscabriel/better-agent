@@ -5,12 +5,12 @@ import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
 
 const RouteComponent = () => {
-	const [showSignIn, setShowSignIn] = useState(false);
+	const [showSignUp, setShowSignUp] = useState(false);
 
-	return showSignIn ? (
-		<SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
+	return showSignUp ? (
+		<SignUpForm onSwitchToSignIn={() => setShowSignUp(false)} />
 	) : (
-		<SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />
+		<SignInForm onSwitchToSignUp={() => setShowSignUp(true)} />
 	);
 };
 

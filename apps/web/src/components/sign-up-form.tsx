@@ -37,16 +37,16 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 						navigate({
 							to: "/thinkspaces",
 						});
-						toast.success("Sign up successful");
+						toast.success("Account created.");
 					},
 				},
 			);
 		},
 		validators: {
 			onSubmit: z.object({
-				email: z.email("Invalid email address"),
-				name: z.string().min(2, "Name must be at least 2 characters"),
-				password: z.string().min(8, "Password must be at least 8 characters"),
+				email: z.email("Enter a valid email address."),
+				name: z.string().min(2, "Name must be at least 2 characters."),
+				password: z.string().min(8, "Password must be at least 8 characters."),
 			}),
 		},
 	});
@@ -56,21 +56,24 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 	}
 
 	return (
-		<div className="mx-auto w-full mt-10 max-w-md p-6">
-			<h1 className="mb-6 text-center text-3xl font-bold">Create Account</h1>
+		<div className="mx-auto w-full max-w-sm px-4 py-24">
+			<div className="grid gap-6">
+				<div className="grid gap-2">
+					<h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
+					<p className="text-muted-foreground text-sm">Enter your details to get started.</p>
+				</div>
 
-			<form
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-				className="space-y-4"
-			>
-				<div>
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						form.handleSubmit();
+					}}
+					className="grid gap-4"
+				>
 					<form.Field name="name">
 						{(field) => (
-							<div className="space-y-2">
+							<div className="grid gap-1.5">
 								<Label htmlFor={field.name}>Name</Label>
 								<Input
 									id={field.name}
@@ -80,19 +83,17 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 									onChange={(e) => field.handleChange(e.target.value)}
 								/>
 								{field.state.meta.errors.map((error) => (
-									<p key={error?.message} className="text-red-500">
+									<p key={error?.message} className="text-destructive text-sm" role="alert">
 										{error?.message}
 									</p>
 								))}
 							</div>
 						)}
 					</form.Field>
-				</div>
 
-				<div>
 					<form.Field name="email">
 						{(field) => (
-							<div className="space-y-2">
+							<div className="grid gap-1.5">
 								<Label htmlFor={field.name}>Email</Label>
 								<Input
 									id={field.name}
@@ -103,19 +104,17 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 									onChange={(e) => field.handleChange(e.target.value)}
 								/>
 								{field.state.meta.errors.map((error) => (
-									<p key={error?.message} className="text-red-500">
+									<p key={error?.message} className="text-destructive text-sm" role="alert">
 										{error?.message}
 									</p>
 								))}
 							</div>
 						)}
 					</form.Field>
-				</div>
 
-				<div>
 					<form.Field name="password">
 						{(field) => (
-							<div className="space-y-2">
+							<div className="grid gap-1.5">
 								<Label htmlFor={field.name}>Password</Label>
 								<Input
 									id={field.name}
@@ -126,34 +125,38 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 									onChange={(e) => field.handleChange(e.target.value)}
 								/>
 								{field.state.meta.errors.map((error) => (
-									<p key={error?.message} className="text-red-500">
+									<p key={error?.message} className="text-destructive text-sm" role="alert">
 										{error?.message}
 									</p>
 								))}
 							</div>
 						)}
 					</form.Field>
-				</div>
 
-				<form.Subscribe
-					selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
-				>
-					{({ canSubmit, isSubmitting }) => (
-						<Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-							{isSubmitting ? "Submitting..." : "Sign Up"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</form>
+					<form.Subscribe
+						selector={(state) => ({
+							canSubmit: state.canSubmit,
+							isSubmitting: state.isSubmitting,
+						})}
+					>
+						{({ canSubmit, isSubmitting }) => (
+							<Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
+								{isSubmitting ? "Creating account…" : "Create account"}
+							</Button>
+						)}
+					</form.Subscribe>
+				</form>
 
-			<div className="mt-4 text-center">
-				<Button
-					variant="link"
-					onClick={onSwitchToSignIn}
-					className="text-indigo-600 hover:text-indigo-800"
-				>
-					Already have an account? Sign In
-				</Button>
+				<p className="text-center text-muted-foreground text-sm">
+					Have an account?{" "}
+					<button
+						type="button"
+						onClick={onSwitchToSignIn}
+						className="text-foreground underline underline-offset-4 transition-colors hover:text-foreground/80"
+					>
+						Sign in
+					</button>
+				</p>
 			</div>
 		</div>
 	);
