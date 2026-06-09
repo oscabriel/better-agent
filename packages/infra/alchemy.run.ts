@@ -1,5 +1,12 @@
 import alchemy from "alchemy";
-import { D1Database, KVNamespace, R2Bucket, TanStackStart, Worker } from "alchemy/cloudflare";
+import {
+	D1Database,
+	DurableObjectNamespace,
+	KVNamespace,
+	R2Bucket,
+	TanStackStart,
+	Worker,
+} from "alchemy/cloudflare";
 import { CloudflareStateStore } from "alchemy/state";
 import { config } from "dotenv";
 
@@ -52,6 +59,11 @@ const sourcesAndArtifacts = await R2Bucket("sources-artifacts", {
 	name: `${prefix}-sources-artifacts`,
 });
 
+const thinkspaceAgents = DurableObjectNamespace("thinkspace-agent", {
+	className: "ThinkspaceAgent",
+	sqlite: true,
+});
+
 const commonBindings = {
 	ANTHROPIC_API_KEY: requiredEnv(alchemy.secret.env.ANTHROPIC_API_KEY, "ANTHROPIC_API_KEY"),
 	API_ENCRYPTION_KEY: requiredEnv(alchemy.secret.env.API_ENCRYPTION_KEY, "API_ENCRYPTION_KEY"),
@@ -68,6 +80,11 @@ const commonBindings = {
 	SOURCES_ARTIFACTS: sourcesAndArtifacts,
 };
 
+const serverBindings = {
+	...commonBindings,
+	THINKSPACE_AGENT: thinkspaceAgents,
+};
+
 export const web = await TanStackStart("web", {
 	adopt: adoptPersistentResources,
 	bindings: {
@@ -80,7 +97,7 @@ export const web = await TanStackStart("web", {
 
 export const server = await Worker("server", {
 	adopt: adoptPersistentResources,
-	bindings: commonBindings,
+	bindings: serverBindings,
 	compatibility: "node",
 	cwd: "../../apps/server",
 	dev: {
@@ -96,8 +113,4 @@ export const server = await Worker("server", {
 console.log(`Stage  -> ${stage}`);
 console.log(`Web    -> ${web.url}`);
 console.log(`Server -> ${server.url}`);
-console.log(
-	"ThinkspaceAgent Durable Object binding intentionally deferred until the runtime seam exists.",
-);
-
 await app.finalize();
