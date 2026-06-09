@@ -1,7 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { getOwnedThinkspaceModelReadiness } from "../models/readiness";
+import {
+	getOwnedThinkspaceModelReadiness,
+	ThinkspaceTurnModelUnavailableError,
+} from "../models/readiness";
 import { protectedProcedure } from "../procedures";
 import {
 	createToolPermissionPlaceholder,
@@ -25,6 +28,12 @@ import {
 	ThinkspaceRuntimeResolutionError,
 } from "./runtime";
 import { getOwnedThinkspaceRuntimePolicy } from "./runtime-policy";
+import {
+	submitOwnedThinkspaceTurn,
+	THINKSPACE_TURN_IDEMPOTENCY_KEY_MAX_LENGTH,
+	THINKSPACE_TURN_INSTRUCTION_MAX_LENGTH,
+	ThinkspaceTurnValidationError,
+} from "./turns";
 
 const createThinkspaceInput = z.object({
 	configurationSummary: z.string().optional(),
@@ -44,6 +53,12 @@ const toolSelectionSchema = z.object({
 
 const updateToolSelectionsInput = z.object({
 	selections: z.array(toolSelectionSchema),
+	thinkspaceId: z.string().min(1),
+});
+
+const submitTurnInput = z.object({
+	idempotencyKey: z.string().min(1).max(THINKSPACE_TURN_IDEMPOTENCY_KEY_MAX_LENGTH),
+	instruction: z.string().min(1).max(THINKSPACE_TURN_INSTRUCTION_MAX_LENGTH),
 	thinkspaceId: z.string().min(1),
 });
 
@@ -175,6 +190,38 @@ export const thinkspacesRouter = {
 				throw error;
 			}
 		}),
+	submitTurn: protectedProcedure.input(submitTurnInput).handler(async ({ context, input }) => {
+		try {
+			const acceptance = await submitOwnedThinkspaceTurn({
+				db: context.db,
+				env: context.env,
+				idempotencyKey: input.idempotencyKey,
+				instruction: input.instruction,
+				ownerUserId: context.session.user.id,
+				thinkspaceId: input.thinkspaceId,
+			});
+
+			if (!acceptance) {
+				throw toNotFound();
+			}
+
+			return acceptance;
+		} catch (error) {
+			if (error instanceof ThinkspaceTurnValidationError) {
+				throw new ORPCError("BAD_REQUEST", { message: error.message });
+			}
+
+			if (error instanceof ThinkspaceTurnModelUnavailableError) {
+				throw new ORPCError("BAD_REQUEST", { message: error.message });
+			}
+
+			if (error instanceof ThinkspaceRuntimeResolutionError) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+			}
+
+			throw error;
+		}
+	}),
 	updateToolSelections: protectedProcedure
 		.input(updateToolSelectionsInput)
 		.handler(async ({ context, input }) => {

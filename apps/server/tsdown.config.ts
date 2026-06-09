@@ -7,6 +7,7 @@ export default defineConfig({
 		neverBundle: ["cloudflare:workers"],
 		onlyBundle: ["drizzle-orm"],
 	},
+	dts: false,
 	entry: "./src/index.ts",
 	format: "esm",
 	outDir: "./dist",

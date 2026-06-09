@@ -1,3 +1,4 @@
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type { ProductDb } from "@better-agent/db";
 import { userProductSettings } from "@better-agent/db/schema/settings";
 import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
@@ -49,6 +50,26 @@ export interface ModelReadinessNotReady {
 }
 
 export type ThinkspaceModelReadiness = ModelReadinessReady | ModelReadinessNotReady;
+
+interface ThinkspaceModelEvaluation {
+	model?: LanguageModelV3;
+	readiness: ThinkspaceModelReadiness;
+}
+
+export interface ResolvedThinkspaceTurnModel {
+	model: LanguageModelV3;
+	readiness: ModelReadinessReady;
+}
+
+export class ThinkspaceTurnModelUnavailableError extends Error {
+	readonly readiness: ModelReadinessNotReady;
+
+	constructor(readiness: ModelReadinessNotReady) {
+		super(readiness.message);
+		this.name = "ThinkspaceTurnModelUnavailableError";
+		this.readiness = readiness;
+	}
+}
 
 export interface GetOwnedThinkspaceModelReadinessInput {
 	db: ProductDb;
@@ -243,25 +264,27 @@ export const getUserProductModelSettings = async (
 	return settings ?? null;
 };
 
-export const checkThinkspaceModelReadiness = async ({
+const evaluateThinkspaceModel = async ({
 	db,
 	env,
 	getUserCredential = getDecryptedCredential,
 	settings,
 	thinkspace,
 	userId,
-}: CheckThinkspaceModelReadinessInput): Promise<ThinkspaceModelReadiness> => {
+}: CheckThinkspaceModelReadinessInput): Promise<ThinkspaceModelEvaluation> => {
 	const modelId = getConfiguredModelId(settings);
 	const reasoningEffort = getReasoningEffort(settings);
 	const modelDefinition = getModelDefinition(modelId);
 
 	if (!modelDefinition) {
-		return notReady({
-			message: "The selected model is not in the supported model catalog.",
-			modelId,
-			reason: "unknown_model",
-			reasoningEffort,
-		});
+		return {
+			readiness: notReady({
+				message: "The selected model is not in the supported model catalog.",
+				modelId,
+				reason: "unknown_model",
+				reasoningEffort,
+			}),
+		};
 	}
 
 	const credentialPermission = hasGrantedModelCredentialPermission(
@@ -290,32 +313,51 @@ export const checkThinkspaceModelReadiness = async ({
 		});
 
 		return {
-			credentialSource: resolved.credentialSource,
-			message: "Model configuration is ready for a Thinkspace Agent turn.",
-			modelId,
-			modelName: modelDefinition.name,
-			providerId: modelDefinition.providerId,
-			providerName: modelDefinition.providerName,
-			reasoningEffort,
-			requiresThinkspacePermission: resolved.requiresThinkspacePermission,
-			status: "ready",
+			model: resolved.model,
+			readiness: {
+				credentialSource: resolved.credentialSource,
+				message: "Model configuration is ready for a Thinkspace Agent turn.",
+				modelId,
+				modelName: modelDefinition.name,
+				providerId: modelDefinition.providerId,
+				providerName: modelDefinition.providerName,
+				reasoningEffort,
+				requiresThinkspacePermission: resolved.requiresThinkspacePermission,
+				status: "ready",
+			},
 		};
 	} catch (error) {
 		if (error instanceof ModelResolutionError) {
-			return productSafeResolutionFailure({ error, modelDefinition, modelId, reasoningEffort });
+			return {
+				readiness: productSafeResolutionFailure({
+					error,
+					modelDefinition,
+					modelId,
+					reasoningEffort,
+				}),
+			};
 		}
 
-		return notReady({
-			message: "The selected model configuration could not be resolved.",
-			modelDefinition,
-			modelId,
-			reason: "resolution_failed",
-			reasoningEffort,
-		});
+		return {
+			readiness: notReady({
+				message: "The selected model configuration could not be resolved.",
+				modelDefinition,
+				modelId,
+				reason: "resolution_failed",
+				reasoningEffort,
+			}),
+		};
 	}
 };
 
-export const getOwnedThinkspaceModelReadiness = async ({
+export const checkThinkspaceModelReadiness = async (
+	input: CheckThinkspaceModelReadinessInput,
+): Promise<ThinkspaceModelReadiness> => {
+	const evaluation = await evaluateThinkspaceModel(input);
+	return evaluation.readiness;
+};
+
+const evaluateOwnedThinkspaceModel = async ({
 	db,
 	env,
 	getThinkspaceByOwner = getThinkspace,
@@ -323,14 +365,14 @@ export const getOwnedThinkspaceModelReadiness = async ({
 	getUserSettings = getUserProductModelSettings,
 	ownerUserId,
 	thinkspaceId,
-}: GetOwnedThinkspaceModelReadinessInput): Promise<ThinkspaceModelReadiness | null> => {
+}: GetOwnedThinkspaceModelReadinessInput): Promise<ThinkspaceModelEvaluation | null> => {
 	const thinkspace = await getThinkspaceByOwner(db, { ownerUserId, thinkspaceId });
 
 	if (!thinkspace) {
 		return null;
 	}
 
-	return await checkThinkspaceModelReadiness({
+	return await evaluateThinkspaceModel({
 		db,
 		env,
 		getUserCredential: async (_db, input) => await getUserCredential(db, input),
@@ -338,4 +380,38 @@ export const getOwnedThinkspaceModelReadiness = async ({
 		thinkspace,
 		userId: ownerUserId,
 	});
+};
+
+export const getOwnedThinkspaceModelReadiness = async (
+	input: GetOwnedThinkspaceModelReadinessInput,
+): Promise<ThinkspaceModelReadiness | null> => {
+	const evaluation = await evaluateOwnedThinkspaceModel(input);
+	return evaluation?.readiness ?? null;
+};
+
+export const resolveOwnedThinkspaceTurnModel = async (
+	input: GetOwnedThinkspaceModelReadinessInput,
+): Promise<ResolvedThinkspaceTurnModel | null> => {
+	const evaluation = await evaluateOwnedThinkspaceModel(input);
+
+	if (!evaluation) {
+		return null;
+	}
+
+	if (evaluation.readiness.status !== "ready" || !evaluation.model) {
+		const readiness =
+			evaluation.readiness.status === "ready"
+				? {
+						message: "The selected model configuration could not be resolved.",
+						modelId: evaluation.readiness.modelId,
+						reason: "resolution_failed" as const,
+						reasoningEffort: evaluation.readiness.reasoningEffort,
+						requiresThinkspacePermission: evaluation.readiness.requiresThinkspacePermission,
+						status: "not_ready" as const,
+					}
+				: evaluation.readiness;
+		throw new ThinkspaceTurnModelUnavailableError(readiness);
+	}
+
+	return { model: evaluation.model, readiness: evaluation.readiness };
 };
