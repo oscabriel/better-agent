@@ -18,6 +18,11 @@ import {
 	THINKSPACE_RUNTIME_POLICY,
 } from "@better-agent/api/thinkspaces/runtime-policy";
 import {
+	bindThinkspaceTurnRuntimeContext,
+	matchesThinkspaceTurnRuntimeContext,
+} from "@better-agent/api/thinkspaces/turn-context";
+import type { ThinkspaceTurnRuntimeContext } from "@better-agent/api/thinkspaces/turn-context";
+import {
 	THINKSPACE_TURN_SOURCE,
 	validateThinkspaceTurnIdempotencyKey,
 	validateThinkspaceTurnInstruction,
@@ -45,11 +50,6 @@ const MISSING_TURN_CONTEXT_MESSAGE =
 const MISSING_THINKSPACE_MESSAGE =
 	"This Thinkspace Agent turn could not verify its Thinkspace configuration.";
 
-interface ThinkspaceTurnContext {
-	ownerUserId: string;
-	thinkspaceId: string;
-}
-
 export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	private readonly runtimeToolSet: ToolSet = createThinkspaceRuntimeToolSet();
 	private readonly turnModelPlaceholder: LanguageModel = UNRESOLVED_TURN_MODEL;
@@ -59,15 +59,31 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	override maxSteps = THINKSPACE_RUNTIME_POLICY.maxSteps;
 	override workspaceBash = THINKSPACE_RUNTIME_POLICY.workspaceBash;
 
+	/**
+	 * HTTP/WebSocket entry to this runtime stays closed. Project Think serves
+	 * unauthenticated routes (for example `/get-messages`) when a request
+	 * reaches the Durable Object, so the only supported entry points are the
+	 * owner-gated worker RPCs (`acceptTurnSubmission`, `inspectTurnSubmission`).
+	 */
+	// eslint-disable-next-line class-methods-use-this -- must stay an instance override to shadow the Agent HTTP entry point
+	override fetch(_request: Request): Promise<Response> {
+		return Promise.resolve(
+			new Response("This Thinkspace Agent runtime is not directly accessible.", { status: 404 }),
+		);
+	}
+
 	async acceptTurnSubmission(
 		request: ThinkspaceTurnSubmissionRequest,
 	): Promise<ThinkspaceTurnAcceptance> {
 		const instruction = validateThinkspaceTurnInstruction(request.instruction);
 		const idempotencyKey = validateThinkspaceTurnIdempotencyKey(request.idempotencyKey);
-		const turnContext: ThinkspaceTurnContext = {
-			ownerUserId: request.ownerUserId,
-			thinkspaceId: request.thinkspaceId,
-		};
+		const turnContext = bindThinkspaceTurnRuntimeContext({
+			existing: await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY),
+			request: {
+				ownerUserId: request.ownerUserId,
+				thinkspaceId: request.thinkspaceId,
+			},
+		});
 
 		await this.ctx.storage.put(TURN_CONTEXT_STORAGE_KEY, turnContext);
 
@@ -95,6 +111,17 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		request: ThinkspaceTurnInspectionRequest,
 	): Promise<ThinkspaceTurnInspection> {
 		const submissionId = validateThinkspaceTurnSubmissionId(request.submissionId);
+		const turnContext =
+			await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY);
+
+		if (!matchesThinkspaceTurnRuntimeContext(turnContext, request.thinkspaceId)) {
+			return mapThinkspaceTurnInspection({
+				snapshot: null,
+				submissionId,
+				thinkspaceId: request.thinkspaceId,
+			});
+		}
+
 		const snapshot = await this.inspectSubmission(submissionId);
 		const resultText =
 			snapshot?.status === "completed"
@@ -122,7 +149,8 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	}
 
 	override async beforeTurn() {
-		const turnContext = await this.ctx.storage.get<ThinkspaceTurnContext>(TURN_CONTEXT_STORAGE_KEY);
+		const turnContext =
+			await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY);
 
 		if (!turnContext) {
 			throw new Error(markThinkspaceTurnProductSafeError(MISSING_TURN_CONTEXT_MESSAGE));
@@ -137,7 +165,9 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		};
 	}
 
-	private async resolveTurnModel(turnContext: ThinkspaceTurnContext): Promise<LanguageModel> {
+	private async resolveTurnModel(
+		turnContext: ThinkspaceTurnRuntimeContext,
+	): Promise<LanguageModel> {
 		let resolved: Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>;
 
 		try {

@@ -163,6 +163,38 @@ test("submissions recorded for a different Thinkspace map to unknown", () => {
 	assert.equal(missingContext.status, "unknown");
 });
 
+test("submissions not written by the Better Agent accept path map to unknown", () => {
+	const foreignSource = mapThinkspaceTurnInspection({
+		snapshot: createSnapshot({
+			metadata: { source: "raw-think-client", thinkspaceId: "thinkspace_inspect" },
+		}),
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+	});
+	const missingSource = mapThinkspaceTurnInspection({
+		snapshot: createSnapshot({ metadata: { thinkspaceId: "thinkspace_inspect" } }),
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+	});
+
+	assert.equal(foreignSource.status, "unknown");
+	assert.equal(foreignSource.resultText, null);
+	assert.equal(missingSource.status, "unknown");
+});
+
+test("product-safe markers cannot be unlocked from inside raw error strings", () => {
+	const embeddedMarker = extractThinkspaceTurnProductSafeFailureMessage(
+		`TypeError: fetch failed ${markThinkspaceTurnProductSafeError("sk-ant-secret leaked")}`,
+	);
+	const whitespaceOnlyMarker = extractThinkspaceTurnProductSafeFailureMessage(
+		markThinkspaceTurnProductSafeError("   "),
+	);
+
+	assert.equal(embeddedMarker.includes("sk-ant-secret"), false);
+	assert.equal(embeddedMarker, extractThinkspaceTurnProductSafeFailureMessage());
+	assert.equal(whitespaceOnlyMarker, extractThinkspaceTurnProductSafeFailureMessage());
+});
+
 test("maps runtime submission lifecycle onto product turn states", () => {
 	const accepted = mapThinkspaceTurnInspection({
 		snapshot: createSnapshot(),
