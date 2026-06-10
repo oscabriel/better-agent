@@ -16,20 +16,24 @@ The predecessor product and codebase lineage that Better Agent evolves from.
 _Avoid_: Using this as the target product name
 
 **Thinkspace**:
-A durable, scoped environment for one bounded body of thinking work.
+A durable, scoped environment for one bounded body of thinking work. A Thinkspace begins as a draft the moment the user starts shaping it with the Curator, and becomes active when its Goal and first Agent Profile revision are activated together.
 _Avoid_: Chat, thread, project, workspace, agent
 
 **Goal**:
 The bounded, assessable outcome a Thinkspace is created to pursue.
 _Avoid_: Task, objective, prompt, request
 
-**Coordinator**:
+**Curator**:
 The thin product-level agent role, one per user, that helps users create, find, configure, and route between Thinkspaces, and that protects the user's Attention by maintaining and surfacing the cross-Thinkspace Review Queue.
-_Avoid_: Jarvis, personal assistant, global agent, universal agent, orchestration dashboard
+_Avoid_: Coordinator, Jarvis, personal assistant, global agent, universal agent, orchestration dashboard
 
 **Thinkspace Agent**:
 The dedicated agent role configured for one Thinkspace's bounded purpose.
-_Avoid_: Better Agent, Coordinator, global assistant
+_Avoid_: Better Agent, Curator, global assistant
+
+**Agent Profile**:
+The descriptor of one Thinkspace Agent's identity and behavior — its name, instructions, and model behavior, plus references to the enabled tools, Skills, and Routines the user sees and shapes with the Curator. Each referenced piece remains owned and governed by its own concept; a Permission is never granted through the Agent Profile. A revision being shaped with the Curator is a draft until the user activates it; activations are recorded in the Audit Trail, and past work remains attributable to the revision it ran under.
+_Avoid_: persona, character, agent config, settings, system prompt, Permission
 
 **Permission**:
 A Thinkspace-scoped allowance for an agent to access a resource or perform an action.
@@ -54,6 +58,10 @@ _Avoid_: Source, transcript, hidden model state, global memory
 **Skill**:
 A reusable procedure a Thinkspace Agent can follow for recurring work.
 _Avoid_: Personality, hidden ability, global automation, tool permission
+
+**Routine**:
+A recurring instruction a Thinkspace Agent performs on a schedule in service of the Thinkspace's Goal.
+_Avoid_: task, job, cron, scheduled task, automation, Skill
 
 **Artifact**:
 A durable output produced or maintained by a Thinkspace.
@@ -84,21 +92,28 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 - **Better Agent** evolves from **Better Chat**.
 - **Better Agent** coordinates many **Thinkspaces**.
 - A **Thinkspace** is separate from the agent, chat, **Sources**, **Memory**, **Skills**, **Artifacts**, and **Permissions** it contains or configures.
-- A **Thinkspace** is created around one primary **Goal**.
-- The **Coordinator** helps create and route between **Thinkspaces**.
+- A **Thinkspace** is created around one primary **Goal**; sharpening the **Goal** until it is bounded and assessable is part of the **Curator** session that shapes the draft.
+- A draft **Thinkspace** preserves the judgement already spent in its **Curator** session; abandoning curation never silently discards it.
+- The **Curator** helps create and route between **Thinkspaces**.
 - Each **Thinkspace** has one dedicated **Thinkspace Agent**.
+- Each **Thinkspace Agent** is described by one **Agent Profile**.
+- The **Curator** assembles an **Agent Profile** with the user; the **Agent Profile** references enabled tools and **Skills** but never grants **Permissions**.
+- An **Agent Profile** revision takes effect only when the user activates it; drafts are resumable and activations enter the **Audit Trail**.
 - A **Connected Account** does not grant access to a **Thinkspace Agent** without a **Permission**.
 - A **Permission** belongs to one **Thinkspace** and constrains what its **Thinkspace Agent** may access or do.
+- Enablement makes a tool present; a **Permission** makes it potent. Safe built-in tools need only enablement, while tools reaching protected resources are inert without their **Permission**.
+- An **Agent Profile** draft may carry requested **Permissions**, but only the user grants them; the **Curator** proposes and never grants.
 - A **Permission** may govern ongoing access to a live **Source**.
 - An **Approval** authorizes an action that is already allowed by a **Permission**.
 - A **Source** can inform **Memory**, but it is not itself **Memory**.
 - **Memory** belongs to one **Thinkspace** by default.
 - A **Skill** may exist in a product-level catalog, but it must be enabled for a **Thinkspace** before its **Thinkspace Agent** can use it.
+- A **Routine** belongs to one **Thinkspace** and may invoke **Skills**; what a Routine produces enters the **Review Queue** like any other agent production, subject to **Backpressure**.
 - An **Artifact** may cite **Sources** and reflect **Memory**, but it is an output of the **Thinkspace**.
 - A **Local Node** can provide resources governed by **Permissions**, but it does not host the **Thinkspace Agent**.
 - An **Audit Trail** belongs to one **Thinkspace**.
 - Better Agent is architected around the user's **Attention** as the single serial resource; agent supply is not the constraint.
-- The **Coordinator** maintains one per-user **Review Queue** spanning all **Thinkspaces**.
+- The **Curator** maintains one per-user **Review Queue** spanning all **Thinkspaces**.
 - A **Review Queue** batches items that require the user's judgement, including pending **Approvals**, drafts, **Memory** to accept, and **Goal** assessments.
 - **Backpressure** paces **Thinkspace Agent** production to the user's review rate; an **Approval** is a holdpoint that enters the **Review Queue** rather than auto-executing.
 - A **Thinkspace** externalizes context into **Memory**, **Sources**, **Artifacts**, and the **Audit Trail** so the user does not reload it from memory on every return.
@@ -114,14 +129,20 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 > **Dev:** "Is 'monitor Cloudflare Agents SDK releases' a task?"
 > **Domain expert:** "Treat it first as a **Goal** and sharpen it until the **Thinkspace** has a bounded, assessable outcome."
 
-> **Dev:** "Should the Coordinator do the research after it creates a Thinkspace?"
-> **Domain expert:** "No — the **Coordinator** helps set up the **Thinkspace**; the **Thinkspace Agent** performs the bounded work inside it."
+> **Dev:** "Should the Curator do the research after it creates a Thinkspace?"
+> **Domain expert:** "No — the **Curator** helps set up the **Thinkspace**; the **Thinkspace Agent** performs the bounded work inside it."
 
 > **Dev:** "If GitHub is connected, can every Thinkspace Agent create issues anywhere?"
 > **Domain expert:** "No — a **Permission** must grant access to a specific resource and action for that **Thinkspace**."
 
 > **Dev:** "If Oscar connects GitHub once, does every Thinkspace inherit GitHub tools?"
 > **Domain expert:** "No — the **Connected Account** exists at the product level, but each **Thinkspace** needs its own **Permission**."
+
+> **Dev:** "If I revoke the GitHub Permission, do I have to edit the Agent Profile too?"
+> **Domain expert:** "No — the **Permission** belongs to the **Thinkspace**. The **Agent Profile** may still list the tool, but it goes inert without a **Permission**."
+
+> **Dev:** "The Curator enabled web search and GitHub issue creation — do both need Permissions?"
+> **Domain expert:** "No — read-only built-in search needs only enablement in the **Agent Profile**; issue creation reaches a **Connected Account**, so it is inert until the user grants the **Permission**."
 
 > **Dev:** "If a Permission allows GitHub issue creation, can the agent create issues immediately?"
 > **Domain expert:** "Not by default — an **Approval** is still needed unless the Permission includes a narrow standing approval policy."
@@ -131,6 +152,9 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 
 > **Dev:** "If a Thinkspace Agent learns a repeatable monitoring workflow, is that just memory?"
 > **Domain expert:** "No — if it is a reusable procedure for recurring work, model it as a **Skill** scoped to that **Thinkspace**."
+
+> **Dev:** "Is 'every Monday, check for new releases and draft notes' a Skill?"
+> **Domain expert:** "No — the trigger and instruction form a **Routine**; the reusable drafting procedure it invokes is a **Skill**, and the draft awaits the **Review Queue**."
 
 > **Dev:** "Is a generated handoff package a source or memory?"
 > **Domain expert:** "No — it is an **Artifact**, because it is a durable output produced by the **Thinkspace**."
@@ -154,8 +178,9 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 
 - "Better Chat" and "Better Agent" were both used around the repo; resolved: **Better Agent** is the target product context, while **Better Chat** names the predecessor lineage only.
 - "chat", "project", "workspace", and "agent" can all sound like the main container; resolved: **Thinkspace** is the canonical top-level work container.
-- "task", "run", and "job" sounded like user-facing work concepts; resolved: use **Goal** for the scoped outcome and defer execution-shaped terms until the product surface needs them.
-- "agent" can mean the whole product, the setup helper, or the bounded worker; resolved: **Better Agent** is the product, **Coordinator** is the setup/routing role, and **Thinkspace Agent** is the bounded worker role.
+- "task", "run", and "job" sounded like user-facing work concepts; resolved: use **Goal** for the scoped outcome and defer execution-shaped terms until the product surface needs them. Later resolved further: recurring scheduled instructions are **Routines**; "scheduled task" stays an implementation term inside the runtime substrate.
+- "agent" can mean the whole product, the setup helper, or the bounded worker; resolved: **Better Agent** is the product, **Curator** is the setup/routing role, and **Thinkspace Agent** is the bounded worker role.
+- "Coordinator" and "curator" both described the setup/routing role; resolved: the role is renamed **Curator** (ADRs 0001 and 0005 predate the rename and still say "Coordinator"). Guided Thinkspace creation is a Curator capability, not a separate role — whether it runs as a stateless endpoint or a durable per-user agent is an implementation detail.
 - "capability grant" described the underlying permission object in planning docs; resolved: use **Permission** as the canonical domain term.
 - "connected account" sounded like agent access; resolved: a **Connected Account** is only a product-level relationship, while **Permission** grants scoped Thinkspace access.
 - "permission" and "approval" were easy to collapse; resolved: **Permission** defines what can be allowed, while **Approval** consents to an action within that allowance.
@@ -167,3 +192,5 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 - "orchestration", "dashboard", and "running agents" framed the product as a producer-side control center; resolved: Better Agent is architected around **Attention** as the scarce serial resource, and the consumer-side **Review Queue** plus **Backpressure** are the canonical framing.
 - "inbox" and "notifications" sounded like the right surface for pending work; resolved: use **Review Queue** — a batched, prioritized set of items needing judgement, not a real-time feed.
 - "busy" vs "productive" blurred in early messaging; resolved: agent count and live activity are not the value; shipped, understood outcomes gated by the user's judgement are.
+- "tool enablement" and "Permission" were easy to collapse; resolved: enablement is an Agent Profile scoping decision that makes a tool present, while a **Permission** is the Thinkspace-owned security boundary that makes protected tools potent.
+- "agent config", "profile", and "settings" blurred during runtime planning; resolved: **Agent Profile** is the user-facing descriptor of a Thinkspace Agent's identity and behavior. It owns only the pieces with no other home (name, instructions, model behavior) and references the rest — tools, **Skills**, and **Permissions** keep their own ownership and governance.
