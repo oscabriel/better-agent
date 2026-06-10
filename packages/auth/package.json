@@ -14,7 +14,6 @@
 		"@better-agent/db": "workspace:*",
 		"@better-agent/env": "workspace:*",
 		"better-auth": "catalog:",
-		"dotenv": "catalog:",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

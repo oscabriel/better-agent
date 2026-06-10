@@ -16,7 +16,6 @@ export const userProductSettings = sqliteTable("user_product_settings", {
 	userId: text("user_id")
 		.primaryKey()
 		.references(() => user.id, { onDelete: "cascade" }),
-	webSearchEnabled: integer("web_search_enabled", { mode: "boolean" }).default(false).notNull(),
 });
 
 export const userProviderCredentials = sqliteTable(

@@ -1,0 +1,1 @@
+ALTER TABLE `user_product_settings` DROP COLUMN `web_search_enabled`;

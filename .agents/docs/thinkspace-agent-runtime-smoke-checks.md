@@ -13,10 +13,11 @@ promoting a stage that includes them.
 
 ## Secrets hygiene (read first)
 
-- Never paste values of `ANTHROPIC_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`,
-  `OPENAI_API_KEY`, `API_ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, or
-  `ALCHEMY_STATE_TOKEN` into issues, PRs, logs, or this file. Refer to them by
-  name only.
+- Never paste values of user-provided provider API keys (BYOK credentials),
+  `API_ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, or `ALCHEMY_STATE_TOKEN` into
+  issues, PRs, logs, or this file. Refer to them by name only. There are no
+  deploy-time provider key bindings; all inference runs on user-owned
+  credentials saved in settings.
 - Keep curl cookie jars outside the repo (`/tmp/ba-owner.txt`,
   `/tmp/ba-intruder.txt`) and delete them when done.
 - The model-failure check below is designed to need **no** real or fake
@@ -121,9 +122,10 @@ the runtime, and inspectable until completed, with the model resolved in
 is never used for inference
 (`apps/server/src/agents/thinkspace-agent.ts:41-46,139-141,151-166`).
 
-- [ ] The model readiness panel for TS-A shows ready with the app-provided
-      default `google:gemini-2.5-flash-lite`
-      (`packages/api/src/models/catalog.ts:23`).
+- [ ] The model readiness panel for TS-A shows ready with the default model
+      `google:gemini-2.5-flash-lite` (`packages/api/src/models/catalog.ts`)
+      once the owner has a saved google credential and TS-A has the granted
+      credential Permission.
 - [ ] Submit a short instruction (for example "Reply with exactly: smoke-ok")
       from the "Submit a turn" panel. An "accepted" badge appears with a
       `submissionId`.
@@ -240,7 +242,7 @@ There is no settings UI for `defaultModel` yet, so flip it in local D1 via the
 Drizzle studio that `bun run dev` starts (or `bun run db:studio:local`):
 
 - [ ] In `user_product_settings`, set the owner's `default_model` to
-      `google:gemini-2.5-pro` (a `byok` catalog entry,
+      `google:gemini-2.5-pro` (another catalog entry,
       `packages/api/src/models/catalog.ts`). Insert the row with the owner's
       user id if it does not exist.
 - [ ] `/thinkspaces/<TS-A>` now shows model readiness **not ready** with the
@@ -251,12 +253,12 @@ Drizzle studio that `bun run dev` starts (or `bun run db:studio:local`):
       `packages/api/src/thinkspaces/router.ts:258-260`).
 - [ ] Set `default_model` to a nonsense id (`google:does-not-exist`): readiness
       reports the unsupported-catalog message; submit still 400s.
-- [ ] Restore `default_model` to `NULL` (falls back to the app-provided
-      default) and confirm a turn completes again.
-- [ ] Deployed-stage variant (optional, destructive to the stage): unset the
-      app `GOOGLE_GENERATIVE_AI_API_KEY` binding in a scratch stage and confirm
-      readiness reports the app-credential message rather than a provider
-      error. Never do this by editing committed env files.
+- [ ] Restore `default_model` to `NULL` (falls back to the default model) and
+      confirm a turn completes again.
+- [ ] Delete the owner's saved google credential row in
+      `user_provider_credentials` and confirm readiness reports the
+      missing-user-credential message rather than a provider error; re-save
+      the credential through settings afterwards.
 
 ## 8. No-tools safety policy
 
