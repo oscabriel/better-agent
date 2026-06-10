@@ -62,6 +62,11 @@ const sessions = await KVNamespace("session-cache", {
 	title: `${prefix}-session-cache`,
 });
 
+const modelCatalogCache = await KVNamespace("model-catalog-cache", {
+	adopt: adoptPersistentResources,
+	title: `${prefix}-model-catalog-cache`,
+});
+
 const sourcesAndArtifacts = await R2Bucket("sources-artifacts", {
 	adopt: adoptPersistentResources,
 	name: `${prefix}-sources-artifacts`,
@@ -78,6 +83,7 @@ const commonBindings = {
 	BETTER_AUTH_URL: requiredEnv(alchemy.env.BETTER_AUTH_URL, "BETTER_AUTH_URL"),
 	CORS_ORIGIN: requiredEnv(alchemy.env.CORS_ORIGIN, "CORS_ORIGIN"),
 	DB: db,
+	MODEL_CATALOG_KV: modelCatalogCache,
 	SESSION_KV: sessions,
 	SOURCES_ARTIFACTS: sourcesAndArtifacts,
 };
