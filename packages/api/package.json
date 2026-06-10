@@ -20,18 +20,13 @@
 		"@better-agent/auth": "workspace:*",
 		"@better-agent/db": "workspace:*",
 		"@better-agent/env": "workspace:*",
-		"@orpc/client": "catalog:",
-		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",
-		"@orpc/zod": "catalog:",
 		"ai": "catalog:",
-		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.1",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@better-agent/config": "workspace:*",
-		"hono": "catalog:",
 		"typescript": "catalog:"
 	}
 }
