@@ -5,6 +5,7 @@ export interface CloudflareEnv {
 	DB: D1Database;
 	THINKSPACE_AGENT: DurableObjectNamespace;
 	SESSION_KV?: KVNamespace;
+	MODEL_CATALOG_KV?: KVNamespace;
 	SOURCES_ARTIFACTS?: R2Bucket;
 	API_ENCRYPTION_KEY?: string;
 	VITE_SERVER_URL?: string;
