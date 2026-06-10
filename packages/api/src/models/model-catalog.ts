@@ -59,26 +59,6 @@ export const createMemoryModelCatalog = (entries: ModelCatalogEntry[]): ModelCat
 	sourceId: "static_reviewed",
 });
 
-const MODELS_DEV_NOT_IMPLEMENTED_MESSAGE =
-	"The models.dev model catalog adapter is not implemented yet.";
-
-/**
- * Future production adapter that keeps the catalog current from the
- * models.dev API. Architecture slot only: every method fails with a typed
- * ModelCatalogError until the behavior slice implements it.
- */
-export const createModelsDevModelCatalog = (): ModelCatalog => ({
-	getModel: () =>
-		Promise.reject(
-			new ModelCatalogError("catalog_unavailable", MODELS_DEV_NOT_IMPLEMENTED_MESSAGE),
-		),
-	listModels: () =>
-		Promise.reject(
-			new ModelCatalogError("catalog_unavailable", MODELS_DEV_NOT_IMPLEMENTED_MESSAGE),
-		),
-	sourceId: "models_dev",
-});
-
 /**
  * Edge validator: narrows a raw string to a CatalogModelId by looking it up
  * in the given catalog, or throws a typed ModelCatalogError.

@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, publicProcedure } from "../procedures";
-import { getModelCatalog, MODEL_PROVIDER_IDS } from "./catalog";
+import { MODEL_PROVIDER_IDS } from "./catalog";
 import {
 	encryptCredential,
 	getCredentialMap,
@@ -22,10 +22,13 @@ const encryptionSecret = (env: { API_ENCRYPTION_KEY?: string; BETTER_AUTH_SECRET
 	env.API_ENCRYPTION_KEY ?? env.BETTER_AUTH_SECRET;
 
 export const modelsRouter = {
-	list: publicProcedure.handler(() => getModelCatalog()),
+	list: publicProcedure.handler(async ({ context }) => await context.modelCatalog.listModels()),
 	listAvailable: protectedProcedure.handler(async ({ context }) => {
-		const credentials = await getCredentialMap(context.db, context.session.user.id);
-		return getModelCatalog().map((model) => ({
+		const [models, credentials] = await Promise.all([
+			context.modelCatalog.listModels(),
+			getCredentialMap(context.db, context.session.user.id),
+		]);
+		return models.map((model) => ({
 			...model,
 			availableForAccount: Boolean(credentials[model.providerId]),
 		}));

@@ -2,6 +2,8 @@ import { createAuth } from "@better-agent/auth";
 import { createDb } from "@better-agent/db";
 import type { CloudflareEnv } from "@better-agent/env/types";
 
+import { createProductModelCatalog } from "./models/models-dev";
+
 export type ControlPlaneEnv = CloudflareEnv;
 
 export interface CreateContextOptions {
@@ -21,6 +23,7 @@ export const createContext = async ({ env, executionCtx, headers }: CreateContex
 		env,
 		executionCtx,
 		headers,
+		modelCatalog: createProductModelCatalog(env),
 		session,
 	};
 };
