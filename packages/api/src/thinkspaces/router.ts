@@ -187,6 +187,7 @@ export const thinkspacesRouter = {
 			const readiness = await getOwnedThinkspaceModelReadiness({
 				db: context.db,
 				env: context.env,
+				modelCatalog: context.modelCatalog,
 				ownerUserId: context.session.user.id,
 				thinkspaceId: input.thinkspaceId,
 			});
@@ -241,6 +242,7 @@ export const thinkspacesRouter = {
 				env: context.env,
 				idempotencyKey: input.idempotencyKey,
 				instruction: input.instruction,
+				modelCatalog: context.modelCatalog,
 				ownerUserId: context.session.user.id,
 				thinkspaceId: input.thinkspaceId,
 			});

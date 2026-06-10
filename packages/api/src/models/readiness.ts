@@ -5,9 +5,11 @@ import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
 import type { CloudflareEnv } from "@better-agent/env/types";
 import { eq } from "drizzle-orm";
 
-import { DEFAULT_MODEL_ID, getModelDefinition, MODEL_PROVIDER_IDS } from "./catalog";
+import { DEFAULT_MODEL_ID, MODEL_PROVIDER_IDS } from "./catalog";
 import type { ModelCatalogEntry, ModelProviderId } from "./catalog";
 import { getDecryptedCredential } from "./credentials";
+import type { ModelCatalog } from "./model-catalog";
+import { createProductModelCatalog } from "./models-dev";
 import { getThinkspace } from "../thinkspaces/repository";
 import { ModelResolutionError, resolveLanguageModel } from "./resolver";
 import type { ReasoningEffort, ThinkspaceModelPolicy } from "./resolver";
@@ -73,6 +75,7 @@ export interface GetOwnedThinkspaceModelReadinessInput {
 	getThinkspaceByOwner?: GetThinkspaceByOwner;
 	getUserSettings?: GetUserSettings;
 	getUserCredential?: GetUserCredential;
+	modelCatalog?: ModelCatalog;
 	ownerUserId: string;
 	thinkspaceId: string;
 }
@@ -81,12 +84,19 @@ export interface CheckThinkspaceModelReadinessInput {
 	db: ProductDb;
 	env: ModelReadinessEnv;
 	getUserCredential?: GetUserCredential;
+	modelCatalog?: ModelCatalog;
 	settings: ModelReadinessUserSettings | null;
 	thinkspace: Pick<Thinkspace, "id" | "requestedPermissions">;
 	userId: string;
 }
 
-type ModelReadinessEnv = Pick<CloudflareEnv, "API_ENCRYPTION_KEY" | "BETTER_AUTH_SECRET">;
+type ModelReadinessEnv = Pick<
+	CloudflareEnv,
+	"API_ENCRYPTION_KEY" | "BETTER_AUTH_SECRET" | "MODEL_CATALOG_KV"
+>;
+
+const CATALOG_UNAVAILABLE_READINESS_MESSAGE =
+	"The model catalog is temporarily unavailable, so the selected model could not be resolved. Try again shortly.";
 
 type GetThinkspaceByOwner = (
 	db: ProductDb,
@@ -238,13 +248,28 @@ const evaluateThinkspaceModel = async ({
 	db,
 	env,
 	getUserCredential = getDecryptedCredential,
+	modelCatalog,
 	settings,
 	thinkspace,
 	userId,
 }: CheckThinkspaceModelReadinessInput): Promise<ThinkspaceModelEvaluation> => {
 	const modelId = getConfiguredModelId(settings);
 	const reasoningEffort = getReasoningEffort(settings);
-	const modelDefinition = getModelDefinition(modelId);
+	const catalog = modelCatalog ?? createProductModelCatalog(env);
+
+	let modelDefinition: ModelCatalogEntry | null;
+	try {
+		modelDefinition = await catalog.getModel(modelId);
+	} catch {
+		return {
+			readiness: notReady({
+				message: CATALOG_UNAVAILABLE_READINESS_MESSAGE,
+				modelId,
+				reason: "resolution_failed",
+				reasoningEffort,
+			}),
+		};
+	}
 
 	if (!modelDefinition) {
 		return {
@@ -275,6 +300,7 @@ const evaluateThinkspaceModel = async ({
 
 	try {
 		const resolved = resolveLanguageModel({
+			modelDefinition,
 			policy,
 			userCredentials: userCredential
 				? { [modelDefinition.providerId]: userCredential }
@@ -330,6 +356,7 @@ const evaluateOwnedThinkspaceModel = async ({
 	getThinkspaceByOwner = getThinkspace,
 	getUserCredential = getDecryptedCredential,
 	getUserSettings = getUserProductModelSettings,
+	modelCatalog,
 	ownerUserId,
 	thinkspaceId,
 }: GetOwnedThinkspaceModelReadinessInput): Promise<ThinkspaceModelEvaluation | null> => {
@@ -343,6 +370,7 @@ const evaluateOwnedThinkspaceModel = async ({
 		db,
 		env,
 		getUserCredential: async (_db, input) => await getUserCredential(db, input),
+		modelCatalog,
 		settings: await getUserSettings(db, ownerUserId),
 		thinkspace,
 		userId: ownerUserId,

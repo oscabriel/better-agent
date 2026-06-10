@@ -11,6 +11,7 @@ import type {
 	CheckThinkspaceModelReadinessInput,
 	ThinkspaceModelReadiness,
 } from "../models/readiness";
+import type { ModelCatalog } from "../models/model-catalog";
 import { getThinkspace } from "./repository";
 import { resolveThinkspaceAgentRuntime, THINKSPACE_AGENT_BINDING_NAME } from "./runtime";
 
@@ -43,13 +44,17 @@ export interface SubmitOwnedThinkspaceTurnInput {
 	getUserSettings?: GetUserSettings;
 	idempotencyKey: string;
 	instruction: string;
+	modelCatalog?: ModelCatalog;
 	ownerUserId: string;
 	thinkspaceId: string;
 }
 
 type ThinkspaceTurnEnv = Pick<
 	CloudflareEnv,
-	"API_ENCRYPTION_KEY" | "BETTER_AUTH_SECRET" | typeof THINKSPACE_AGENT_BINDING_NAME
+	| "API_ENCRYPTION_KEY"
+	| "BETTER_AUTH_SECRET"
+	| "MODEL_CATALOG_KV"
+	| typeof THINKSPACE_AGENT_BINDING_NAME
 >;
 
 type GetThinkspaceByOwner = (
@@ -140,6 +145,7 @@ export const submitOwnedThinkspaceTurn = async ({
 	getUserSettings = getUserProductModelSettings,
 	idempotencyKey,
 	instruction,
+	modelCatalog,
 	ownerUserId,
 	thinkspaceId,
 }: SubmitOwnedThinkspaceTurnInput): Promise<ThinkspaceTurnAcceptance | null> => {
@@ -161,6 +167,7 @@ export const submitOwnedThinkspaceTurn = async ({
 	const readiness = await checkModelReadiness({
 		db,
 		env,
+		modelCatalog,
 		settings: await getUserSettings(db, ownerUserId),
 		thinkspace,
 		userId: ownerUserId,
