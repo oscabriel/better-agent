@@ -78,9 +78,7 @@ const RouteComponent = () => {
 								{model.availableForAccount ? (
 									<Badge>Available</Badge>
 								) : (
-									<Badge variant="outline">
-										{model.access === "app_provided" ? "App-provided" : "Add credential"}
-									</Badge>
+									<Badge variant="outline">Add credential</Badge>
 								)}
 							</div>
 							<p className="text-muted-foreground text-sm">{model.description}</p>

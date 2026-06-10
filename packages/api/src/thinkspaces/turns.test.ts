@@ -32,23 +32,20 @@ const createEnv = (): Pick<CloudflareEnv, "BETTER_AUTH_SECRET" | "THINKSPACE_AGE
 });
 
 const readyReadiness: ThinkspaceModelReadiness = {
-	credentialSource: "app_provided",
 	message: "Model configuration is ready for a Thinkspace Agent turn.",
 	modelId: "google:gemini-2.5-flash-lite",
 	modelName: "Gemini 2.5 Flash Lite",
 	providerId: "google",
 	providerName: "Google",
 	reasoningEffort: "medium",
-	requiresThinkspacePermission: false,
 	status: "ready",
 };
 
 const notReadyReadiness: ThinkspaceModelReadiness = {
-	message: "The app-provided credential for this model is not configured.",
+	message: "The saved provider credential for this model is not available.",
 	modelId: "google:gemini-2.5-flash-lite",
-	reason: "missing_app_credential",
+	reason: "missing_user_credential",
 	reasoningEffort: "medium",
-	requiresThinkspacePermission: false,
 	status: "not_ready",
 };
 

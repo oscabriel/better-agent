@@ -8,7 +8,6 @@ import { getModelDefinition, parseModelId } from "./catalog";
 import type { ModelCatalogEntry, ModelProviderId } from "./catalog";
 
 export type ReasoningEffort = "low" | "medium" | "high";
-export type CredentialSource = "app_provided" | "user_byok";
 
 export interface ThinkspaceModelPolicy {
 	credentialPermission?: "not_granted" | "granted";
@@ -17,19 +16,16 @@ export interface ThinkspaceModelPolicy {
 }
 
 export interface ResolveLanguageModelInput {
-	appCredentials?: Partial<Record<ModelProviderId, string | undefined>>;
 	policy: ThinkspaceModelPolicy;
 	userCredentials?: Partial<Record<ModelProviderId, string | undefined>>;
 }
 
 export interface ResolvedLanguageModel {
-	credentialSource: CredentialSource;
 	model: LanguageModelV3;
 	modelDefinition: ModelCatalogEntry;
 	providerId: ModelProviderId;
 	providerModelId: string;
 	reasoningProviderOptions?: SharedV3ProviderOptions;
-	requiresThinkspacePermission: boolean;
 }
 
 const ANTHROPIC_BUDGET_MAP = { high: 64_000, low: 10_000, medium: 32_000 } as const;
@@ -81,7 +77,6 @@ const withDefaultProviderOptions = (
 };
 
 export const resolveLanguageModel = ({
-	appCredentials,
 	policy,
 	userCredentials,
 }: ResolveLanguageModelInput): ResolvedLanguageModel => {
@@ -91,17 +86,13 @@ export const resolveLanguageModel = ({
 	}
 
 	const { providerId, providerModelId } = parseModelId(policy.modelId);
-	const requiresThinkspacePermission = modelDefinition.access === "byok";
-	if (requiresThinkspacePermission && policy.credentialPermission !== "granted") {
+	if (policy.credentialPermission !== "granted") {
 		throw new ModelResolutionError(
 			"This Thinkspace has not been granted Permission to use the saved provider credential.",
 		);
 	}
 
-	const credentialSource: CredentialSource =
-		modelDefinition.access === "byok" ? "user_byok" : "app_provided";
-	const apiKey =
-		credentialSource === "user_byok" ? userCredentials?.[providerId] : appCredentials?.[providerId];
+	const apiKey = userCredentials?.[providerId];
 	if (!apiKey) {
 		throw new ModelResolutionError(`Missing ${providerId} credential for ${policy.modelId}.`);
 	}
@@ -118,12 +109,10 @@ export const resolveLanguageModel = ({
 	const model = withDefaultProviderOptions(baseModel, providerOptions);
 
 	return {
-		credentialSource,
 		model,
 		modelDefinition,
 		providerId,
 		providerModelId,
 		reasoningProviderOptions: providerOptions,
-		requiresThinkspacePermission,
 	};
 };

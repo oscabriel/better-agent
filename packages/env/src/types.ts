@@ -7,8 +7,5 @@ export interface CloudflareEnv {
 	SESSION_KV?: KVNamespace;
 	SOURCES_ARTIFACTS?: R2Bucket;
 	API_ENCRYPTION_KEY?: string;
-	GOOGLE_GENERATIVE_AI_API_KEY?: string;
-	OPENAI_API_KEY?: string;
-	ANTHROPIC_API_KEY?: string;
 	VITE_SERVER_URL?: string;
 }

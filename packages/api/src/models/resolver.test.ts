@@ -18,12 +18,12 @@ test("parses native provider:model identifiers", () => {
 
 test("rejects unknown models", () => {
 	assert.throws(
-		() => resolveLanguageModel({ appCredentials: {}, policy: { modelId: "openai:not-real" } }),
+		() => resolveLanguageModel({ policy: { modelId: "openai:not-real" } }),
 		ModelResolutionError,
 	);
 });
 
-test("requires explicit Thinkspace Permission before a BYOK credential can resolve", () => {
+test("requires explicit Thinkspace Permission before a saved credential can resolve", () => {
 	assert.throws(
 		() =>
 			resolveLanguageModel({
@@ -34,14 +34,13 @@ test("requires explicit Thinkspace Permission before a BYOK credential can resol
 	);
 });
 
-test("resolves Google BYOK through the native Google provider seam", () => {
+test("resolves Google credentials through the native Google provider seam", () => {
 	const resolved = resolveLanguageModel({
 		policy: { credentialPermission: "granted", modelId: "google:gemini-2.5-flash" },
 		userCredentials: { google: "google-test-key" },
 	});
 
 	assert.equal(resolved.providerId, "google");
-	assert.equal(resolved.credentialSource, "user_byok");
 	assert.equal(resolved.providerModelId, "gemini-2.5-flash");
 	assert.notEqual(resolved.providerId, "openai");
 });

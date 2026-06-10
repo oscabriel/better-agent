@@ -6,6 +6,7 @@ import { ORPCError, call } from "@orpc/server";
 import type { AnyProcedure } from "@orpc/server";
 
 import type { Context } from "../context";
+import { encryptCredential } from "../models/credentials";
 import { thinkspacesRouter } from "./router";
 import type { ThinkspaceTurnInspection } from "./inspect";
 import type { ThinkspaceTurnAcceptance } from "./turns";
@@ -258,7 +259,7 @@ test("owners can still submit and inspect turns through the router with the Thin
 		thinkspaceId: OWNED_THINKSPACE_ID,
 	};
 	const env = {
-		GOOGLE_GENERATIVE_AI_API_KEY: "test-google-key",
+		BETTER_AUTH_SECRET: "test-secret",
 		THINKSPACE_AGENT: {
 			get: () => ({
 				acceptTurnSubmission: () => Promise.resolve(acceptance),
@@ -270,7 +271,21 @@ test("owners can still submit and inspect turns through the router with the Thin
 			},
 		},
 	};
-	const context = createCallContext({ db: createDbReturning([ownedThinkspaceRow()]), env });
+	// The structural db mock returns this row for every select, so it doubles
+	// as the Thinkspace row (granted credential Permission), the settings row,
+	// and the saved provider-credential row.
+	const readyRow = {
+		...ownedThinkspaceRow(),
+		encryptedCredential: await encryptCredential("google-test-key", "test-secret"),
+		requestedPermissions: JSON.stringify([
+			{
+				granted: true,
+				providerId: "google",
+				type: "model_provider_credential_permission",
+			},
+		]),
+	};
+	const context = createCallContext({ db: createDbReturning([readyRow]), env });
 
 	const submitted = await call(
 		thinkspacesRouter.submitTurn,

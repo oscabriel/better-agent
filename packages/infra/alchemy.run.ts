@@ -42,6 +42,14 @@ const requiredEnv = <T>(value: T | undefined, name: string): T => {
 	return value;
 };
 
+const requiredSecretEnv = (name: string) => {
+	if (isLocalStage) {
+		return requiredEnv(process.env[name], name);
+	}
+
+	return requiredEnv(alchemy.secret.env(name), name);
+};
+
 const db = await D1Database("product-db", {
 	adopt: adoptPersistentResources,
 	migrationsDir: "../../packages/db/src/migrations",
@@ -65,17 +73,11 @@ const thinkspaceAgents = DurableObjectNamespace("thinkspace-agent", {
 });
 
 const commonBindings = {
-	ANTHROPIC_API_KEY: requiredEnv(alchemy.secret.env.ANTHROPIC_API_KEY, "ANTHROPIC_API_KEY"),
-	API_ENCRYPTION_KEY: requiredEnv(alchemy.secret.env.API_ENCRYPTION_KEY, "API_ENCRYPTION_KEY"),
-	BETTER_AUTH_SECRET: requiredEnv(alchemy.secret.env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET"),
+	API_ENCRYPTION_KEY: requiredSecretEnv("API_ENCRYPTION_KEY"),
+	BETTER_AUTH_SECRET: requiredSecretEnv("BETTER_AUTH_SECRET"),
 	BETTER_AUTH_URL: requiredEnv(alchemy.env.BETTER_AUTH_URL, "BETTER_AUTH_URL"),
 	CORS_ORIGIN: requiredEnv(alchemy.env.CORS_ORIGIN, "CORS_ORIGIN"),
 	DB: db,
-	GOOGLE_GENERATIVE_AI_API_KEY: requiredEnv(
-		alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
-		"GOOGLE_GENERATIVE_AI_API_KEY",
-	),
-	OPENAI_API_KEY: requiredEnv(alchemy.secret.env.OPENAI_API_KEY, "OPENAI_API_KEY"),
 	SESSION_KV: sessions,
 	SOURCES_ARTIFACTS: sourcesAndArtifacts,
 };

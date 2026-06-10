@@ -15,7 +15,6 @@ import type { ReasoningEffort, ThinkspaceModelPolicy } from "./resolver";
 export type ModelReadinessStatus = "ready" | "not_ready";
 export type ModelReadinessReason =
 	| "unknown_model"
-	| "missing_app_credential"
 	| "missing_user_credential"
 	| "permission_required"
 	| "resolution_failed";
@@ -26,14 +25,12 @@ export interface ModelReadinessUserSettings {
 }
 
 export interface ModelReadinessReady {
-	credentialSource: "app_provided" | "user_byok";
 	message: string;
 	modelId: string;
 	modelName: string;
 	providerId: ModelProviderId;
 	providerName: string;
 	reasoningEffort: ReasoningEffort;
-	requiresThinkspacePermission: boolean;
 	status: "ready";
 }
 
@@ -45,7 +42,6 @@ export interface ModelReadinessNotReady {
 	providerName?: string;
 	reason: ModelReadinessReason;
 	reasoningEffort: ReasoningEffort;
-	requiresThinkspacePermission: boolean;
 	status: "not_ready";
 }
 
@@ -90,14 +86,7 @@ export interface CheckThinkspaceModelReadinessInput {
 	userId: string;
 }
 
-type ModelReadinessEnv = Pick<
-	CloudflareEnv,
-	| "ANTHROPIC_API_KEY"
-	| "API_ENCRYPTION_KEY"
-	| "BETTER_AUTH_SECRET"
-	| "GOOGLE_GENERATIVE_AI_API_KEY"
-	| "OPENAI_API_KEY"
->;
+type ModelReadinessEnv = Pick<CloudflareEnv, "API_ENCRYPTION_KEY" | "BETTER_AUTH_SECRET">;
 
 type GetThinkspaceByOwner = (
 	db: ProductDb,
@@ -121,14 +110,6 @@ const isReasoningEffort = (value: string): value is ReasoningEffort =>
 
 const encryptionSecret = (env: ModelReadinessEnv): string =>
 	env.API_ENCRYPTION_KEY ?? env.BETTER_AUTH_SECRET;
-
-const getAppCredentials = (
-	env: ModelReadinessEnv,
-): Partial<Record<ModelProviderId, string | undefined>> => ({
-	anthropic: env.ANTHROPIC_API_KEY,
-	google: env.GOOGLE_GENERATIVE_AI_API_KEY,
-	openai: env.OPENAI_API_KEY,
-});
 
 const parsePermissions = (requestedPermissions: string): unknown[] => {
 	try {
@@ -194,7 +175,6 @@ const notReady = ({
 	providerName: modelDefinition?.providerName,
 	reason,
 	reasoningEffort,
-	requiresThinkspacePermission: modelDefinition?.access === "byok",
 	status: "not_ready",
 });
 
@@ -209,7 +189,7 @@ const productSafeResolutionFailure = ({
 	modelId: string;
 	reasoningEffort: ReasoningEffort;
 }): ThinkspaceModelReadiness => {
-	if (modelDefinition.access === "byok" && error.message.includes("Permission")) {
+	if (error.message.includes("Permission")) {
 		return notReady({
 			message: "This Thinkspace needs Permission before using a saved provider credential.",
 			modelDefinition,
@@ -219,22 +199,12 @@ const productSafeResolutionFailure = ({
 		});
 	}
 
-	if (modelDefinition.access === "byok") {
+	if (error.message.startsWith("Missing ")) {
 		return notReady({
 			message: "The saved provider credential for this model is not available.",
 			modelDefinition,
 			modelId,
 			reason: "missing_user_credential",
-			reasoningEffort,
-		});
-	}
-
-	if (error.message.startsWith("Missing ")) {
-		return notReady({
-			message: "The app-provided credential for this model is not configured.",
-			modelDefinition,
-			modelId,
-			reason: "missing_app_credential",
 			reasoningEffort,
 		});
 	}
@@ -295,7 +265,7 @@ const evaluateThinkspaceModel = async ({
 		: "not_granted";
 	const policy: ThinkspaceModelPolicy = { credentialPermission, modelId, reasoningEffort };
 	const userCredential =
-		modelDefinition.access === "byok" && credentialPermission === "granted"
+		credentialPermission === "granted"
 			? await getUserCredential(db, {
 					providerId: modelDefinition.providerId,
 					secret: encryptionSecret(env),
@@ -305,7 +275,6 @@ const evaluateThinkspaceModel = async ({
 
 	try {
 		const resolved = resolveLanguageModel({
-			appCredentials: getAppCredentials(env),
 			policy,
 			userCredentials: userCredential
 				? { [modelDefinition.providerId]: userCredential }
@@ -315,14 +284,12 @@ const evaluateThinkspaceModel = async ({
 		return {
 			model: resolved.model,
 			readiness: {
-				credentialSource: resolved.credentialSource,
 				message: "Model configuration is ready for a Thinkspace Agent turn.",
 				modelId,
 				modelName: modelDefinition.name,
 				providerId: modelDefinition.providerId,
 				providerName: modelDefinition.providerName,
 				reasoningEffort,
-				requiresThinkspacePermission: resolved.requiresThinkspacePermission,
 				status: "ready",
 			},
 		};
@@ -406,7 +373,6 @@ export const resolveOwnedThinkspaceTurnModel = async (
 						modelId: evaluation.readiness.modelId,
 						reason: "resolution_failed" as const,
 						reasoningEffort: evaluation.readiness.reasoningEffort,
-						requiresThinkspacePermission: evaluation.readiness.requiresThinkspacePermission,
 						status: "not_ready" as const,
 					}
 				: evaluation.readiness;

@@ -12,13 +12,9 @@ import {
 
 const db = {} as ProductDb;
 
-const createEnv = (overrides: Record<string, string | undefined> = {}) => ({
-	ANTHROPIC_API_KEY: undefined,
+const createEnv = () => ({
 	API_ENCRYPTION_KEY: undefined,
 	BETTER_AUTH_SECRET: "test-secret",
-	GOOGLE_GENERATIVE_AI_API_KEY: "google-app-key",
-	OPENAI_API_KEY: "openai-app-key",
-	...overrides,
 });
 
 const createThinkspace = (requestedPermissions = "[]") => ({
@@ -35,19 +31,22 @@ const grantedCredentialPermission = (providerId: string): string =>
 		},
 	]);
 
-test("reports ready for the default app-provided model when app credentials exist", async () => {
+test("reports ready for the default model once the credential Permission is granted", async () => {
 	const readiness = await checkThinkspaceModelReadiness({
 		db,
 		env: createEnv(),
+		getUserCredential: (_db, input) => {
+			assert.equal(input.providerId, "google");
+			assert.equal(input.userId, "user_123");
+			return Promise.resolve("google-test-key");
+		},
 		settings: null,
-		thinkspace: createThinkspace(),
+		thinkspace: createThinkspace(grantedCredentialPermission("google")),
 		userId: "user_123",
 	});
 
 	assert.equal(readiness.status, "ready");
 	assert.equal(readiness.modelId, "google:gemini-2.5-flash-lite");
-	assert.equal(readiness.credentialSource, "app_provided");
-	assert.equal(readiness.requiresThinkspacePermission, false);
 });
 
 test("fails closed for unknown configured model ids", async () => {
@@ -64,21 +63,22 @@ test("fails closed for unknown configured model ids", async () => {
 	assert.equal(readiness.message, "The selected model is not in the supported model catalog.");
 });
 
-test("fails closed when app-provided provider credentials are missing", async () => {
+test("fails closed when the user has no saved provider credential", async () => {
 	const readiness = await checkThinkspaceModelReadiness({
 		db,
-		env: createEnv({ GOOGLE_GENERATIVE_AI_API_KEY: undefined }),
+		env: createEnv(),
+		getUserCredential: () => Promise.resolve(null),
 		settings: null,
-		thinkspace: createThinkspace(),
+		thinkspace: createThinkspace(grantedCredentialPermission("google")),
 		userId: "user_123",
 	});
 
 	assert.equal(readiness.status, "not_ready");
-	assert.equal(readiness.reason, "missing_app_credential");
-	assert.equal(readiness.message, "The app-provided credential for this model is not configured.");
+	assert.equal(readiness.reason, "missing_user_credential");
+	assert.equal(readiness.message, "The saved provider credential for this model is not available.");
 });
 
-test("requires Thinkspace Permission before resolving BYOK credentials", async () => {
+test("requires Thinkspace Permission before resolving any saved credential", async () => {
 	let credentialLoadCount = 0;
 	const readiness = await checkThinkspaceModelReadiness({
 		db,
@@ -94,11 +94,10 @@ test("requires Thinkspace Permission before resolving BYOK credentials", async (
 
 	assert.equal(readiness.status, "not_ready");
 	assert.equal(readiness.reason, "permission_required");
-	assert.equal(readiness.requiresThinkspacePermission, true);
 	assert.equal(credentialLoadCount, 0);
 });
 
-test("reports ready for BYOK only after the Thinkspace credential Permission is granted", async () => {
+test("reports ready only after the Thinkspace credential Permission is granted", async () => {
 	const readiness = await checkThinkspaceModelReadiness({
 		db,
 		env: createEnv(),
@@ -113,8 +112,7 @@ test("reports ready for BYOK only after the Thinkspace credential Permission is 
 	});
 
 	assert.equal(readiness.status, "ready");
-	assert.equal(readiness.credentialSource, "user_byok");
-	assert.equal(readiness.requiresThinkspacePermission, true);
+	assert.equal(readiness.modelId, "openai:gpt-4.1");
 });
 
 test("owner-gated model readiness reports readiness for owned Thinkspaces", async () => {
@@ -124,8 +122,9 @@ test("owner-gated model readiness reports readiness for owned Thinkspaces", asyn
 		getThinkspaceByOwner: (_db, input) => {
 			assert.equal(input.ownerUserId, "owner_user");
 			assert.equal(input.thinkspaceId, "thinkspace_owned");
-			return Promise.resolve(createThinkspace());
+			return Promise.resolve(createThinkspace(grantedCredentialPermission("google")));
 		},
+		getUserCredential: () => Promise.resolve("google-test-key"),
 		getUserSettings: () => Promise.resolve(null),
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -139,7 +138,9 @@ test("resolves a usable turn model for ready owned Thinkspaces", async () => {
 	const resolved = await resolveOwnedThinkspaceTurnModel({
 		db,
 		env: createEnv(),
-		getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
+		getThinkspaceByOwner: () =>
+			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+		getUserCredential: () => Promise.resolve("google-test-key"),
 		getUserSettings: () => Promise.resolve(null),
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -154,16 +155,18 @@ test("turn model resolution fails closed with a product-safe error when not read
 	await assert.rejects(
 		resolveOwnedThinkspaceTurnModel({
 			db,
-			env: createEnv({ GOOGLE_GENERATIVE_AI_API_KEY: undefined }),
-			getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
+			env: createEnv(),
+			getThinkspaceByOwner: () =>
+				Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+			getUserCredential: () => Promise.resolve(null),
 			getUserSettings: () => Promise.resolve(null),
 			ownerUserId: "owner_user",
 			thinkspaceId: "thinkspace_owned",
 		}),
 		(error: unknown) => {
 			assert.ok(error instanceof ThinkspaceTurnModelUnavailableError);
-			assert.equal(error.readiness.reason, "missing_app_credential");
-			assert.equal(error.message, "The app-provided credential for this model is not configured.");
+			assert.equal(error.readiness.reason, "missing_user_credential");
+			assert.equal(error.message, "The saved provider credential for this model is not available.");
 			return true;
 		},
 	);

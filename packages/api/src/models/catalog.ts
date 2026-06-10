@@ -1,11 +1,9 @@
 export const MODEL_PROVIDER_IDS = ["openai", "anthropic", "google"] as const;
 export type ModelProviderId = (typeof MODEL_PROVIDER_IDS)[number];
 
-export type ModelAccess = "app_provided" | "byok";
 export type ModelCapability = "text" | "tools" | "images" | "audio" | "video" | "pdf" | "reasoning";
 
 export interface ModelCatalogEntry {
-	access: ModelAccess;
 	capabilities: ModelCapability[];
 	contextWindow: number;
 	costPer1MTokens?: { input: number; output: number };
@@ -26,11 +24,10 @@ const SOURCE = "Better Chat model catalog salvage, reviewed against AI SDK v6 pr
 
 export const MODEL_CATALOG = [
 	{
-		access: "app_provided",
 		capabilities: ["text", "tools", "images"],
 		contextWindow: 128_000,
 		costPer1MTokens: { input: 0.15, output: 0.6 },
-		description: "App-provided GPT-4o mini access with 128K context and vision support.",
+		description: "GPT-4o mini with 128K context and vision support.",
 		id: "openai:gpt-4o-mini",
 		maxOutputTokens: 16_384,
 		name: "GPT-4o mini",
@@ -41,11 +38,10 @@ export const MODEL_CATALOG = [
 		source: SOURCE,
 	},
 	{
-		access: "app_provided",
 		capabilities: ["text", "tools", "images", "audio", "video", "pdf", "reasoning"],
 		contextWindow: 1_048_576,
 		costPer1MTokens: { input: 0.1, output: 0.4 },
-		description: "App-provided Gemini 2.5 Flash Lite with 1M context and multimodal I/O.",
+		description: "Gemini 2.5 Flash Lite with 1M context and multimodal I/O.",
 		id: "google:gemini-2.5-flash-lite",
 		maxOutputTokens: 65_536,
 		name: "Gemini 2.5 Flash Lite",
@@ -56,7 +52,6 @@ export const MODEL_CATALOG = [
 		source: SOURCE,
 	},
 	{
-		access: "byok",
 		capabilities: ["text", "tools", "images"],
 		contextWindow: 1_047_576,
 		costPer1MTokens: { input: 2, output: 8 },
@@ -71,7 +66,6 @@ export const MODEL_CATALOG = [
 		source: SOURCE,
 	},
 	{
-		access: "byok",
 		capabilities: ["text", "tools", "images", "reasoning"],
 		contextWindow: 200_000,
 		costPer1MTokens: { input: 1.1, output: 4.4 },
@@ -86,7 +80,6 @@ export const MODEL_CATALOG = [
 		source: SOURCE,
 	},
 	{
-		access: "byok",
 		capabilities: ["text", "tools", "images", "audio", "video", "pdf", "reasoning"],
 		contextWindow: 1_048_576,
 		costPer1MTokens: { input: 0.3, output: 2.5 },
@@ -101,7 +94,6 @@ export const MODEL_CATALOG = [
 		source: SOURCE,
 	},
 	{
-		access: "byok",
 		capabilities: ["text", "tools", "images", "audio", "video", "pdf", "reasoning"],
 		contextWindow: 1_048_576,
 		costPer1MTokens: { input: 1.25, output: 10 },
@@ -116,7 +108,6 @@ export const MODEL_CATALOG = [
 		source: SOURCE,
 	},
 	{
-		access: "byok",
 		capabilities: ["text", "tools", "images", "reasoning"],
 		contextWindow: 200_000,
 		costPer1MTokens: { input: 3, output: 15 },

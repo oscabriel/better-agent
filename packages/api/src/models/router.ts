@@ -27,9 +27,7 @@ export const modelsRouter = {
 		const credentials = await getCredentialMap(context.db, context.session.user.id);
 		return getModelCatalog().map((model) => ({
 			...model,
-			availableForAccount:
-				model.access === "app_provided" || Boolean(credentials[model.providerId]),
-			requiresThinkspacePermission: model.access === "byok",
+			availableForAccount: Boolean(credentials[model.providerId]),
 		}));
 	}),
 	listCredentials: protectedProcedure.handler(async ({ context }) => {
