@@ -22,7 +22,7 @@ Date: 2026-05-27
 - OpenAI: use `openai` or `createOpenAI({ apiKey, baseURL, organization, project, headers, fetch })`; default auth falls back to `OPENAI_API_KEY` and `OPENAI_BASE_URL` in normal environments (`vercel/ai packages/openai/src/openai-provider.ts:108-181`). `openai(modelId)` defaults to the Responses API in current docs/source; use `.chat()` only when deliberately depending on Chat Completions behavior (`vercel/ai content/providers/01-ai-sdk-providers/03-openai.mdx:100-150`).
 - Anthropic: use `anthropic` or `createAnthropic({ apiKey, authToken, baseURL, fetch })`; provider auth supports `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` and exposes callable `anthropic(modelId)` plus `.chat/.messages/.files/.skills/.tools` (`vercel/ai packages/anthropic/src/anthropic-provider.ts:20-45`, `50-133`, `146-178`).
 - Google: in v6/latest docs, the factory is `createGoogle`; `createGoogleGenerativeAI` remains only as a deprecated alias (`vercel/ai packages/google/src/index.ts:1-45`). Use `createGoogle({ apiKey })` for Gemini BYOK; provider options are under `providerOptions.google`, and the API key is sent via `x-goog-api-key`, defaulting to `GOOGLE_GENERATIVE_AI_API_KEY` outside Workers (`vercel/ai packages/google/src/google-provider.ts:112-130`, `158-166`).
-- Cloudflare Workers caveat: direct providers support custom `fetch` and have edge tests, but Workers bindings should be passed explicitly as `apiKey: env.X` rather than relying on Node-style environment lookup (`vercel/ai packages/google/openai/anthropic package.json test:edge evidence; provider source passes `options.fetch`into models). Better Agent’s demo follows the explicit binding pattern with`env.GOOGLE_GENERATIVE_AI_API_KEY` (`better-agent/apps/server/src/index.ts:76-82`).
+- Cloudflare Workers caveat: direct providers support custom `fetch` and have edge tests, but Workers bindings should be passed explicitly as `apiKey: env.X` rather than relying on Node-style environment lookup (`vercel/ai packages/google/openai/anthropic package.json test:edge evidence; provider source passes `options.fetch`into models). Better Agent passes the decrypted user-owned credential explicitly as `apiKey` in the resolver (`packages/api/src/models/resolver.ts`); there are no deploy-time provider key bindings.
 
 ### Reasoning/thinking settings
 
@@ -75,12 +75,12 @@ Recommended PRD shape:
 ## PRD acceptance criteria
 
 1. **Model catalog service**
-   - Lists free and BYOK models with provider, capabilities, context/output limits, cost metadata, source/review metadata, and v6-compatible provider IDs.
+   - Lists models (all user-credential-backed; there is no app-provided tier) with provider, capabilities, context/output limits, cost metadata, source/review metadata, and v6-compatible provider IDs.
    - Does not expose raw API keys or request clients to model listing consumers.
 
 2. **Credential/BYOK model resolution**
    - Given a user/org credential set and Thinkspace model policy, resolver returns the correct AI SDK `LanguageModel` for OpenAI, Anthropic, and Google using native provider factories (`createOpenAI`, `createAnthropic`, `createGoogle`).
-   - BYOK models are unavailable without a matching credential/Permission; free/app-provided models use explicit Cloudflare env bindings.
+   - Every model is unavailable without a matching user credential and granted Thinkspace Permission; there are no deploy-time provider key bindings.
    - Google native BYOK supports `providerOptions.google.thinkingConfig`; OpenAI and Anthropic reasoning options are provider-native.
 
 3. **Runtime boundary**
@@ -93,8 +93,8 @@ Recommended PRD shape:
    - Structured outputs use `Output.object(...)` with `generateText`/`streamText`, not deprecated `generateObject`/`streamObject`.
 
 5. **Tests/validation**
-   - Unit tests cover model ID parsing, unknown model rejection, free/BYOK access filtering, provider-specific credential selection, and reasoning option mapping.
-   - Integration/smoke tests prove one app-provided Google model, one OpenAI BYOK model, one Anthropic BYOK model, and one Google BYOK model can be resolved and used for a minimal `generateText`/`streamText` call behind mocked or test credentials.
+   - Unit tests cover model ID parsing, unknown model rejection, credential-based availability filtering, provider-specific credential selection, and reasoning option mapping.
+   - Integration/smoke tests prove one OpenAI, one Anthropic, and one Google model can be resolved and used for a minimal `generateText`/`streamText` call behind mocked or test credentials.
    - Regression test confirms no Google BYOK model is resolved through OpenAI compatibility unless explicitly configured as a separate compatibility provider.
    - Typecheck catches v5/v6 API drift, especially `convertToModelMessages` and provider package major mismatches.
 

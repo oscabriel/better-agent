@@ -14,7 +14,6 @@ import { getThinkspace } from "../thinkspaces/repository";
 import { ModelResolutionError, resolveLanguageModel } from "./resolver";
 import type { ReasoningEffort, ThinkspaceModelPolicy } from "./resolver";
 
-export type ModelReadinessStatus = "ready" | "not_ready";
 export type ModelReadinessReason =
 	| "unknown_model"
 	| "missing_user_credential"

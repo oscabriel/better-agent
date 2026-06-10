@@ -20,7 +20,8 @@ export interface ModelCatalogEntry {
 
 export const DEFAULT_MODEL_ID = "google:gemini-2.5-flash-lite";
 const REVIEWED_AT = "2026-06-04";
-const SOURCE = "Better Chat model catalog salvage, reviewed against AI SDK v6 provider factories.";
+const SOURCE =
+	"Better Agent reviewed static model catalog, validated against AI SDK v6 provider factories.";
 
 export const MODEL_CATALOG = [
 	{

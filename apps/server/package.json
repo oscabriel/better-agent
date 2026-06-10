@@ -24,7 +24,6 @@
 		"agents": "0.15.0",
 		"ai": "catalog:",
 		"better-auth": "catalog:",
-		"dotenv": "catalog:",
 		"eventsource-parser": "^3.1.0",
 		"hono": "catalog:",
 		"zod": "catalog:"

@@ -39,7 +39,6 @@
         "agents": "0.15.0",
         "ai": "catalog:",
         "better-auth": "catalog:",
-        "dotenv": "catalog:",
         "eventsource-parser": "^3.1.0",
         "hono": "catalog:",
         "zod": "catalog:",
@@ -109,18 +108,13 @@
         "@better-agent/auth": "workspace:*",
         "@better-agent/db": "workspace:*",
         "@better-agent/env": "workspace:*",
-        "@orpc/client": "catalog:",
-        "@orpc/openapi": "catalog:",
         "@orpc/server": "catalog:",
-        "@orpc/zod": "catalog:",
         "ai": "catalog:",
-        "dotenv": "catalog:",
         "drizzle-orm": "^0.45.1",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@better-agent/config": "workspace:*",
-        "hono": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -130,7 +124,6 @@
         "@better-agent/db": "workspace:*",
         "@better-agent/env": "workspace:*",
         "better-auth": "catalog:",
-        "dotenv": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -163,7 +156,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@t3-oss/env-core": "^0.13.1",
-        "dotenv": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
