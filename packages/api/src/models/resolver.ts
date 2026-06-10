@@ -4,7 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModelV3, SharedV3ProviderOptions } from "@ai-sdk/provider";
 import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";
 
-import { getModelDefinition, parseModelId } from "./catalog";
+import { parseModelId } from "./catalog";
 import type { ModelCatalogEntry, ModelProviderId } from "./catalog";
 
 export type ReasoningEffort = "low" | "medium" | "high";
@@ -16,6 +16,12 @@ export interface ThinkspaceModelPolicy {
 }
 
 export interface ResolveLanguageModelInput {
+	/**
+	 * Catalog-resolved definition for `policy.modelId`. Callers resolve it
+	 * through a ModelCatalog (models.dev with its static snapshot fallback);
+	 * the resolver never performs a direct static-catalog lookup.
+	 */
+	modelDefinition: ModelCatalogEntry;
 	policy: ThinkspaceModelPolicy;
 	userCredentials?: Partial<Record<ModelProviderId, string | undefined>>;
 }
@@ -77,15 +83,15 @@ const withDefaultProviderOptions = (
 };
 
 export const resolveLanguageModel = ({
+	modelDefinition,
 	policy,
 	userCredentials,
 }: ResolveLanguageModelInput): ResolvedLanguageModel => {
-	const modelDefinition = getModelDefinition(policy.modelId);
-	if (!modelDefinition) {
+	if (modelDefinition.id !== policy.modelId) {
 		throw new ModelResolutionError(`Unknown model: ${policy.modelId}`);
 	}
 
-	const { providerId, providerModelId } = parseModelId(policy.modelId);
+	const { providerId, providerModelId } = parseModelId(modelDefinition.id);
 	if (policy.credentialPermission !== "granted") {
 		throw new ModelResolutionError(
 			"This Thinkspace has not been granted Permission to use the saved provider credential.",

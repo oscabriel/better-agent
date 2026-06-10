@@ -6,7 +6,11 @@ import { ORPCError, call } from "@orpc/server";
 import type { AnyProcedure } from "@orpc/server";
 
 import type { Context } from "../context";
+import { getModelCatalog } from "../models/catalog";
+import type { ModelCatalogEntry } from "../models/catalog";
 import { encryptCredential } from "../models/credentials";
+import { createMemoryModelCatalog } from "../models/model-catalog";
+import type { ModelCatalog } from "../models/model-catalog";
 import { thinkspacesRouter } from "./router";
 import type { ThinkspaceTurnInspection } from "./inspect";
 import type { ThinkspaceTurnAcceptance } from "./turns";
@@ -52,13 +56,35 @@ const authenticatedSession = {
 	user: { id: "owner_user" },
 };
 
+/**
+ * Memory ModelCatalog over the reviewed static entries plus a models.dev-only
+ * entry, so router tests never reach the live models.dev fetch path.
+ */
+const modelsDevOnlyEntry: ModelCatalogEntry = {
+	capabilities: ["text", "tools", "reasoning"],
+	contextWindow: 1_048_576,
+	description: "Gemini catalog-only test model from the models.dev catalog.",
+	id: "google:gemini-catalog-only",
+	maxOutputTokens: 65_536,
+	name: "Gemini Catalog Only",
+	providerId: "google",
+	providerName: "Google",
+	reasoning: "google_thinking_config",
+	reviewedAt: "2026-06-10",
+	source: "models.dev API catalog (https://models.dev/api.json).",
+};
+
+const memoryModelCatalog = createMemoryModelCatalog([...getModelCatalog(), modelsDevOnlyEntry]);
+
 const createCallContext = ({
 	db,
 	env = {},
+	modelCatalog = memoryModelCatalog,
 	session = authenticatedSession,
 }: {
 	db: ProductDb;
 	env?: Record<string, unknown>;
+	modelCatalog?: ModelCatalog;
 	session?: typeof authenticatedSession | null;
 }): Context =>
 	({
@@ -66,6 +92,7 @@ const createCallContext = ({
 		env,
 		executionCtx: undefined,
 		headers: new Headers(),
+		modelCatalog,
 		session,
 	}) as unknown as Context;
 
@@ -306,6 +333,53 @@ test("owners can still submit and inspect turns through the router with the Thin
 	assert.equal(submitted.submissionId, "submission_1");
 	assert.equal(inspected.status, "accepted");
 	assert.ok(runtimeNames.every((name) => name === OWNED_THINKSPACE_ID));
+});
+
+test("a turn submits end-to-end on a models.dev-only model from a credentialed, Permission-granted provider", async () => {
+	const acceptance: ThinkspaceTurnAcceptance = {
+		acceptedAt: 1_717_000_000_000,
+		deduplicated: false,
+		idempotencyKey: "retry-key-2",
+		status: "accepted",
+		submissionId: "submission_2",
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	};
+	const env = {
+		BETTER_AUTH_SECRET: "test-secret",
+		THINKSPACE_AGENT: {
+			get: () => ({ acceptTurnSubmission: () => Promise.resolve(acceptance) }),
+			idFromName: (name: string) => ({ toString: () => `durable-object-id:${name}` }),
+		},
+	};
+	// The same structural row serves the Thinkspace, settings (default model
+	// pinned to a models.dev-only id), and saved-credential selects.
+	const readyRow = {
+		...ownedThinkspaceRow(),
+		defaultModel: "google:gemini-catalog-only",
+		encryptedCredential: await encryptCredential("google-test-key", "test-secret"),
+		reasoningEffort: "medium",
+		requestedPermissions: JSON.stringify([
+			{
+				granted: true,
+				providerId: "google",
+				type: "model_provider_credential_permission",
+			},
+		]),
+	};
+	const context = createCallContext({ db: createDbReturning([readyRow]), env });
+
+	const submitted = await call(
+		thinkspacesRouter.submitTurn,
+		{
+			idempotencyKey: "retry-key-2",
+			instruction: "Summarize the Thinkspace goal.",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context },
+	);
+
+	assert.equal(submitted.status, "accepted");
+	assert.equal(submitted.submissionId, "submission_2");
 });
 
 test("Thinkspace control-plane reads still work for owners", async () => {

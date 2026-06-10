@@ -16,9 +16,20 @@ test("parses native provider:model identifiers", () => {
 	assert.throws(() => parseModelId("google"));
 });
 
-test("rejects unknown models", () => {
+const requireDefinition = (modelId: string) => {
+	const definition = getModelDefinition(modelId);
+	assert.ok(definition, `expected a catalog definition for ${modelId}`);
+	return definition;
+};
+
+test("rejects definitions that do not match the policy model id", () => {
 	assert.throws(
-		() => resolveLanguageModel({ policy: { modelId: "openai:not-real" } }),
+		() =>
+			resolveLanguageModel({
+				modelDefinition: requireDefinition("openai:gpt-4.1"),
+				policy: { credentialPermission: "granted", modelId: "openai:not-real" },
+				userCredentials: { openai: "sk-test" },
+			}),
 		ModelResolutionError,
 	);
 });
@@ -27,6 +38,7 @@ test("requires explicit Thinkspace Permission before a saved credential can reso
 	assert.throws(
 		() =>
 			resolveLanguageModel({
+				modelDefinition: requireDefinition("openai:gpt-4.1"),
 				policy: { modelId: "openai:gpt-4.1" },
 				userCredentials: { openai: "sk-test" },
 			}),
@@ -36,6 +48,7 @@ test("requires explicit Thinkspace Permission before a saved credential can reso
 
 test("resolves Google credentials through the native Google provider seam", () => {
 	const resolved = resolveLanguageModel({
+		modelDefinition: requireDefinition("google:gemini-2.5-flash"),
 		policy: { credentialPermission: "granted", modelId: "google:gemini-2.5-flash" },
 		userCredentials: { google: "google-test-key" },
 	});
