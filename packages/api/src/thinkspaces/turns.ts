@@ -49,12 +49,7 @@ export interface SubmitOwnedThinkspaceTurnInput {
 
 type ThinkspaceTurnEnv = Pick<
 	CloudflareEnv,
-	| "ANTHROPIC_API_KEY"
-	| "API_ENCRYPTION_KEY"
-	| "BETTER_AUTH_SECRET"
-	| "GOOGLE_GENERATIVE_AI_API_KEY"
-	| "OPENAI_API_KEY"
-	| typeof THINKSPACE_AGENT_BINDING_NAME
+	"API_ENCRYPTION_KEY" | "BETTER_AUTH_SECRET" | typeof THINKSPACE_AGENT_BINDING_NAME
 >;
 
 type GetThinkspaceByOwner = (
