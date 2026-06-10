@@ -3,6 +3,10 @@ import test from "node:test";
 
 import type { ProductDb } from "@better-agent/db";
 
+import { getModelCatalog } from "./catalog";
+import type { ModelCatalogEntry } from "./catalog";
+import { createMemoryModelCatalog, ModelCatalogError } from "./model-catalog";
+import type { ModelCatalog } from "./model-catalog";
 import {
 	checkThinkspaceModelReadiness,
 	getOwnedThinkspaceModelReadiness,
@@ -16,6 +20,34 @@ const createEnv = () => ({
 	API_ENCRYPTION_KEY: undefined,
 	BETTER_AUTH_SECRET: "test-secret",
 });
+
+/**
+ * Memory ModelCatalog over the reviewed static entries, plus a models.dev-only
+ * entry that the static catalog does not know about. No live network in tests.
+ */
+const modelsDevOnlyEntry: ModelCatalogEntry = {
+	capabilities: ["text", "tools", "reasoning"],
+	contextWindow: 1_048_576,
+	description: "Gemini catalog-only test model from the models.dev catalog.",
+	id: "google:gemini-catalog-only",
+	maxOutputTokens: 65_536,
+	name: "Gemini Catalog Only",
+	providerId: "google",
+	providerName: "Google",
+	reasoning: "google_thinking_config",
+	reviewedAt: "2026-06-10",
+	source: "models.dev API catalog (https://models.dev/api.json).",
+};
+
+const modelCatalog = createMemoryModelCatalog([...getModelCatalog(), modelsDevOnlyEntry]);
+
+const unavailableCatalog: ModelCatalog = {
+	getModel: () =>
+		Promise.reject(new ModelCatalogError("catalog_unavailable", "both sources unavailable")),
+	listModels: () =>
+		Promise.reject(new ModelCatalogError("catalog_unavailable", "both sources unavailable")),
+	sourceId: "models_dev",
+};
 
 const createThinkspace = (requestedPermissions = "[]") => ({
 	id: "thinkspace_model_readiness",
@@ -40,6 +72,7 @@ test("reports ready for the default model once the credential Permission is gran
 			assert.equal(input.userId, "user_123");
 			return Promise.resolve("google-test-key");
 		},
+		modelCatalog,
 		settings: null,
 		thinkspace: createThinkspace(grantedCredentialPermission("google")),
 		userId: "user_123",
@@ -53,6 +86,7 @@ test("fails closed for unknown configured model ids", async () => {
 	const readiness = await checkThinkspaceModelReadiness({
 		db,
 		env: createEnv(),
+		modelCatalog,
 		settings: { defaultModel: "openai:not-real", reasoningEffort: "medium" },
 		thinkspace: createThinkspace(),
 		userId: "user_123",
@@ -68,6 +102,7 @@ test("fails closed when the user has no saved provider credential", async () => 
 		db,
 		env: createEnv(),
 		getUserCredential: () => Promise.resolve(null),
+		modelCatalog,
 		settings: null,
 		thinkspace: createThinkspace(grantedCredentialPermission("google")),
 		userId: "user_123",
@@ -87,6 +122,7 @@ test("requires Thinkspace Permission before resolving any saved credential", asy
 			credentialLoadCount += 1;
 			return Promise.resolve("sk-test");
 		},
+		modelCatalog,
 		settings: { defaultModel: "openai:gpt-4.1", reasoningEffort: "medium" },
 		thinkspace: createThinkspace(),
 		userId: "user_123",
@@ -106,6 +142,7 @@ test("reports ready only after the Thinkspace credential Permission is granted",
 			assert.equal(input.userId, "user_123");
 			return Promise.resolve("sk-test");
 		},
+		modelCatalog,
 		settings: { defaultModel: "openai:gpt-4.1", reasoningEffort: "medium" },
 		thinkspace: createThinkspace(grantedCredentialPermission("openai")),
 		userId: "user_123",
@@ -126,6 +163,7 @@ test("owner-gated model readiness reports readiness for owned Thinkspaces", asyn
 		},
 		getUserCredential: () => Promise.resolve("google-test-key"),
 		getUserSettings: () => Promise.resolve(null),
+		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
 	});
@@ -142,6 +180,7 @@ test("resolves a usable turn model for ready owned Thinkspaces", async () => {
 			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
 		getUserCredential: () => Promise.resolve("google-test-key"),
 		getUserSettings: () => Promise.resolve(null),
+		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
 	});
@@ -160,6 +199,7 @@ test("turn model resolution fails closed with a product-safe error when not read
 				Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
 			getUserCredential: () => Promise.resolve(null),
 			getUserSettings: () => Promise.resolve(null),
+			modelCatalog,
 			ownerUserId: "owner_user",
 			thinkspaceId: "thinkspace_owned",
 		}),
@@ -178,6 +218,7 @@ test("turn model resolution returns null for non-owned Thinkspaces", async () =>
 		env: createEnv(),
 		getThinkspaceByOwner: () => Promise.resolve(null),
 		getUserSettings: () => Promise.resolve(null),
+		modelCatalog,
 		ownerUserId: "other_user",
 		thinkspaceId: "thinkspace_owned",
 	});
@@ -194,9 +235,62 @@ test("owner-gated model readiness returns null for non-owned Thinkspaces", async
 			return Promise.resolve(null);
 		},
 		getUserSettings: () => Promise.resolve(null),
+		modelCatalog,
 		ownerUserId: "other_user",
 		thinkspaceId: "thinkspace_owned",
 	});
 
 	assert.equal(readiness, null);
+});
+
+test("reports ready for a models.dev-only model from a credentialed, Permission-granted provider", async () => {
+	const readiness = await checkThinkspaceModelReadiness({
+		db,
+		env: createEnv(),
+		getUserCredential: () => Promise.resolve("google-test-key"),
+		modelCatalog,
+		settings: { defaultModel: "google:gemini-catalog-only", reasoningEffort: "medium" },
+		thinkspace: createThinkspace(grantedCredentialPermission("google")),
+		userId: "user_123",
+	});
+
+	assert.equal(readiness.status, "ready");
+	assert.equal(readiness.modelId, "google:gemini-catalog-only");
+	assert.equal(readiness.modelName, "Gemini Catalog Only");
+});
+
+test("resolves a usable turn model for a models.dev-only model id", async () => {
+	const resolved = await resolveOwnedThinkspaceTurnModel({
+		db,
+		env: createEnv(),
+		getThinkspaceByOwner: () =>
+			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+		getUserCredential: () => Promise.resolve("google-test-key"),
+		getUserSettings: () =>
+			Promise.resolve({ defaultModel: "google:gemini-catalog-only", reasoningEffort: "medium" }),
+		modelCatalog,
+		ownerUserId: "owner_user",
+		thinkspaceId: "thinkspace_owned",
+	});
+
+	assert.equal(resolved?.readiness.status, "ready");
+	assert.equal(resolved?.readiness.modelId, "google:gemini-catalog-only");
+	assert.ok(resolved?.model);
+});
+
+test("catalog unavailability fails closed with a product-safe readiness", async () => {
+	const readiness = await checkThinkspaceModelReadiness({
+		db,
+		env: createEnv(),
+		getUserCredential: () => Promise.resolve("google-test-key"),
+		modelCatalog: unavailableCatalog,
+		settings: null,
+		thinkspace: createThinkspace(grantedCredentialPermission("google")),
+		userId: "user_123",
+	});
+
+	assert.equal(readiness.status, "not_ready");
+	assert.equal(readiness.reason, "resolution_failed");
+	assert.doesNotMatch(readiness.message, /unavailable catalog|fetch|sources/iu);
+	assert.match(readiness.message, /model catalog is temporarily unavailable/u);
 });
