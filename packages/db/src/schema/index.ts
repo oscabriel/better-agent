@@ -7,6 +7,14 @@ export {
 	userRelations,
 	verification,
 } from "./auth";
+export {
+	AGENT_PROFILE_REVISION_STATUS,
+	type AgentProfileRevisionStatus,
+	type NewThinkspaceAgentProfile,
+	type ThinkspaceAgentProfile,
+	thinkspaceAgentProfileRelations,
+	thinkspaceAgentProfiles,
+} from "./agent-profiles";
 export { timestampMsNow } from "./common";
 export {
 	mcpServerCatalog,
