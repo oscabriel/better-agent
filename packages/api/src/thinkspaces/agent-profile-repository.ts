@@ -1,0 +1,152 @@
+/**
+ * Persistence adapter for Agent Profile revisions.
+ *
+ * Owner gating follows the existing Thinkspace pattern: callers resolve the
+ * Thinkspace through `getThinkspace` (owner-scoped) first; this module only
+ * answers questions about a known Thinkspace id. Rows cross the boundary
+ * through `parseAgentProfileRevision` / `serializeAgentProfileRevision` so
+ * raw JSON columns never leak into the domain.
+ */
+import type { ProductDb } from "@better-agent/db";
+import {
+	AGENT_PROFILE_REVISION_STATUS,
+	thinkspaceAgentProfiles,
+} from "@better-agent/db/schema/agent-profiles";
+import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
+import { and, asc, eq } from "drizzle-orm";
+
+import { parseAgentProfileRevision, serializeAgentProfileRevision } from "./agent-profile";
+import type {
+	ActiveAgentProfileRevision,
+	AgentProfileRevision,
+	DraftAgentProfileRevision,
+} from "./agent-profile";
+import type { AgentProfileActivation } from "./agent-profile-lifecycle";
+
+export interface GetAgentProfileRevisionInput {
+	thinkspaceId: string;
+}
+
+const getRevisionByStatus = async (
+	db: ProductDb,
+	thinkspaceId: string,
+	status: (typeof AGENT_PROFILE_REVISION_STATUS)[keyof typeof AGENT_PROFILE_REVISION_STATUS],
+): Promise<AgentProfileRevision | null> => {
+	const [row] = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(
+			and(
+				eq(thinkspaceAgentProfiles.thinkspaceId, thinkspaceId),
+				eq(thinkspaceAgentProfiles.status, status),
+			),
+		)
+		.limit(1);
+
+	return row ? parseAgentProfileRevision(row) : null;
+};
+
+export const getActiveAgentProfileRevision = async (
+	db: ProductDb,
+	{ thinkspaceId }: GetAgentProfileRevisionInput,
+): Promise<ActiveAgentProfileRevision | null> => {
+	const revision = await getRevisionByStatus(
+		db,
+		thinkspaceId,
+		AGENT_PROFILE_REVISION_STATUS.ACTIVE,
+	);
+
+	return revision?.status === AGENT_PROFILE_REVISION_STATUS.ACTIVE ? revision : null;
+};
+
+export const getDraftAgentProfileRevision = async (
+	db: ProductDb,
+	{ thinkspaceId }: GetAgentProfileRevisionInput,
+): Promise<DraftAgentProfileRevision | null> => {
+	const revision = await getRevisionByStatus(db, thinkspaceId, AGENT_PROFILE_REVISION_STATUS.DRAFT);
+
+	return revision?.status === AGENT_PROFILE_REVISION_STATUS.DRAFT ? revision : null;
+};
+
+export const listAgentProfileRevisions = async (
+	db: ProductDb,
+	{ thinkspaceId }: GetAgentProfileRevisionInput,
+): Promise<AgentProfileRevision[]> => {
+	const rows = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, thinkspaceId))
+		.orderBy(asc(thinkspaceAgentProfiles.version));
+
+	return rows.map(parseAgentProfileRevision);
+};
+
+export interface SaveAgentProfileDraftInput {
+	draft: DraftAgentProfileRevision;
+}
+
+/** Inserts or resumes (updates) the single draft revision for a Thinkspace. */
+export const saveAgentProfileDraft = async (
+	db: ProductDb,
+	{ draft }: SaveAgentProfileDraftInput,
+): Promise<DraftAgentProfileRevision> => {
+	const record = serializeAgentProfileRevision(draft);
+	const [saved] = await db
+		.insert(thinkspaceAgentProfiles)
+		.values(record)
+		.onConflictDoUpdate({
+			set: record,
+			target: thinkspaceAgentProfiles.id,
+		})
+		.returning();
+
+	if (!saved) {
+		throw new Error("Agent Profile draft was not persisted.");
+	}
+
+	const revision = parseAgentProfileRevision(saved);
+
+	if (revision.status !== AGENT_PROFILE_REVISION_STATUS.DRAFT) {
+		throw new Error("Agent Profile draft persistence returned a non-draft revision.");
+	}
+
+	return revision;
+};
+
+export interface ApplyAgentProfileActivationInput {
+	activation: AgentProfileActivation;
+}
+
+/**
+ * Persists an activation computed by `createAgentProfileActivation`.
+ *
+ * Writes run sequentially; the partial unique indexes on the table keep the
+ * "one active, one draft" invariant safe even if a step fails. Atomic batch
+ * semantics and the runtime-side snapshot/schedule reconciliation RPC are
+ * deliberately left to the activation behavior slice.
+ */
+export const applyAgentProfileActivation = async (
+	db: ProductDb,
+	{ activation }: ApplyAgentProfileActivationInput,
+): Promise<void> => {
+	const { activatedRevision, supersededRevision, thinkspaceActivationPatch } = activation;
+
+	if (supersededRevision) {
+		await db
+			.update(thinkspaceAgentProfiles)
+			.set(serializeAgentProfileRevision(supersededRevision))
+			.where(eq(thinkspaceAgentProfiles.id, supersededRevision.id));
+	}
+
+	await db
+		.update(thinkspaceAgentProfiles)
+		.set(serializeAgentProfileRevision(activatedRevision))
+		.where(eq(thinkspaceAgentProfiles.id, activatedRevision.id));
+
+	if (thinkspaceActivationPatch) {
+		await db
+			.update(thinkspaces)
+			.set(thinkspaceActivationPatch)
+			.where(eq(thinkspaces.id, activatedRevision.thinkspaceId));
+	}
+};
