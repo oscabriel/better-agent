@@ -78,6 +78,8 @@ export interface ThinkspaceTurnInspection {
 	completedAt: number | null;
 	message: string;
 	resultText: string | null;
+	profileRevisionId: string | null;
+	profileVersion: number | null;
 	startedAt: number | null;
 	status: ThinkspaceTurnInspectionStatus;
 	submissionId: string;
@@ -184,6 +186,8 @@ const createUnknownTurnInspection = (
 	acceptedAt: null,
 	completedAt: null,
 	message: UNKNOWN_TURN_MESSAGE,
+	profileRevisionId: null,
+	profileVersion: null,
 	resultText: null,
 	startedAt: null,
 	status: "unknown",
@@ -225,6 +229,14 @@ export const mapThinkspaceTurnInspection = ({
 	const base = {
 		acceptedAt: snapshot.createdAt,
 		completedAt: snapshot.completedAt ?? null,
+		profileRevisionId:
+			typeof snapshot.metadata.profileRevisionId === "string"
+				? snapshot.metadata.profileRevisionId
+				: null,
+		profileVersion:
+			typeof snapshot.metadata.profileVersion === "number"
+				? snapshot.metadata.profileVersion
+				: null,
 		resultText: null,
 		startedAt: snapshot.startedAt ?? null,
 		submissionId: snapshot.submissionId,

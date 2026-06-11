@@ -5,6 +5,11 @@ import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
 import type { CloudflareEnv } from "@better-agent/env/types";
 import { eq } from "drizzle-orm";
 
+import type {
+	ActiveAgentProfileRevision,
+	AgentProfileModelBehavior,
+} from "../thinkspaces/agent-profile";
+import { getActiveAgentProfileRevision } from "../thinkspaces/agent-profile-repository";
 import { DEFAULT_MODEL_ID, MODEL_PROVIDER_IDS } from "./catalog";
 import type { ModelCatalogEntry, ModelProviderId } from "./catalog";
 import { getDecryptedCredential } from "./credentials";
@@ -18,7 +23,10 @@ export type ModelReadinessReason =
 	| "unknown_model"
 	| "missing_user_credential"
 	| "permission_required"
-	| "resolution_failed";
+	| "resolution_failed"
+	| "no_active_agent_profile_revision";
+
+type ModelReadinessReasoningLevel = ReasoningEffort | "none";
 
 export interface ModelReadinessUserSettings {
 	defaultModel: string | null;
@@ -31,7 +39,7 @@ export interface ModelReadinessReady {
 	modelName: string;
 	providerId: ModelProviderId;
 	providerName: string;
-	reasoningEffort: ReasoningEffort;
+	reasoningEffort: ModelReadinessReasoningLevel;
 	status: "ready";
 }
 
@@ -42,18 +50,20 @@ export interface ModelReadinessNotReady {
 	providerId?: ModelProviderId;
 	providerName?: string;
 	reason: ModelReadinessReason;
-	reasoningEffort: ReasoningEffort;
+	reasoningEffort: ModelReadinessReasoningLevel;
 	status: "not_ready";
 }
 
 export type ThinkspaceModelReadiness = ModelReadinessReady | ModelReadinessNotReady;
 
 interface ThinkspaceModelEvaluation {
+	activeRevision?: ActiveAgentProfileRevision;
 	model?: LanguageModelV3;
 	readiness: ThinkspaceModelReadiness;
 }
 
 export interface ResolvedThinkspaceTurnModel {
+	activeRevision: ActiveAgentProfileRevision;
 	model: LanguageModelV3;
 	readiness: ModelReadinessReady;
 }
@@ -72,7 +82,7 @@ export interface GetOwnedThinkspaceModelReadinessInput {
 	db: ProductDb;
 	env: ModelReadinessEnv;
 	getThinkspaceByOwner?: GetThinkspaceByOwner;
-	getUserSettings?: GetUserSettings;
+	getActiveRevision?: GetActiveRevision;
 	getUserCredential?: GetUserCredential;
 	modelCatalog?: ModelCatalog;
 	ownerUserId: string;
@@ -84,6 +94,7 @@ export interface CheckThinkspaceModelReadinessInput {
 	env: ModelReadinessEnv;
 	getUserCredential?: GetUserCredential;
 	modelCatalog?: ModelCatalog;
+	modelBehavior?: AgentProfileModelBehavior;
 	settings: ModelReadinessUserSettings | null;
 	thinkspace: Pick<Thinkspace, "id" | "requestedPermissions">;
 	userId: string;
@@ -102,10 +113,10 @@ type GetThinkspaceByOwner = (
 	input: { ownerUserId: string; thinkspaceId: string },
 ) => Promise<Pick<Thinkspace, "id" | "requestedPermissions"> | null>;
 
-type GetUserSettings = (
+type GetActiveRevision = (
 	db: ProductDb,
-	userId: string,
-) => Promise<ModelReadinessUserSettings | null>;
+	input: { thinkspaceId: string },
+) => Promise<ActiveAgentProfileRevision | null>;
 
 type GetUserCredential = (
 	db: ProductDb,
@@ -156,13 +167,27 @@ const hasGrantedModelCredentialPermission = (
 		);
 	});
 
-const getReasoningEffort = (settings: ModelReadinessUserSettings | null): ReasoningEffort => {
-	const effort = settings?.reasoningEffort ?? "medium";
+const getReasoningEffort = (input: {
+	modelBehavior?: AgentProfileModelBehavior;
+	settings: ModelReadinessUserSettings | null;
+}): ModelReadinessReasoningLevel => {
+	if (input.modelBehavior) {
+		return input.modelBehavior.reasoningLevel;
+	}
+
+	const effort = input.settings?.reasoningEffort ?? "medium";
 	return isReasoningEffort(effort) ? effort : "medium";
 };
 
-const getConfiguredModelId = (settings: ModelReadinessUserSettings | null): string =>
-	settings?.defaultModel?.trim() || DEFAULT_MODEL_ID;
+const getConfiguredModelId = (input: {
+	modelBehavior?: AgentProfileModelBehavior;
+	settings: ModelReadinessUserSettings | null;
+}): string =>
+	input.modelBehavior?.modelId ?? input.settings?.defaultModel?.trim() ?? DEFAULT_MODEL_ID;
+
+const toResolverReasoningEffort = (
+	reasoningLevel: ModelReadinessReasoningLevel,
+): ReasoningEffort | undefined => (reasoningLevel === "none" ? undefined : reasoningLevel);
 
 const notReady = ({
 	message,
@@ -175,7 +200,7 @@ const notReady = ({
 	modelDefinition?: ModelCatalogEntry | null;
 	modelId: string;
 	reason: ModelReadinessReason;
-	reasoningEffort: ReasoningEffort;
+	reasoningEffort: ModelReadinessReasoningLevel;
 }): ThinkspaceModelReadiness => ({
 	message,
 	modelId,
@@ -196,7 +221,7 @@ const productSafeResolutionFailure = ({
 	error: ModelResolutionError;
 	modelDefinition: ModelCatalogEntry;
 	modelId: string;
-	reasoningEffort: ReasoningEffort;
+	reasoningEffort: ModelReadinessReasoningLevel;
 }): ThinkspaceModelReadiness => {
 	if (error.message.includes("Permission")) {
 		return notReady({
@@ -247,13 +272,14 @@ const evaluateThinkspaceModel = async ({
 	db,
 	env,
 	getUserCredential = getDecryptedCredential,
+	modelBehavior,
 	modelCatalog,
 	settings,
 	thinkspace,
 	userId,
 }: CheckThinkspaceModelReadinessInput): Promise<ThinkspaceModelEvaluation> => {
-	const modelId = getConfiguredModelId(settings);
-	const reasoningEffort = getReasoningEffort(settings);
+	const modelId = getConfiguredModelId({ modelBehavior, settings });
+	const reasoningEffort = getReasoningEffort({ modelBehavior, settings });
 	const catalog = modelCatalog ?? createProductModelCatalog(env);
 
 	let modelDefinition: ModelCatalogEntry | null;
@@ -287,7 +313,11 @@ const evaluateThinkspaceModel = async ({
 	)
 		? "granted"
 		: "not_granted";
-	const policy: ThinkspaceModelPolicy = { credentialPermission, modelId, reasoningEffort };
+	const policy: ThinkspaceModelPolicy = {
+		credentialPermission,
+		modelId,
+		reasoningEffort: toResolverReasoningEffort(reasoningEffort),
+	};
 	const userCredential =
 		credentialPermission === "granted"
 			? await getUserCredential(db, {
@@ -352,9 +382,9 @@ export const checkThinkspaceModelReadiness = async (
 const evaluateOwnedThinkspaceModel = async ({
 	db,
 	env,
+	getActiveRevision = getActiveAgentProfileRevision,
 	getThinkspaceByOwner = getThinkspace,
 	getUserCredential = getDecryptedCredential,
-	getUserSettings = getUserProductModelSettings,
 	modelCatalog,
 	ownerUserId,
 	thinkspaceId,
@@ -365,15 +395,31 @@ const evaluateOwnedThinkspaceModel = async ({
 		return null;
 	}
 
-	return await evaluateThinkspaceModel({
+	const activeRevision = await getActiveRevision(db, { thinkspaceId: thinkspace.id });
+
+	if (!activeRevision) {
+		return {
+			readiness: notReady({
+				message: "Activate an Agent Profile revision before running this Thinkspace Agent.",
+				modelId: DEFAULT_MODEL_ID,
+				reason: "no_active_agent_profile_revision",
+				reasoningEffort: "medium",
+			}),
+		};
+	}
+
+	const evaluation = await evaluateThinkspaceModel({
 		db,
 		env,
 		getUserCredential: async (_db, input) => await getUserCredential(db, input),
+		modelBehavior: activeRevision.modelBehavior,
 		modelCatalog,
-		settings: await getUserSettings(db, ownerUserId),
+		settings: null,
 		thinkspace,
 		userId: ownerUserId,
 	});
+
+	return { ...evaluation, activeRevision };
 };
 
 export const getOwnedThinkspaceModelReadiness = async (
@@ -406,5 +452,19 @@ export const resolveOwnedThinkspaceTurnModel = async (
 		throw new ThinkspaceTurnModelUnavailableError(readiness);
 	}
 
-	return { model: evaluation.model, readiness: evaluation.readiness };
+	if (!evaluation.activeRevision) {
+		throw new ThinkspaceTurnModelUnavailableError({
+			message: "Activate an Agent Profile revision before running this Thinkspace Agent.",
+			modelId: evaluation.readiness.modelId,
+			reason: "no_active_agent_profile_revision",
+			reasoningEffort: evaluation.readiness.reasoningEffort,
+			status: "not_ready",
+		});
+	}
+
+	return {
+		activeRevision: evaluation.activeRevision,
+		model: evaluation.model,
+		readiness: evaluation.readiness,
+	};
 };
