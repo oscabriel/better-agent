@@ -24,7 +24,7 @@ export interface ArchiveThinkspaceInput extends GetThinkspaceInput {
 export interface UpdateThinkspaceConfigurationInput extends GetThinkspaceInput {
 	patch: Pick<
 		typeof thinkspaces.$inferInsert,
-		"approvalDefaults" | "enabledToolIds" | "requestedPermissions" | "updatedAt"
+		"approvalDefaults" | "requestedPermissions" | "updatedAt"
 	>;
 }
 

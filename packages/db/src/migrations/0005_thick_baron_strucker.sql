@@ -1,0 +1,1 @@
+ALTER TABLE `thinkspaces` DROP COLUMN `enabled_tool_ids`;

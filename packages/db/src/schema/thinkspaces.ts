@@ -31,12 +31,6 @@ export const thinkspaces = sqliteTable(
 		archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
 		configurationSummary: text("configuration_summary").default("").notNull(),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampMsNow).notNull(),
-		/**
-		 * @deprecated Legacy curation config. Tool enablement is migrating to
-		 * versioned Agent Profile revisions in `thinkspace_agent_profiles`
-		 * (ADR-0007).
-		 */
-		enabledToolIds: text("enabled_tool_ids").default("[]").notNull(),
 		goal: text("goal").notNull(),
 		id: text("id").primaryKey(),
 		memoryGovernance: text("memory_governance").default("{}").notNull(),

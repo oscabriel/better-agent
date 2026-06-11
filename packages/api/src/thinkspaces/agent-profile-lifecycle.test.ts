@@ -82,6 +82,23 @@ test("activating a newer draft supersedes the active revision", () => {
 	assert.equal(second.thinkspaceActivationPatch, null);
 });
 
+test("draft tool enablements become active only after activation", () => {
+	const draft = {
+		...createDraft(),
+		toolEnablements: [{ source: "mcp_server" as const, toolId: "github:create_issue" }],
+	};
+
+	const activation = createAgentProfileActivation({
+		currentActive: null,
+		draft,
+		thinkspace: { id: "thinkspace_1", status: THINKSPACE_STATUS.DRAFT },
+	});
+
+	assert.deepEqual(activation.activatedRevision.toolEnablements, [
+		{ source: "mcp_server", toolId: "github:create_issue" },
+	]);
+});
+
 test("archived Thinkspaces reject Agent Profile activation", () => {
 	assert.throws(
 		() =>
