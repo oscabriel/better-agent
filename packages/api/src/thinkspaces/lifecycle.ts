@@ -8,7 +8,6 @@ export const THINKSPACE_CREATION_DEFAULTS = {
 	approvalDefaults: {
 		externalMutations: "require_approval",
 	},
-	enabledToolIds: [] as string[],
 	memoryGovernance: {
 		retention: "user_reviewed",
 	},
@@ -42,7 +41,7 @@ const assertMaxLength = (label: string, value: string, maxLength: number) => {
 const buildDefaultConfigurationSummary = (goal: string): string =>
 	[
 		`Goal: ${goal}`,
-		"Initial configuration keeps Skills, tools, requested Permissions, and Approval policy placeholders empty until the user deliberately scopes them.",
+		"Initial configuration keeps Skills, requested Permissions, and Approval policy placeholders empty until the user deliberately scopes them.",
 		"Memory governance starts in user-reviewed mode so retained understanding is accepted intentionally.",
 	].join("\n");
 
@@ -95,7 +94,6 @@ export const createThinkspaceCreationRecord = ({
 	return {
 		approvalDefaults: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.approvalDefaults),
 		configurationSummary: normalizedSummary || buildDefaultConfigurationSummary(normalizedGoal),
-		enabledToolIds: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.enabledToolIds),
 		goal: normalizedGoal,
 		id,
 		memoryGovernance: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.memoryGovernance),

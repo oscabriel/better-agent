@@ -66,6 +66,29 @@ const createDbForThinkspaceCreation = (settingsRows: Record<string, unknown>[] =
 	return { db: db as unknown as ProductDb, inserted };
 };
 
+const createDbForAgentProfileDraftUpdate = (row: Record<string, unknown>) => {
+	const saved: Record<string, unknown>[] = [];
+	const db = {
+		insert: () => ({
+			values: (value: Record<string, unknown>) => ({
+				onConflictDoUpdate: () => ({
+					returning: () => {
+						saved.push(value);
+						return Promise.resolve([value]);
+					},
+				}),
+			}),
+		}),
+		select: () => ({
+			from: () => ({
+				where: () => ({ limit: () => Promise.resolve([row]) }),
+			}),
+		}),
+	};
+
+	return { db: db as unknown as ProductDb, saved };
+};
+
 const createDbForAgentProfileActivation = (row: Record<string, unknown>) => {
 	const patches: Record<string, unknown>[] = [];
 	const db = {
@@ -111,7 +134,6 @@ const ownedThinkspaceRow = (overrides: Record<string, unknown> = {}): Record<str
 	...ownedAgentProfileColumns(),
 	archivedAt: null,
 	configurationSummary: "Watch release notes and draft a handoff.",
-	enabledToolIds: "[]",
 	goal: "Monitor releases",
 	id: OWNED_THINKSPACE_ID,
 	memoryGovernance: "{}",
@@ -275,6 +297,31 @@ test("owners can activate the draft Agent Profile revision and draft Thinkspace 
 	assert.equal(activation.thinkspaceStatus, "active");
 	assert.ok(patches.some((patch) => patch.status === "active" && patch.version === 1));
 	assert.ok(patches.some((patch) => patch.status === "active" && !("version" in patch)));
+});
+
+test("updating tools writes enablements and permission requests to the draft Agent Profile", async () => {
+	const { db, saved } = createDbForAgentProfileDraftUpdate(
+		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),
+	);
+	const context = createCallContext({ db });
+
+	const updated = await call(
+		thinkspacesRouter.updateToolSelections,
+		{
+			selections: [{ risk: "mutating", serverId: "github", toolName: "create_issue" }],
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context },
+	);
+
+	assert.ok(updated);
+	assert.equal(updated.agentProfileRevision.status, "draft");
+	assert.equal(
+		saved[0]?.toolEnablements,
+		'[{"source":"mcp_server","toolId":"github:create_issue"}]',
+	);
+	assert.match(String(saved[0]?.requestedPermissions), /mcp_tool_permission_placeholder/u);
+	assert.equal("enabledToolIds" in (saved[0] ?? {}), false);
 });
 
 test("Agent Profile activation rejects archived Thinkspaces before writes", async () => {
