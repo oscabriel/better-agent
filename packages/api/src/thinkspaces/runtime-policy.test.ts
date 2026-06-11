@@ -61,6 +61,15 @@ test("creates a turn config with no active tools and the policy step bound", () 
 	assert.equal(turnConfig.maxSteps, THINKSPACE_RUNTIME_POLICY.maxSteps);
 });
 
+test("raises the per-turn step bound only when runtime tools are active", () => {
+	const turnConfig = createThinkspaceRuntimeTurnConfig({
+		activeTools: ["tool_cloudflaredocs_search_docs"],
+	});
+
+	assert.deepEqual(turnConfig.activeTools, ["tool_cloudflaredocs_search_docs"]);
+	assert.equal(turnConfig.maxSteps, 2);
+});
+
 test("reports the runtime policy only after Thinkspace ownership is confirmed", async () => {
 	const requestedOwnershipChecks: { ownerUserId: string; thinkspaceId: string }[] = [];
 	const getThinkspaceByOwner = (
