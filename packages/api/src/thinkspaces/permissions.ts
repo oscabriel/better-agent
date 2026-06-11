@@ -27,6 +27,11 @@ export interface ThinkspacePermissionGrantOptions {
 	builtInMcpServers?: BuiltInMcpServer[];
 }
 
+export interface RevokeThinkspacePermissionInput {
+	permissionId: string;
+	thinkspaceId: string;
+}
+
 export class ThinkspacePermissionGrantError extends Error {
 	constructor(message: string) {
 		super(message);
@@ -199,3 +204,20 @@ export const listThinkspacePermissions = async (
 		.select()
 		.from(thinkspacePermissions)
 		.where(eq(thinkspacePermissions.thinkspaceId, input.thinkspaceId));
+
+export const revokeThinkspacePermission = async (
+	db: ProductDb,
+	input: RevokeThinkspacePermissionInput,
+): Promise<ThinkspacePermission | null> => {
+	const [revoked] = await db
+		.delete(thinkspacePermissions)
+		.where(
+			and(
+				eq(thinkspacePermissions.id, input.permissionId),
+				eq(thinkspacePermissions.thinkspaceId, input.thinkspaceId),
+			),
+		)
+		.returning();
+
+	return revoked ?? null;
+};

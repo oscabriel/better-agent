@@ -772,3 +772,86 @@ test("Thinkspace detail includes MCP grants and remains owner-gated", async () =
 		expectCode("NOT_FOUND"),
 	);
 });
+
+test("owners can revoke a granted MCP Permission without mutating Agent Profile revisions", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({ db, profileStatus: "active", thinkspaceStatus: "active" });
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: authenticatedSession.user.id,
+		id: "thinkspace_permission_cloudflare_docs",
+		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+		providerId: "cloudflare-docs",
+		reason: "Allow this Thinkspace Agent to read Cloudflare docs.",
+		resourceScope: JSON.stringify({ type: "server" }),
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	});
+	const revisionsBefore = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+
+	const revoked = await call(
+		thinkspacesRouter.revokePermission,
+		{
+			permissionId: "thinkspace_permission_cloudflare_docs",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context: createCallContext({ db }) },
+	);
+	const remainingGrants = await db
+		.select()
+		.from(thinkspacePermissions)
+		.where(eq(thinkspacePermissions.thinkspaceId, OWNED_THINKSPACE_ID));
+	const revisionsAfter = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+	const detailAfterRevocation = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.equal(revoked.revokedPermissionId, "thinkspace_permission_cloudflare_docs");
+	assert.equal(revoked.thinkspaceId, OWNED_THINKSPACE_ID);
+	assert.deepEqual(remainingGrants, []);
+	assert.deepEqual(detailAfterRevocation.grantedPermissions, []);
+	assert.deepEqual(revisionsAfter, revisionsBefore);
+});
+
+test("non-owners cannot revoke another user's Thinkspace Permission", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({ db, profileStatus: "active", thinkspaceStatus: "active" });
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: authenticatedSession.user.id,
+		id: "thinkspace_permission_cloudflare_docs",
+		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+		providerId: "cloudflare-docs",
+		reason: "Allow this Thinkspace Agent to read Cloudflare docs.",
+		resourceScope: JSON.stringify({ type: "server" }),
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	});
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.revokePermission,
+			{
+				permissionId: "thinkspace_permission_cloudflare_docs",
+				thinkspaceId: OWNED_THINKSPACE_ID,
+			},
+			{
+				context: createCallContext({
+					db,
+					session: { session: { id: "session_other" }, user: { id: "other_user" } },
+				}),
+			},
+		),
+		expectCode("NOT_FOUND"),
+	);
+
+	const [remainingGrant] = await db
+		.select()
+		.from(thinkspacePermissions)
+		.where(eq(thinkspacePermissions.id, "thinkspace_permission_cloudflare_docs"));
+	assert.equal(remainingGrant?.id, "thinkspace_permission_cloudflare_docs");
+});
