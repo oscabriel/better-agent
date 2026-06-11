@@ -16,14 +16,32 @@ const PROVIDER_LABELS = {
 	openai: "OpenAI",
 } as const;
 
+const REASONING_EFFORTS = ["low", "medium", "high"] as const;
+
 const RouteComponent = () => {
 	const context = routeApi.useRouteContext();
 	const queryClient = useQueryClient();
 	const catalogQuery = useSuspenseQuery(context.orpc.models.listAvailable.queryOptions());
 	const credentialsQuery = useSuspenseQuery(context.orpc.models.listCredentials.queryOptions());
+	const defaultsQuery = useSuspenseQuery(context.orpc.models.getDefaults.queryOptions());
+	const [defaultModel, setDefaultModel] = useState(defaultsQuery.data.defaultModel);
+	const [defaultReasoningEffort, setDefaultReasoningEffort] = useState(
+		defaultsQuery.data.reasoningEffort,
+	);
 	const [providerId, setProviderId] = useState<keyof typeof PROVIDER_LABELS>("openai");
 	const [credential, setCredential] = useState("");
 	const [label, setLabel] = useState("");
+	const saveDefaults = useMutation(
+		context.orpc.models.updateDefaults.mutationOptions({
+			onSuccess: async (settings) => {
+				setDefaultModel(settings.defaultModel);
+				setDefaultReasoningEffort(settings.reasoningEffort);
+				await queryClient.invalidateQueries({
+					queryKey: context.orpc.models.getDefaults.queryKey(),
+				});
+			},
+		}),
+	);
 	const saveCredential = useMutation(
 		context.orpc.models.saveCredential.mutationOptions({
 			onSuccess: async () => {
@@ -38,6 +56,18 @@ const RouteComponent = () => {
 			},
 		}),
 	);
+
+	const defaultsChanged =
+		defaultModel !== defaultsQuery.data.defaultModel ||
+		defaultReasoningEffort !== defaultsQuery.data.reasoningEffort;
+
+	const handleDefaultsSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (!(defaultModel && defaultsChanged) || saveDefaults.isPending) {
+			return;
+		}
+		saveDefaults.mutate({ defaultModel, reasoningEffort: defaultReasoningEffort });
+	};
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -56,6 +86,69 @@ const RouteComponent = () => {
 					before using any resource configured here.
 				</p>
 			</div>
+
+			<section aria-labelledby="model-defaults-heading" className="grid gap-4">
+				<div className="grid gap-1">
+					<h3 className="text-sm font-medium" id="model-defaults-heading">
+						Default Agent Profile model behavior
+					</h3>
+					<p className="text-muted-foreground text-sm">
+						These defaults seed newly created Agent Profile drafts. Existing Thinkspaces keep
+						running under their active revision.
+					</p>
+				</div>
+				<form
+					className="grid max-w-xl gap-4 border border-border p-4"
+					onSubmit={handleDefaultsSubmit}
+				>
+					<div className="grid gap-1.5">
+						<Label htmlFor="default-model">Default model</Label>
+						<select
+							className="h-8 w-full border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30"
+							id="default-model"
+							onChange={(event) => setDefaultModel(event.target.value)}
+							value={defaultModel}
+						>
+							{catalogQuery.data.map((model) => (
+								<option key={model.id} value={model.id}>
+									{model.name} · {model.providerName} · {model.id}
+								</option>
+							))}
+						</select>
+					</div>
+					<div className="grid gap-1.5">
+						<Label htmlFor="default-reasoning-effort">Reasoning effort</Label>
+						<select
+							className="h-8 w-full border border-input bg-transparent px-2.5 text-sm capitalize outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30"
+							id="default-reasoning-effort"
+							onChange={(event) =>
+								setDefaultReasoningEffort(event.target.value as (typeof REASONING_EFFORTS)[number])
+							}
+							value={defaultReasoningEffort}
+						>
+							{REASONING_EFFORTS.map((effort) => (
+								<option key={effort} value={effort}>
+									{effort}
+								</option>
+							))}
+						</select>
+					</div>
+					{saveDefaults.error ? (
+						<p className="text-destructive text-sm" role="alert">
+							{saveDefaults.error.message}
+						</p>
+					) : null}
+					<Button
+						className="w-fit"
+						disabled={!defaultsChanged || saveDefaults.isPending}
+						type="submit"
+					>
+						{saveDefaults.isPending ? "Saving…" : "Save defaults"}
+					</Button>
+				</form>
+			</section>
+
+			<Separator />
 
 			<section aria-labelledby="model-catalog-heading" className="grid gap-4">
 				<div className="grid gap-1">
