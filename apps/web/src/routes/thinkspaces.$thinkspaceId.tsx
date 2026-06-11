@@ -57,6 +57,14 @@ interface GrantedPermissionView {
 	resourceScope: string;
 }
 
+type ToolPotencyView = "inert" | "potent";
+
+interface EnabledToolPotencyView {
+	potency: ToolPotencyView;
+	source: string;
+	toolId: string;
+}
+
 interface AgentProfileRevisionView {
 	identity: {
 		displayName: string;
@@ -77,6 +85,36 @@ const toEnabledToolSelection = (enablement: { toolId: string }): EnabledToolSele
 
 	return { risk: "unknown", serverId: serverId ?? enablement.toolId, toolName };
 };
+
+const toProductToolId = (selection: EnabledToolSelection): string =>
+	selection.toolName ? `${selection.serverId}:${selection.toolName}` : selection.serverId;
+
+const formatToolSource = (source: string): string => {
+	if (source === "built_in") {
+		return "Built-in tool";
+	}
+
+	if (source === "mcp_server") {
+		return "External information source";
+	}
+
+	if (source === "connected_account") {
+		return "Connected Account tool";
+	}
+
+	if (source === "local_node") {
+		return "Local Node tool";
+	}
+
+	return "Tool";
+};
+
+const getToolPotencyLabel = (potency: ToolPotencyView): string =>
+	potency === "potent" ? "Potent" : "Inert";
+
+const getToolPotencyBadgeVariant = (
+	potency: ToolPotencyView,
+): "default" | "outline" | "secondary" => (potency === "potent" ? "default" : "secondary");
 
 const formatMcpScope = (scope: McpToolAccessScopeView | undefined): string => {
 	if (!scope) {
@@ -452,6 +490,132 @@ const SubmitTurnSection = ({
 	);
 };
 
+interface McpCatalogServerView {
+	description: string;
+	id: string;
+	name: string;
+	riskLevel: EnabledToolSelection["risk"];
+}
+
+const ToolsSection = ({
+	enabledTools,
+	isArchived,
+	mcpCatalog,
+	onToggleCatalogTool,
+	profileRevision,
+	toolPotencyById,
+	updateToolSelectionsError,
+	updateToolSelectionsPending,
+}: {
+	enabledTools: EnabledToolSelection[];
+	isArchived: boolean;
+	mcpCatalog: McpCatalogServerView[];
+	onToggleCatalogTool: (serverId: string, risk: EnabledToolSelection["risk"]) => void;
+	profileRevision: AgentProfileRevisionView | null;
+	toolPotencyById: ReadonlyMap<string, EnabledToolPotencyView>;
+	updateToolSelectionsError?: Error | null;
+	updateToolSelectionsPending: boolean;
+}) => (
+	<section aria-labelledby="tools-heading" className="grid gap-4">
+		<div className="grid gap-1">
+			<div className="flex items-center gap-2">
+				<h2 className="text-lg font-semibold tracking-tight" id="tools-heading">
+					Tools
+				</h2>
+				{profileRevision ? <Badge variant="outline">{profileRevision.status}</Badge> : null}
+			</div>
+			<p className="text-muted-foreground text-sm">
+				Select catalog tools on the Agent Profile revision. Draft selections take effect after
+				activation; active selections are used for turns.
+			</p>
+		</div>
+		{mcpCatalog.length === 0 ? (
+			<p className="border border-border p-4 text-muted-foreground text-sm">
+				No tools in the catalog.
+			</p>
+		) : (
+			<div className="border border-border">
+				{mcpCatalog.map((server, index) => {
+					const selectedTool = enabledTools.find((tool) => tool.serverId === server.id);
+					const selected = Boolean(selectedTool);
+					const toolPotency = selectedTool
+						? toolPotencyById.get(toProductToolId(selectedTool))
+						: undefined;
+
+					return (
+						<div
+							key={server.id}
+							className={`flex items-center justify-between gap-4 p-4 ${index < mcpCatalog.length - 1 ? "border-b border-border" : ""} ${selected ? "bg-muted/30" : ""}`}
+						>
+							<div className="grid gap-0.5">
+								<div className="flex items-center gap-2">
+									<p className="text-sm font-medium">{server.name}</p>
+									<span className="text-muted-foreground text-xs">{server.riskLevel}</span>
+									{toolPotency ? (
+										<Badge variant={getToolPotencyBadgeVariant(toolPotency.potency)}>
+											{getToolPotencyLabel(toolPotency.potency)}
+										</Badge>
+									) : null}
+								</div>
+								<p className="text-muted-foreground text-sm">{server.description}</p>
+							</div>
+							<Button
+								disabled={isArchived || updateToolSelectionsPending}
+								onClick={() => onToggleCatalogTool(server.id, server.riskLevel)}
+								size="sm"
+								type="button"
+								variant={selected ? "secondary" : "outline"}
+							>
+								{selected ? "Remove" : "Select"}
+							</Button>
+						</div>
+					);
+				})}
+			</div>
+		)}
+		<div className="grid gap-2">
+			<p className="text-sm font-medium">Enabled on Agent Profile</p>
+			{profileRevision?.toolEnablements.length ? (
+				<div className="border border-border">
+					{profileRevision.toolEnablements.map((enablement, index) => {
+						const toolPotency = toolPotencyById.get(enablement.toolId);
+
+						return (
+							<div
+								key={`${enablement.source}:${enablement.toolId}`}
+								className={`flex items-center justify-between gap-4 p-4 ${index < profileRevision.toolEnablements.length - 1 ? "border-b border-border" : ""}`}
+							>
+								<div className="grid gap-0.5">
+									<p className="break-all text-sm font-medium">{enablement.toolId}</p>
+									<p className="text-muted-foreground text-xs">
+										{formatToolSource(enablement.source)}
+									</p>
+								</div>
+								{toolPotency ? (
+									<Badge variant={getToolPotencyBadgeVariant(toolPotency.potency)}>
+										{getToolPotencyLabel(toolPotency.potency)}
+									</Badge>
+								) : (
+									<Badge variant="outline">Activates later</Badge>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			) : (
+				<p className="border border-border p-4 text-muted-foreground text-sm">
+					No tools enabled on this Agent Profile revision.
+				</p>
+			)}
+		</div>
+		{updateToolSelectionsError ? (
+			<p className="text-destructive text-sm" role="alert">
+				{updateToolSelectionsError.message}
+			</p>
+		) : null}
+	</section>
+);
+
 const PermissionsSection = ({
 	grantedPermissions,
 	onRevokeGrantedPermission,
@@ -632,6 +796,10 @@ const RouteComponent = () => {
 	const isArchived = thinkspace.status === "archived";
 	const isDraft = thinkspace.status === "draft";
 	const enabledTools = profileRevision?.toolEnablements.map(toEnabledToolSelection) ?? [];
+	const enabledToolPotencies = (thinkspace.enabledToolPotencies ?? []) as EnabledToolPotencyView[];
+	const toolPotencyById = new Map(
+		enabledToolPotencies.map((toolPotency) => [toolPotency.toolId, toolPotency] as const),
+	);
 	const requestedPermissions = profileRevision?.requestedPermissions ?? [];
 	const grantedPermissions = (thinkspace.grantedPermissions ?? []) as GrantedPermissionView[];
 
@@ -780,59 +948,16 @@ const RouteComponent = () => {
 
 			<Separator />
 
-			<section aria-labelledby="tools-heading" className="grid gap-4">
-				<div className="grid gap-1">
-					<div className="flex items-center gap-2">
-						<h2 className="text-lg font-semibold tracking-tight" id="tools-heading">
-							Tools
-						</h2>
-						{profileRevision ? <Badge variant="outline">{profileRevision.status}</Badge> : null}
-					</div>
-					<p className="text-muted-foreground text-sm">
-						Select catalog tools on the Agent Profile revision. Draft selections take effect after
-						activation; active selections are used for turns.
-					</p>
-				</div>
-				{mcpCatalogQuery.data.length === 0 ? (
-					<p className="border border-border p-4 text-muted-foreground text-sm">
-						No tools in the catalog.
-					</p>
-				) : (
-					<div className="border border-border">
-						{mcpCatalogQuery.data.map((server, index) => {
-							const selected = enabledTools.some((tool) => tool.serverId === server.id);
-							return (
-								<div
-									key={server.id}
-									className={`flex items-center justify-between gap-4 p-4 ${index < mcpCatalogQuery.data.length - 1 ? "border-b border-border" : ""} ${selected ? "bg-muted/30" : ""}`}
-								>
-									<div className="grid gap-0.5">
-										<div className="flex items-center gap-2">
-											<p className="text-sm font-medium">{server.name}</p>
-											<span className="text-muted-foreground text-xs">{server.riskLevel}</span>
-										</div>
-										<p className="text-muted-foreground text-sm">{server.description}</p>
-									</div>
-									<Button
-										disabled={isArchived || updateToolSelectionsMutation.isPending}
-										onClick={() => toggleCatalogTool(server.id, server.riskLevel)}
-										size="sm"
-										type="button"
-										variant={selected ? "secondary" : "outline"}
-									>
-										{selected ? "Remove" : "Select"}
-									</Button>
-								</div>
-							);
-						})}
-					</div>
-				)}
-				{updateToolSelectionsMutation.error ? (
-					<p className="text-destructive text-sm" role="alert">
-						{updateToolSelectionsMutation.error.message}
-					</p>
-				) : null}
-			</section>
+			<ToolsSection
+				enabledTools={enabledTools}
+				isArchived={isArchived}
+				mcpCatalog={mcpCatalogQuery.data}
+				onToggleCatalogTool={toggleCatalogTool}
+				profileRevision={profileRevision}
+				toolPotencyById={toolPotencyById}
+				updateToolSelectionsError={updateToolSelectionsMutation.error}
+				updateToolSelectionsPending={updateToolSelectionsMutation.isPending}
+			/>
 
 			<Separator />
 
