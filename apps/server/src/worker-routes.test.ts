@@ -12,9 +12,12 @@ import test from "node:test";
  * entry points are the owner-gated oRPC procedures that talk to the Durable
  * Object by Thinkspace id.
  */
-const workerSource = readFileSync(new URL("index.ts", import.meta.url).pathname, "utf-8");
+const sourceRoot = import.meta.url.includes("/dist/src/")
+	? new URL("../../src/", import.meta.url)
+	: new URL("./", import.meta.url);
+const workerSource = readFileSync(new URL("index.ts", sourceRoot).pathname, "utf-8");
 const agentSource = readFileSync(
-	new URL("agents/thinkspace-agent.ts", import.meta.url).pathname,
+	new URL("agents/thinkspace-agent.ts", sourceRoot).pathname,
 	"utf-8",
 );
 
@@ -27,8 +30,12 @@ test("the worker never mounts raw Project Think agent routes", () => {
 
 test("the worker only exposes known app-owned route prefixes", () => {
 	const mountedRoutes = [
-		...workerSource.matchAll(/app\.(?:use|on|get|post)\(\s*(?:\[[^\]]*\],\s*)?"([^"]+)"/gu),
-	].map((match) => match[1]);
+		...workerSource.matchAll(/app\.(?:use|on|get|post)\(\s*(?:\[[^\]]*\],\s*)?"(?<route>[^"]+)"/gu),
+	].map((match) => {
+		const route = match.groups?.route;
+		assert.ok(route);
+		return route;
+	});
 
 	assert.deepEqual(mountedRoutes, [
 		"/*",
@@ -43,4 +50,10 @@ test("the worker only exposes known app-owned route prefixes", () => {
 test("the Thinkspace Agent runtime keeps direct HTTP access fail-closed", () => {
 	assert.match(agentSource, /override fetch\(/u);
 	assert.match(agentSource, /status: 404/u);
+});
+
+test("the Thinkspace Agent runtime gets tool verdicts from the store-backed Permission policy", () => {
+	assert.match(agentSource, /createPermissionStorePolicy\(\{ db \}\)\.evaluateToolPotency/u);
+	assert.match(agentSource, /enablements: activeRevision\.toolEnablements/u);
+	assert.doesNotMatch(agentSource, /toolPotencies:\s*\[\]/u);
 });

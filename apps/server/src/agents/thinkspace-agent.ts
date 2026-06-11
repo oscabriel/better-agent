@@ -12,6 +12,8 @@ import type {
 	ThinkspaceTurnInspection,
 	ThinkspaceTurnInspectionRequest,
 } from "@better-agent/api/thinkspaces/inspect";
+import { createPermissionStorePolicy } from "@better-agent/api/thinkspaces/permission-policy";
+import type { ToolPotencyVerdict } from "@better-agent/api/thinkspaces/permission-policy";
 import { assembleThinkspaceTurn } from "@better-agent/api/thinkspaces/turn-assembly";
 import {
 	createThinkspaceRuntimeToolSet,
@@ -33,6 +35,7 @@ import type {
 	ThinkspaceTurnSubmissionRequest,
 } from "@better-agent/api/thinkspaces/turns";
 import { createDb } from "@better-agent/db";
+import type { ProductDb } from "@better-agent/db";
 import type { CloudflareEnv } from "@better-agent/env/types";
 import { Think } from "@cloudflare/think";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
@@ -50,6 +53,8 @@ const MISSING_TURN_CONTEXT_MESSAGE =
 	"This Thinkspace Agent turn is missing its Thinkspace context.";
 const MISSING_THINKSPACE_MESSAGE =
 	"This Thinkspace Agent turn could not verify its Thinkspace configuration.";
+const PERMISSION_EVALUATION_FAILED_MESSAGE =
+	"This Thinkspace Agent turn could not evaluate its Thinkspace tool Permissions.";
 
 export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	private readonly runtimeToolSet: ToolSet = createThinkspaceRuntimeToolSet();
@@ -164,11 +169,17 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			throw new Error(markThinkspaceTurnProductSafeError(MISSING_TURN_CONTEXT_MESSAGE));
 		}
 
-		const resolved = await this.resolveTurnModel(turnContext);
+		const db = createDb(this.env.DB);
+		const resolved = await this.resolveTurnModel(db, turnContext);
+		const toolPotencies = await ThinkspaceAgent.evaluateToolPotencies(
+			db,
+			turnContext,
+			resolved.activeRevision,
+		);
 		const assembly = assembleThinkspaceTurn({
 			maxSteps: this.maxSteps,
 			revision: resolved.activeRevision,
-			toolPotencies: [],
+			toolPotencies,
 		});
 
 		return {
@@ -179,14 +190,39 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		};
 	}
 
+	/**
+	 * Tool potency comes from the real store-backed Permission policy: the
+	 * Thinkspace's granted Permissions decide which enabled tools become
+	 * active, never the Profile alone. Evaluation failures stay product-safe.
+	 */
+	private static async evaluateToolPotencies(
+		db: ProductDb,
+		turnContext: ThinkspaceTurnRuntimeContext,
+		activeRevision: NonNullable<
+			Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>
+		>["activeRevision"],
+	): Promise<ToolPotencyVerdict[]> {
+		try {
+			return await createPermissionStorePolicy({ db }).evaluateToolPotency({
+				enablements: activeRevision.toolEnablements,
+				thinkspaceId: turnContext.thinkspaceId,
+			});
+		} catch (error) {
+			throw new Error(markThinkspaceTurnProductSafeError(PERMISSION_EVALUATION_FAILED_MESSAGE), {
+				cause: error,
+			});
+		}
+	}
+
 	private async resolveTurnModel(
+		db: ProductDb,
 		turnContext: ThinkspaceTurnRuntimeContext,
 	): Promise<NonNullable<Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>>> {
 		let resolved: Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>;
 
 		try {
 			resolved = await resolveOwnedThinkspaceTurnModel({
-				db: createDb(this.env.DB),
+				db,
 				env: this.env,
 				ownerUserId: turnContext.ownerUserId,
 				thinkspaceId: turnContext.thinkspaceId,
