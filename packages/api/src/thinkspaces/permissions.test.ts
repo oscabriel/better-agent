@@ -9,7 +9,9 @@ import type { BuiltInMcpServer } from "../mcp/catalog";
 import { createTestProductDb } from "../testing/product-db";
 import type { McpToolAccessPermissionRequest } from "./agent-profile";
 import {
+	listThinkspacePermissions,
 	prepareThinkspacePermissionGrants,
+	revokeThinkspacePermission,
 	saveThinkspacePermissionGrants,
 	ThinkspacePermissionGrantError,
 	toThinkspacePermissionGrant,
@@ -146,4 +148,33 @@ test("MCP grants keep per-Thinkspace uniqueness by kind and server id", async ()
 	assert.equal(saved[0]?.providerId, "docs");
 	assert.equal(saved[0]?.reason, "Allow one docs tool.");
 	assert.equal(saved[0]?.resourceScope, JSON.stringify({ toolName: "search_docs", type: "tool" }));
+});
+
+test("revoking a Thinkspace Permission deletes only the matching grant row", async () => {
+	const db = await createSeededDb();
+	const [grant] = await saveThinkspacePermissionGrants(
+		db,
+		prepareThinkspacePermissionGrants([grantInput()], {
+			builtInMcpServers: [readOnlyAuthFreeServer],
+		}),
+	);
+	assert.ok(grant);
+
+	const mismatchedThinkspace = await revokeThinkspacePermission(db, {
+		permissionId: grant.id,
+		thinkspaceId: "thinkspace_other",
+	});
+	assert.equal(mismatchedThinkspace, null);
+	const grantsAfterMismatchedRevoke = await listThinkspacePermissions(db, {
+		thinkspaceId: THINKSPACE_ID,
+	});
+	assert.equal(grantsAfterMismatchedRevoke.length, 1);
+
+	const revoked = await revokeThinkspacePermission(db, {
+		permissionId: grant.id,
+		thinkspaceId: THINKSPACE_ID,
+	});
+
+	assert.equal(revoked?.id, grant.id);
+	assert.deepEqual(await listThinkspacePermissions(db, { thinkspaceId: THINKSPACE_ID }), []);
 });

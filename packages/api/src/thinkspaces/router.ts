@@ -34,6 +34,7 @@ import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } 
 import {
 	listThinkspacePermissions,
 	prepareThinkspacePermissionGrants,
+	revokeThinkspacePermission,
 	saveThinkspacePermissionGrants,
 	ThinkspacePermissionGrantError,
 } from "./permissions";
@@ -69,6 +70,10 @@ const createThinkspaceInput = z.object({
 
 const thinkspaceIdInput = z.object({
 	thinkspaceId: z.string().min(1),
+});
+
+const revokePermissionInput = thinkspaceIdInput.extend({
+	permissionId: z.string().min(1),
 });
 
 const activateAgentProfileInput = thinkspaceIdInput.extend({
@@ -386,6 +391,32 @@ export const thinkspacesRouter = {
 			}
 
 			return readiness;
+		}),
+	revokePermission: protectedProcedure
+		.input(revokePermissionInput)
+		.handler(async ({ context, input }) => {
+			const thinkspace = await getThinkspace(context.db, {
+				ownerUserId: context.session.user.id,
+				thinkspaceId: input.thinkspaceId,
+			});
+
+			if (!thinkspace) {
+				throw toNotFound();
+			}
+
+			const revokedPermission = await revokeThinkspacePermission(context.db, {
+				permissionId: input.permissionId,
+				thinkspaceId: thinkspace.id,
+			});
+
+			if (!revokedPermission) {
+				throw toNotFound();
+			}
+
+			return {
+				revokedPermissionId: revokedPermission.id,
+				thinkspaceId: thinkspace.id,
+			};
 		}),
 	runtimePolicy: protectedProcedure.input(thinkspaceIdInput).handler(async ({ context, input }) => {
 		const policy = await getOwnedThinkspaceRuntimePolicy({
