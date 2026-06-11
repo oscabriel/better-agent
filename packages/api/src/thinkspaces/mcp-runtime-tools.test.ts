@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { user } from "@better-agent/db/schema/auth";
+import {
+	THINKSPACE_PERMISSION_KINDS,
+	thinkspacePermissions,
+} from "@better-agent/db/schema/permissions";
+import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import type { ToolSet } from "ai";
 
 import type { BuiltInMcpServer } from "../mcp/catalog";
@@ -8,11 +14,15 @@ import {
 	createCloudflareAgentsMcpToolName,
 	parseCloudflareAgentsMcpToolName,
 } from "../mcp/tool-identity";
+import { createTestProductDb } from "../testing/product-db";
 import type { ActiveAgentProfileRevision } from "./agent-profile";
+import { revokeThinkspacePermission } from "./permissions";
 import {
 	createMemoryPermissionPolicy,
 	createEnablementOnlyPermissionPolicy,
+	createPermissionStorePolicy,
 } from "./permission-policy";
+import { assembleThinkspaceTurn } from "./turn-assembly";
 import {
 	createThinkspaceMcpDegradationNotice,
 	evaluateMcpRuntimeToolCallPermission,
@@ -87,6 +97,31 @@ const createRevision = (
 
 const toolSet = (toolNames: string[]): ToolSet =>
 	Object.fromEntries(toolNames.map((toolName) => [toolName, {} as never])) as ToolSet;
+
+const seedGrantedMcpRuntimeDb = async () => {
+	const db = createTestProductDb();
+
+	await db.insert(user).values({
+		email: "mcp-runtime-owner@example.com",
+		id: "user_mcp_runtime",
+		name: "Owner",
+	});
+	await db.insert(thinkspaces).values({
+		goal: "Read docs.",
+		id: "thinkspace_mcp_runtime",
+		ownerUserId: "user_mcp_runtime",
+	});
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: "user_mcp_runtime",
+		id: "thinkspace_permission_cloudflare_docs",
+		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+		providerId: "cloudflare-docs",
+		resourceScope: JSON.stringify({ type: "server" }),
+		thinkspaceId: "thinkspace_mcp_runtime",
+	});
+
+	return db;
+};
 
 test("Cloudflare Agents MCP tool identity maps product server ids to runtime tool names", () => {
 	const runtimeToolName = createCloudflareAgentsMcpToolName("cloudflare-docs", "search_docs");
@@ -173,6 +208,50 @@ test("preparation registers granted runtime tools and limits active tools to ena
 		"tool_cloudflaredocs_search_docs",
 		"tool_awsknowledge_search",
 	]);
+});
+
+test("revoked MCP grants make next-turn preparation skip the server connection", async () => {
+	const db = await seedGrantedMcpRuntimeDb();
+	const revision = createRevision([{ source: "mcp_server", toolId: "cloudflare-docs" }]);
+	const policy = createPermissionStorePolicy({ db });
+	const grantedVerdicts = await policy.evaluateToolPotency({
+		enablements: revision.toolEnablements,
+		thinkspaceId: revision.thinkspaceId,
+	});
+	assert.deepEqual(grantedVerdicts, [{ potency: "potent", toolId: "cloudflare-docs" }]);
+
+	const revoked = await revokeThinkspacePermission(db, {
+		permissionId: "thinkspace_permission_cloudflare_docs",
+		thinkspaceId: revision.thinkspaceId,
+	});
+	assert.ok(revoked);
+
+	const revokedVerdicts = await policy.evaluateToolPotency({
+		enablements: revision.toolEnablements,
+		thinkspaceId: revision.thinkspaceId,
+	});
+	const assembly = assembleThinkspaceTurn({ revision, toolPotencies: revokedVerdicts });
+	const plan = planThinkspaceMcpRuntimeTools({
+		activeProductToolIds: assembly.activeTools,
+		builtInMcpServers: [CLOUD_FLARE_DOCS],
+		revision,
+	});
+	let connectionAttempts = 0;
+
+	const prepared = await prepareThinkspaceMcpRuntimeTools({
+		activeProductToolIds: plan.activeProductToolIds,
+		connectServer: () => {
+			connectionAttempts += 1;
+			return Promise.resolve(toolSet(["tool_cloudflaredocs_search_docs"]));
+		},
+		servers: plan.servers,
+	});
+
+	assert.deepEqual(revokedVerdicts, [{ potency: "inert", toolId: "cloudflare-docs" }]);
+	assert.deepEqual(assembly.activeTools, []);
+	assert.deepEqual(plan.servers, []);
+	assert.equal(connectionAttempts, 0);
+	assert.deepEqual(prepared.activeToolNames, []);
 });
 
 test("unreachable MCP servers degrade to model-only with a product-safe notice", async () => {

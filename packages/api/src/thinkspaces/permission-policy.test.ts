@@ -8,10 +8,9 @@ import {
 	thinkspacePermissions,
 } from "@better-agent/db/schema/permissions";
 import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
-import { eq } from "drizzle-orm";
-
 import { createTestProductDb } from "../testing/product-db";
 import type { ActiveAgentProfileRevision, ToolEnablement } from "./agent-profile";
+import { revokeThinkspacePermission } from "./permissions";
 import { createPermissionStorePolicy, mcpServerIdFromToolId } from "./permission-policy";
 import { assembleThinkspaceTurn } from "./turn-assembly";
 
@@ -40,6 +39,9 @@ const createSeededDb = async (): Promise<ProductDb> => {
 	return db;
 };
 
+const mcpGrantId = (serverId: string, thinkspaceId = THINKSPACE_ID): string =>
+	`thinkspace_permission_${serverId}_${thinkspaceId}`;
+
 const grantMcpToolAccess = async (
 	db: ProductDb,
 	serverId: string,
@@ -47,7 +49,7 @@ const grantMcpToolAccess = async (
 ) => {
 	await db.insert(thinkspacePermissions).values({
 		grantedByUserId: OWNER_USER_ID,
-		id: `thinkspace_permission_${serverId}_${thinkspaceId}`,
+		id: mcpGrantId(serverId, thinkspaceId),
 		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
 		providerId: serverId,
 		thinkspaceId,
@@ -141,20 +143,33 @@ test("Connected Account and Local Node enablements stay inert even with grants p
 	]);
 });
 
-test("a revoked grant makes the tool inert on the next evaluation", async () => {
+test("a revoked grant makes the still-enabled tool inert on the next evaluation", async () => {
 	const db = await createSeededDb();
 	await grantMcpToolAccess(db, "cloudflare-docs");
 
 	const enablements: ToolEnablement[] = [{ source: "mcp_server", toolId: "cloudflare-docs" }];
+	const revision = {
+		id: "profile_revision_revoked_grant",
+		identity: { displayName: "Release Monitor", instructions: "Watch releases." },
+		modelBehavior: { modelId: "google:gemini-2.5-flash-lite", reasoningLevel: "medium" },
+		status: "active",
+		toolEnablements: enablements,
+		version: 3,
+	} as unknown as ActiveAgentProfileRevision;
 	const granted = await evaluate(db, enablements);
 	assert.deepEqual(granted, [{ potency: "potent", toolId: "cloudflare-docs" }]);
 
-	await db
-		.delete(thinkspacePermissions)
-		.where(eq(thinkspacePermissions.providerId, "cloudflare-docs"));
+	const revokedGrant = await revokeThinkspacePermission(db, {
+		permissionId: mcpGrantId("cloudflare-docs"),
+		thinkspaceId: THINKSPACE_ID,
+	});
+	assert.ok(revokedGrant);
 
 	const revoked = await evaluate(db, enablements);
+	const assembly = assembleThinkspaceTurn({ revision, toolPotencies: revoked });
+
 	assert.deepEqual(revoked, [{ potency: "inert", toolId: "cloudflare-docs" }]);
+	assert.deepEqual(assembly.activeTools, []);
 });
 
 test("store-backed verdicts feeding turn assembly never activate tools the revision did not enable", async () => {
