@@ -21,13 +21,6 @@ export interface ArchiveThinkspaceInput extends GetThinkspaceInput {
 	patch: Pick<typeof thinkspaces.$inferInsert, "archivedAt" | "status" | "updatedAt">;
 }
 
-export interface UpdateThinkspaceConfigurationInput extends GetThinkspaceInput {
-	patch: Pick<
-		typeof thinkspaces.$inferInsert,
-		"approvalDefaults" | "requestedPermissions" | "updatedAt"
-	>;
-}
-
 export interface CreateThinkspaceInput {
 	record: typeof thinkspaces.$inferInsert;
 }
@@ -89,19 +82,6 @@ export const archiveThinkspace = async (
 		.returning();
 
 	return archived ?? null;
-};
-
-export const updateThinkspaceConfiguration = async (
-	db: ProductDb,
-	{ ownerUserId, patch, thinkspaceId }: UpdateThinkspaceConfigurationInput,
-): Promise<Thinkspace | null> => {
-	const [updated] = await db
-		.update(thinkspaces)
-		.set(patch)
-		.where(and(eq(thinkspaces.id, thinkspaceId), eq(thinkspaces.ownerUserId, ownerUserId)))
-		.returning();
-
-	return updated ?? null;
 };
 
 export const listThinkspaces = async (
