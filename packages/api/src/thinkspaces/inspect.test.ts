@@ -231,6 +231,30 @@ test("completed turns carry the bounded model-only result text", () => {
 	assert.equal(completed.completedAt, 1_717_000_001_000);
 });
 
+test("completed tool-using turns remain attributable to their Agent Profile revision", () => {
+	const completed = mapThinkspaceTurnInspection({
+		resultText: "The external information tool result informed this answer.",
+		snapshot: createSnapshot({
+			completedAt: 1_717_000_001_000,
+			metadata: {
+				profileRevisionId: "profile_revision_tool_using",
+				profileVersion: 7,
+				source: "better-agent",
+				thinkspaceId: "thinkspace_inspect",
+			},
+			startedAt: 1_717_000_000_500,
+			status: "completed",
+		}),
+		submissionId: "submission_tool_using",
+		thinkspaceId: "thinkspace_inspect",
+	});
+
+	assert.equal(completed.status, "completed");
+	assert.equal(completed.profileRevisionId, "profile_revision_tool_using");
+	assert.equal(completed.profileVersion, 7);
+	assert.equal(completed.resultText, "The external information tool result informed this answer.");
+});
+
 test("failed turns keep product-safe messages and drop raw runtime errors", () => {
 	const productSafe = mapThinkspaceTurnInspection({
 		snapshot: createSnapshot({

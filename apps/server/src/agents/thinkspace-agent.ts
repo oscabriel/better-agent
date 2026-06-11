@@ -12,8 +12,20 @@ import type {
 	ThinkspaceTurnInspection,
 	ThinkspaceTurnInspectionRequest,
 } from "@better-agent/api/thinkspaces/inspect";
+import type { BuiltInMcpServer } from "@better-agent/api/mcp/catalog";
+import { listBuiltInMcpServers } from "@better-agent/api/mcp/catalog";
+import {
+	createThinkspaceMcpDegradationNotice,
+	evaluateMcpRuntimeToolCallPermission,
+	planThinkspaceMcpRuntimeTools,
+	prepareThinkspaceMcpRuntimeTools,
+	THINKSPACE_MCP_TOOL_BLOCKED_REASON,
+} from "@better-agent/api/thinkspaces/mcp-runtime-tools";
 import { createPermissionStorePolicy } from "@better-agent/api/thinkspaces/permission-policy";
-import type { ToolPotencyVerdict } from "@better-agent/api/thinkspaces/permission-policy";
+import type {
+	ThinkspacePermissionPolicy,
+	ToolPotencyVerdict,
+} from "@better-agent/api/thinkspaces/permission-policy";
 import { assembleThinkspaceTurn } from "@better-agent/api/thinkspaces/turn-assembly";
 import {
 	createThinkspaceRuntimeToolSet,
@@ -38,6 +50,12 @@ import { createDb } from "@better-agent/db";
 import type { ProductDb } from "@better-agent/db";
 import type { CloudflareEnv } from "@better-agent/env/types";
 import { Think } from "@cloudflare/think";
+import type {
+	ChatErrorContext,
+	ChatResponseResult,
+	ToolCallContext,
+	ToolCallDecision,
+} from "@cloudflare/think";
 import type { LanguageModel, ToolSet, UIMessage } from "ai";
 
 const TURN_CONTEXT_STORAGE_KEY = "better-agent:turn-context";
@@ -56,11 +74,15 @@ const MISSING_THINKSPACE_MESSAGE =
 const PERMISSION_EVALUATION_FAILED_MESSAGE =
 	"This Thinkspace Agent turn could not evaluate its Thinkspace tool Permissions.";
 
+const toRuntimeMcpTransport = (transport: BuiltInMcpServer["transport"]) =>
+	transport === "streamable_http" ? "streamable-http" : "sse";
+
 export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	private readonly runtimeToolSet: ToolSet = createThinkspaceRuntimeToolSet();
+	private readonly turnMcpServerIds = new Set<string>();
 	private readonly turnModelPlaceholder: LanguageModel = UNRESOLVED_TURN_MODEL;
 	private readonly turnSystemPrompt =
-		"You are a Thinkspace Agent for Better Agent. Complete the user's bounded instruction directly and concisely. You have no tools available in this slice; respond with model output only.";
+		"You are a Thinkspace Agent for Better Agent. Complete the user's bounded instruction directly and concisely. Tool availability is resolved per turn from the Thinkspace configuration.";
 
 	override maxSteps = THINKSPACE_RUNTIME_POLICY.maxSteps;
 	override workspaceBash = THINKSPACE_RUNTIME_POLICY.workspaceBash;
@@ -76,6 +98,10 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		return Promise.resolve(
 			new Response("This Thinkspace Agent runtime is not directly accessible.", { status: 404 }),
 		);
+	}
+
+	override async onStart(): Promise<void> {
+		await this.removeKnownBuiltInMcpServers();
 	}
 
 	async acceptTurnSubmission(
@@ -170,9 +196,10 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		}
 
 		const db = createDb(this.env.DB);
+		const permissionPolicy = createPermissionStorePolicy({ db });
 		const resolved = await this.resolveTurnModel(db, turnContext);
 		const toolPotencies = await ThinkspaceAgent.evaluateToolPotencies(
-			db,
+			permissionPolicy,
 			turnContext,
 			resolved.activeRevision,
 		);
@@ -181,12 +208,30 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			revision: resolved.activeRevision,
 			toolPotencies,
 		});
+		const mcpPlan = planThinkspaceMcpRuntimeTools({
+			activeProductToolIds: assembly.activeTools,
+			revision: resolved.activeRevision,
+		});
+
+		await this.removeKnownBuiltInMcpServers();
+
+		const mcpPreparation = await prepareThinkspaceMcpRuntimeTools({
+			activeProductToolIds: mcpPlan.activeProductToolIds,
+			connectServer: ({ server }) => this.connectBuiltInMcpServerForTurn(server),
+			servers: mcpPlan.servers,
+		});
+		const turnConfig = createThinkspaceRuntimeTurnConfig({
+			activeTools: mcpPreparation.activeToolNames,
+		});
+		const degradationNotice = createThinkspaceMcpDegradationNotice(mcpPreparation.degradedServers);
 
 		return {
-			...createThinkspaceRuntimeTurnConfig(),
-			maxSteps: assembly.maxSteps,
+			...turnConfig,
 			model: resolved.model,
-			system: assembly.systemPrompt,
+			system: degradationNotice
+				? `${assembly.systemPrompt}\n\n${degradationNotice}`
+				: assembly.systemPrompt,
+			tools: mcpPreparation.tools,
 		};
 	}
 
@@ -196,14 +241,14 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	 * active, never the Profile alone. Evaluation failures stay product-safe.
 	 */
 	private static async evaluateToolPotencies(
-		db: ProductDb,
+		permissionPolicy: ThinkspacePermissionPolicy,
 		turnContext: ThinkspaceTurnRuntimeContext,
 		activeRevision: NonNullable<
 			Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>
 		>["activeRevision"],
 	): Promise<ToolPotencyVerdict[]> {
 		try {
-			return await createPermissionStorePolicy({ db }).evaluateToolPotency({
+			return await permissionPolicy.evaluateToolPotency({
 				enablements: activeRevision.toolEnablements,
 				thinkspaceId: turnContext.thinkspaceId,
 			});
@@ -212,6 +257,87 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 				cause: error,
 			});
 		}
+	}
+
+	override async beforeToolCall(ctx: ToolCallContext): Promise<ToolCallDecision | undefined> {
+		const turnContext =
+			await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY);
+
+		if (!turnContext) {
+			return { action: "block", reason: THINKSPACE_MCP_TOOL_BLOCKED_REASON };
+		}
+
+		try {
+			const db = createDb(this.env.DB);
+			const resolved = await this.resolveTurnModel(db, turnContext);
+			const decision = await evaluateMcpRuntimeToolCallPermission({
+				permissionPolicy: createPermissionStorePolicy({ db }),
+				revision: resolved.activeRevision,
+				runtimeToolName: ctx.toolName,
+				thinkspaceId: turnContext.thinkspaceId,
+			});
+
+			if (!(decision.applies && !decision.allowed)) {
+				return;
+			}
+
+			return { action: "block", reason: decision.reason ?? THINKSPACE_MCP_TOOL_BLOCKED_REASON };
+		} catch {
+			return { action: "block", reason: THINKSPACE_MCP_TOOL_BLOCKED_REASON };
+		}
+	}
+
+	override async onChatResponse(result: ChatResponseResult): Promise<void> {
+		try {
+			await this.cleanupTurnMcpServers();
+		} finally {
+			await super.onChatResponse(result);
+		}
+	}
+
+	override onChatError(error: unknown, ctx?: ChatErrorContext): unknown {
+		void this.cleanupTurnMcpServers();
+
+		return super.onChatError(error, ctx);
+	}
+
+	private async connectBuiltInMcpServerForTurn(server: BuiltInMcpServer): Promise<ToolSet> {
+		const result = await this.addMcpServer(server.name, server.url, {
+			id: server.id,
+			transport: { type: toRuntimeMcpTransport(server.transport) },
+		});
+
+		if (result.state !== "ready") {
+			throw new Error("Granted external information source is not ready for this turn.");
+		}
+
+		this.turnMcpServerIds.add(result.id);
+
+		return this.mcp.getAITools({ serverId: result.id, state: "ready" });
+	}
+
+	private async cleanupTurnMcpServers(): Promise<void> {
+		const serverIds = [...this.turnMcpServerIds];
+		this.turnMcpServerIds.clear();
+
+		await Promise.all(
+			serverIds.map((serverId) => this.removeMcpServer(serverId).catch(() => null)),
+		);
+	}
+
+	private async removeKnownBuiltInMcpServers(): Promise<void> {
+		const builtInServerIds = new Set(listBuiltInMcpServers().map((server) => server.id));
+		const serverIds = Object.keys(this.getMcpServers().servers).filter((serverId) =>
+			builtInServerIds.has(serverId),
+		);
+
+		for (const serverId of serverIds) {
+			this.turnMcpServerIds.delete(serverId);
+		}
+
+		await Promise.all(
+			serverIds.map((serverId) => this.removeMcpServer(serverId).catch(() => null)),
+		);
 	}
 
 	private async resolveTurnModel(
