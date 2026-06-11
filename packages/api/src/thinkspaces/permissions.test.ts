@@ -1,0 +1,149 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { user } from "@better-agent/db/schema/auth";
+import { THINKSPACE_PERMISSION_KINDS } from "@better-agent/db/schema/permissions";
+import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
+
+import type { BuiltInMcpServer } from "../mcp/catalog";
+import { createTestProductDb } from "../testing/product-db";
+import type { McpToolAccessPermissionRequest } from "./agent-profile";
+import {
+	prepareThinkspacePermissionGrants,
+	saveThinkspacePermissionGrants,
+	ThinkspacePermissionGrantError,
+	toThinkspacePermissionGrant,
+} from "./permissions";
+
+const OWNER_USER_ID = "user_permission_grants";
+const THINKSPACE_ID = "thinkspace_permission_grants";
+
+const readOnlyAuthFreeServer: BuiltInMcpServer = {
+	authType: "none",
+	description: "Docs.",
+	enabledByDefaultForThinkspaces: false,
+	id: "docs",
+	name: "Docs",
+	riskLevel: "read_only",
+	transport: "streamable_http",
+	url: "https://example.com/mcp",
+};
+
+const mcpRequest = (
+	overrides: Partial<McpToolAccessPermissionRequest> = {},
+): McpToolAccessPermissionRequest => ({
+	kind: "mcp_tool_access",
+	reason: "Allow this Thinkspace Agent to read docs.",
+	risk: "read_only",
+	scope: { type: "server" },
+	serverId: "docs",
+	...overrides,
+});
+
+const grantInput = (permission = mcpRequest()) => ({
+	grantedByUserId: OWNER_USER_ID,
+	permission,
+	thinkspaceId: THINKSPACE_ID,
+});
+
+const createSeededDb = async () => {
+	const db = createTestProductDb();
+	await db
+		.insert(user)
+		.values({ email: "grant-owner@example.com", id: OWNER_USER_ID, name: "Owner" });
+	await db
+		.insert(thinkspaces)
+		.values({ goal: "Read docs", id: THINKSPACE_ID, ownerUserId: OWNER_USER_ID });
+
+	return db;
+};
+
+test("model-provider credential requests still convert into credential grants", () => {
+	const grant = toThinkspacePermissionGrant({
+		grantedByUserId: OWNER_USER_ID,
+		permission: {
+			kind: "model_provider_credential",
+			providerId: "google",
+			reason: "Use the saved Google credential.",
+		},
+		thinkspaceId: THINKSPACE_ID,
+	});
+
+	assert.equal(grant?.kind, THINKSPACE_PERMISSION_KINDS.MODEL_PROVIDER_CREDENTIAL);
+	assert.equal(grant?.providerId, "google");
+	assert.equal(grant?.resourceScope, JSON.stringify({ type: "model_provider" }));
+});
+
+test("grantable MCP requests convert into MCP tool access grants with explicit scope", () => {
+	const grant = toThinkspacePermissionGrant(grantInput(), {
+		builtInMcpServers: [readOnlyAuthFreeServer],
+	});
+
+	assert.equal(grant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+	assert.equal(grant?.providerId, "docs");
+	assert.equal(grant?.resourceScope, JSON.stringify({ type: "server" }));
+});
+
+test("MCP grants reject servers outside the built-in catalog", () => {
+	assert.throws(
+		() => toThinkspacePermissionGrant(grantInput(), { builtInMcpServers: [] }),
+		ThinkspacePermissionGrantError,
+	);
+});
+
+test("MCP grants reject servers requiring auth, non-read-only requests, and unsafe URLs", () => {
+	assert.throws(
+		() =>
+			toThinkspacePermissionGrant(grantInput(), {
+				builtInMcpServers: [{ ...readOnlyAuthFreeServer, authType: "api_key_header" }],
+			}),
+		ThinkspacePermissionGrantError,
+	);
+	assert.throws(
+		() =>
+			toThinkspacePermissionGrant(grantInput(mcpRequest({ risk: "mutating" })), {
+				builtInMcpServers: [readOnlyAuthFreeServer],
+			}),
+		ThinkspacePermissionGrantError,
+	);
+	assert.throws(
+		() =>
+			toThinkspacePermissionGrant(grantInput(), {
+				builtInMcpServers: [{ ...readOnlyAuthFreeServer, riskLevel: "mutating" }],
+			}),
+		ThinkspacePermissionGrantError,
+	);
+	assert.throws(
+		() =>
+			toThinkspacePermissionGrant(grantInput(), {
+				builtInMcpServers: [{ ...readOnlyAuthFreeServer, url: "http://127.0.0.1/mcp" }],
+			}),
+		ThinkspacePermissionGrantError,
+	);
+});
+
+test("MCP grants keep per-Thinkspace uniqueness by kind and server id", async () => {
+	const db = await createSeededDb();
+	const firstGrant = prepareThinkspacePermissionGrants([grantInput()], {
+		builtInMcpServers: [readOnlyAuthFreeServer],
+	});
+	await saveThinkspacePermissionGrants(db, firstGrant);
+
+	const replacementGrant = prepareThinkspacePermissionGrants(
+		[
+			grantInput(
+				mcpRequest({
+					reason: "Allow one docs tool.",
+					scope: { toolName: "search_docs", type: "tool" },
+				}),
+			),
+		],
+		{ builtInMcpServers: [readOnlyAuthFreeServer] },
+	);
+	const saved = await saveThinkspacePermissionGrants(db, replacementGrant);
+
+	assert.equal(saved.length, 1);
+	assert.equal(saved[0]?.providerId, "docs");
+	assert.equal(saved[0]?.reason, "Allow one docs tool.");
+	assert.equal(saved[0]?.resourceScope, JSON.stringify({ toolName: "search_docs", type: "tool" }));
+});

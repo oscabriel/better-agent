@@ -151,6 +151,14 @@ test("requested Permissions never carry past activation", () => {
 				providerId: "anthropic" as const,
 				reason: "Use the saved Anthropic credential for this Thinkspace.",
 			},
+			{
+				kind: "mcp_tool_access" as const,
+				reason:
+					"Allow this Thinkspace Agent to read all explicitly enabled tools from the cloudflare-docs MCP server.",
+				risk: "read_only" as const,
+				scope: { type: "server" as const },
+				serverId: "cloudflare-docs",
+			},
 		],
 	};
 
