@@ -20,6 +20,7 @@ import { encryptCredential } from "../models/credentials";
 import { createMemoryModelCatalog } from "../models/model-catalog";
 import type { ModelCatalog } from "../models/model-catalog";
 import { createTestProductDb } from "../testing/product-db";
+import type { ToolEnablement } from "./agent-profile";
 import { thinkspacesRouter } from "./router";
 import type { ThinkspaceTurnInspection } from "./inspect";
 import type { ThinkspaceTurnAcceptance } from "./turns";
@@ -209,11 +210,13 @@ const seedRealThinkspaceWithProfile = async ({
 	profileStatus = "draft",
 	requestedPermissions = [],
 	thinkspaceStatus = "draft",
+	toolEnablements = [{ source: "mcp_server", toolId: "cloudflare-docs" }],
 }: {
 	db: ProductDb;
 	profileStatus?: "active" | "draft";
 	requestedPermissions?: unknown[];
 	thinkspaceStatus?: "active" | "draft";
+	toolEnablements?: ToolEnablement[];
 }) => {
 	await db.insert(user).values({
 		email: "owner@example.com",
@@ -233,7 +236,7 @@ const seedRealThinkspaceWithProfile = async ({
 		requestedPermissions: JSON.stringify(requestedPermissions),
 		status: profileStatus,
 		thinkspaceId: OWNED_THINKSPACE_ID,
-		toolEnablements: JSON.stringify([{ source: "mcp_server", toolId: "cloudflare-docs" }]),
+		toolEnablements: JSON.stringify(toolEnablements),
 	});
 };
 
@@ -771,6 +774,110 @@ test("Thinkspace detail includes MCP grants and remains owner-gated", async () =
 		),
 		expectCode("NOT_FOUND"),
 	);
+});
+
+test("Thinkspace detail includes active revision tool potency indicators", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		profileStatus: "active",
+		thinkspaceStatus: "active",
+		toolEnablements: [
+			{ source: "built_in", toolId: "web_search" },
+			{ source: "mcp_server", toolId: "cloudflare-docs" },
+			{ source: "mcp_server", toolId: "aws-knowledge" },
+			{ source: "connected_account", toolId: "github" },
+			{ source: "local_node", toolId: "local-files" },
+		],
+	});
+	await db.insert(thinkspacePermissions).values([
+		{
+			grantedByUserId: authenticatedSession.user.id,
+			id: "thinkspace_permission_cloudflare_docs",
+			kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+			providerId: "cloudflare-docs",
+			reason: "Allow this Thinkspace Agent to read Cloudflare docs.",
+			resourceScope: JSON.stringify({ type: "server" }),
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{
+			grantedByUserId: authenticatedSession.user.id,
+			id: "thinkspace_permission_microsoft_learn",
+			kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+			providerId: "microsoft-learn",
+			reason: "An unenabled grant should not add a tool.",
+			resourceScope: JSON.stringify({ type: "server" }),
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+	]);
+
+	const thinkspace = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.deepEqual(thinkspace.enabledToolPotencies, [
+		{ potency: "potent", source: "built_in", toolId: "web_search" },
+		{ potency: "potent", source: "mcp_server", toolId: "cloudflare-docs" },
+		{ potency: "inert", source: "mcp_server", toolId: "aws-knowledge" },
+		{ potency: "inert", source: "connected_account", toolId: "github" },
+		{ potency: "inert", source: "local_node", toolId: "local-files" },
+	]);
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.get,
+			{ thinkspaceId: OWNED_THINKSPACE_ID },
+			{
+				context: createCallContext({
+					db,
+					session: { session: { id: "session_other" }, user: { id: "other_user" } },
+				}),
+			},
+		),
+		expectCode("NOT_FOUND"),
+	);
+});
+
+test("Thinkspace detail tool potency indicators reflect Permission revocation on the next read", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({ db, profileStatus: "active", thinkspaceStatus: "active" });
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: authenticatedSession.user.id,
+		id: "thinkspace_permission_cloudflare_docs",
+		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+		providerId: "cloudflare-docs",
+		reason: "Allow this Thinkspace Agent to read Cloudflare docs.",
+		resourceScope: JSON.stringify({ type: "server" }),
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	});
+
+	const granted = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	await call(
+		thinkspacesRouter.revokePermission,
+		{
+			permissionId: "thinkspace_permission_cloudflare_docs",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context: createCallContext({ db }) },
+	);
+	const revoked = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.deepEqual(granted.enabledToolPotencies, [
+		{ potency: "potent", source: "mcp_server", toolId: "cloudflare-docs" },
+	]);
+	assert.deepEqual(revoked.enabledToolPotencies, [
+		{ potency: "inert", source: "mcp_server", toolId: "cloudflare-docs" },
+	]);
 });
 
 test("owners can revoke a granted MCP Permission without mutating Agent Profile revisions", async () => {
