@@ -1,3 +1,4 @@
+import type { ProductDb } from "@better-agent/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
@@ -16,7 +17,11 @@ import {
 	validateAgentProfileIdentity,
 	validateAgentProfileModelBehavior,
 } from "./agent-profile";
-import type { RequestedPermission, ToolEnablement } from "./agent-profile";
+import type {
+	ActiveAgentProfileRevision,
+	RequestedPermission,
+	ToolEnablement,
+} from "./agent-profile";
 import {
 	AgentProfileLifecycleError,
 	createAgentProfileActivation,
@@ -26,7 +31,6 @@ import {
 import {
 	applyAgentProfileActivation,
 	getActiveAgentProfileRevision,
-	getCurrentAgentProfileRevision,
 	getDraftAgentProfileRevision,
 	saveAgentProfileDraft,
 } from "./agent-profile-repository";
@@ -54,6 +58,8 @@ import {
 	getOwnedThinkspaceAgentRuntimeReadiness,
 	ThinkspaceRuntimeResolutionError,
 } from "./runtime";
+import { createPermissionStorePolicy } from "./permission-policy";
+import type { ToolPotency } from "./permission-policy";
 import { getOwnedThinkspaceRuntimePolicy } from "./runtime-policy";
 import {
 	submitOwnedThinkspaceTurn,
@@ -120,6 +126,35 @@ const toRequestedPermissions = (
 	selections: z.infer<typeof toolSelectionSchema>[],
 ): RequestedPermission[] =>
 	selections.map((selection) => createMcpToolAccessPermissionRequest(selection));
+
+export interface EnabledToolPotencyInspection {
+	potency: ToolPotency;
+	source: ToolEnablement["source"];
+	toolId: string;
+}
+
+/**
+ * Inspect projection only: potency itself comes from the same Permission
+ * policy seam that turn assembly and runtime enforcement use.
+ */
+const inspectEnabledToolPotencies = async (
+	db: ProductDb,
+	revision: ActiveAgentProfileRevision,
+): Promise<EnabledToolPotencyInspection[]> => {
+	const verdicts = await createPermissionStorePolicy({ db }).evaluateToolPotency({
+		enablements: revision.toolEnablements,
+		thinkspaceId: revision.thinkspaceId,
+	});
+	const potencyByToolId = new Map(
+		verdicts.map((verdict) => [verdict.toolId, verdict.potency] as const),
+	);
+
+	return revision.toolEnablements.map((enablement) => ({
+		potency: potencyByToolId.get(enablement.toolId) ?? "inert",
+		source: enablement.source,
+		toolId: enablement.toolId,
+	}));
+};
 
 const deriveAgentProfileDisplayName = (goal: string): string => {
 	const normalized = goal.trim();
@@ -334,11 +369,21 @@ export const thinkspacesRouter = {
 			throw toNotFound();
 		}
 
+		const activeRevision = await getActiveAgentProfileRevision(context.db, {
+			thinkspaceId: thinkspace.id,
+		});
+		const agentProfileRevision =
+			activeRevision ??
+			(await getDraftAgentProfileRevision(context.db, {
+				thinkspaceId: thinkspace.id,
+			}));
+
 		return {
 			...thinkspace,
-			agentProfileRevision: await getCurrentAgentProfileRevision(context.db, {
-				thinkspaceId: thinkspace.id,
-			}),
+			agentProfileRevision,
+			enabledToolPotencies: activeRevision
+				? await inspectEnabledToolPotencies(context.db, activeRevision)
+				: [],
 			grantedPermissions: await listThinkspacePermissions(context.db, {
 				thinkspaceId: thinkspace.id,
 			}),
