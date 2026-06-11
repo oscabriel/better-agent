@@ -10,11 +10,12 @@ import type {
 	AgentProfileModelBehavior,
 } from "../thinkspaces/agent-profile";
 import { getActiveAgentProfileRevision } from "../thinkspaces/agent-profile-repository";
-import { DEFAULT_MODEL_ID, MODEL_PROVIDER_IDS } from "./catalog";
+import { DEFAULT_MODEL_ID } from "./catalog";
 import type { ModelCatalogEntry, ModelProviderId } from "./catalog";
 import { getDecryptedCredential } from "./credentials";
 import type { ModelCatalog } from "./model-catalog";
 import { createProductModelCatalog } from "./models-dev";
+import { hasThinkspaceModelProviderCredentialPermission } from "../thinkspaces/permissions";
 import { getThinkspace } from "../thinkspaces/repository";
 import { ModelResolutionError, resolveLanguageModel } from "./resolver";
 import type { ReasoningEffort, ThinkspaceModelPolicy } from "./resolver";
@@ -84,6 +85,7 @@ export interface GetOwnedThinkspaceModelReadinessInput {
 	getThinkspaceByOwner?: GetThinkspaceByOwner;
 	getActiveRevision?: GetActiveRevision;
 	getUserCredential?: GetUserCredential;
+	hasModelProviderCredentialPermission?: HasModelProviderCredentialPermission;
 	modelCatalog?: ModelCatalog;
 	ownerUserId: string;
 	thinkspaceId: string;
@@ -96,7 +98,8 @@ export interface CheckThinkspaceModelReadinessInput {
 	modelCatalog?: ModelCatalog;
 	modelBehavior?: AgentProfileModelBehavior;
 	settings: ModelReadinessUserSettings | null;
-	thinkspace: Pick<Thinkspace, "id" | "requestedPermissions">;
+	hasModelProviderCredentialPermission?: HasModelProviderCredentialPermission;
+	thinkspace: Pick<Thinkspace, "id">;
 	userId: string;
 }
 
@@ -111,7 +114,7 @@ const CATALOG_UNAVAILABLE_READINESS_MESSAGE =
 type GetThinkspaceByOwner = (
 	db: ProductDb,
 	input: { ownerUserId: string; thinkspaceId: string },
-) => Promise<Pick<Thinkspace, "id" | "requestedPermissions"> | null>;
+) => Promise<Pick<Thinkspace, "id"> | null>;
 
 type GetActiveRevision = (
 	db: ProductDb,
@@ -131,41 +134,10 @@ const isReasoningEffort = (value: string): value is ReasoningEffort =>
 const encryptionSecret = (env: ModelReadinessEnv): string =>
 	env.API_ENCRYPTION_KEY ?? env.BETTER_AUTH_SECRET;
 
-const parsePermissions = (requestedPermissions: string): unknown[] => {
-	try {
-		const parsed = JSON.parse(requestedPermissions) as unknown;
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
-};
-
-const isProviderId = (value: unknown): value is ModelProviderId =>
-	typeof value === "string" && MODEL_PROVIDER_IDS.includes(value as ModelProviderId);
-
-const hasGrantedModelCredentialPermission = (
-	thinkspace: Pick<Thinkspace, "requestedPermissions">,
-	providerId: ModelProviderId,
-): boolean =>
-	parsePermissions(thinkspace.requestedPermissions).some((permission) => {
-		if (!(permission && typeof permission === "object")) {
-			return false;
-		}
-
-		const candidate = permission as {
-			granted?: unknown;
-			providerId?: unknown;
-			status?: unknown;
-			type?: unknown;
-		};
-
-		return (
-			candidate.type === "model_provider_credential_permission" &&
-			isProviderId(candidate.providerId) &&
-			candidate.providerId === providerId &&
-			(candidate.granted === true || candidate.status === "granted")
-		);
-	});
+type HasModelProviderCredentialPermission = (
+	db: ProductDb,
+	input: { providerId: ModelProviderId; thinkspaceId: string },
+) => Promise<boolean>;
 
 const getReasoningEffort = (input: {
 	modelBehavior?: AgentProfileModelBehavior;
@@ -272,6 +244,7 @@ const evaluateThinkspaceModel = async ({
 	db,
 	env,
 	getUserCredential = getDecryptedCredential,
+	hasModelProviderCredentialPermission = hasThinkspaceModelProviderCredentialPermission,
 	modelBehavior,
 	modelCatalog,
 	settings,
@@ -307,10 +280,10 @@ const evaluateThinkspaceModel = async ({
 		};
 	}
 
-	const credentialPermission = hasGrantedModelCredentialPermission(
-		thinkspace,
-		modelDefinition.providerId,
-	)
+	const credentialPermission = (await hasModelProviderCredentialPermission(db, {
+		providerId: modelDefinition.providerId,
+		thinkspaceId: thinkspace.id,
+	}))
 		? "granted"
 		: "not_granted";
 	const policy: ThinkspaceModelPolicy = {
@@ -385,6 +358,7 @@ const evaluateOwnedThinkspaceModel = async ({
 	getActiveRevision = getActiveAgentProfileRevision,
 	getThinkspaceByOwner = getThinkspace,
 	getUserCredential = getDecryptedCredential,
+	hasModelProviderCredentialPermission = hasThinkspaceModelProviderCredentialPermission,
 	modelCatalog,
 	ownerUserId,
 	thinkspaceId,
@@ -412,6 +386,7 @@ const evaluateOwnedThinkspaceModel = async ({
 		db,
 		env,
 		getUserCredential: async (_db, input) => await getUserCredential(db, input),
+		hasModelProviderCredentialPermission,
 		modelBehavior: activeRevision.modelBehavior,
 		modelCatalog,
 		settings: null,

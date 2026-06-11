@@ -49,9 +49,8 @@ const unavailableCatalog: ModelCatalog = {
 	sourceId: "models_dev",
 };
 
-const createThinkspace = (requestedPermissions = "[]") => ({
+const createThinkspace = () => ({
 	id: "thinkspace_model_readiness",
-	requestedPermissions,
 });
 
 const activeRevision = (modelId = "google:gemini-2.5-flash-lite") =>
@@ -62,14 +61,9 @@ const activeRevision = (modelId = "google:gemini-2.5-flash-lite") =>
 		version: 1,
 	}) as never;
 
-const grantedCredentialPermission = (providerId: string): string =>
-	JSON.stringify([
-		{
-			granted: true,
-			providerId,
-			type: "model_provider_credential_permission",
-		},
-	]);
+const grantedCredentialPermission =
+	(providerId: string) => (_db: ProductDb, input: { providerId: string; thinkspaceId: string }) =>
+		Promise.resolve(input.providerId === providerId);
 
 test("reports ready for the default model once the credential Permission is granted", async () => {
 	const readiness = await checkThinkspaceModelReadiness({
@@ -80,9 +74,10 @@ test("reports ready for the default model once the credential Permission is gran
 			assert.equal(input.userId, "user_123");
 			return Promise.resolve("google-test-key");
 		},
+		hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 		modelCatalog,
 		settings: null,
-		thinkspace: createThinkspace(grantedCredentialPermission("google")),
+		thinkspace: createThinkspace(),
 		userId: "user_123",
 	});
 
@@ -110,9 +105,10 @@ test("fails closed when the user has no saved provider credential", async () => 
 		db,
 		env: createEnv(),
 		getUserCredential: () => Promise.resolve(null),
+		hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 		modelCatalog,
 		settings: null,
-		thinkspace: createThinkspace(grantedCredentialPermission("google")),
+		thinkspace: createThinkspace(),
 		userId: "user_123",
 	});
 
@@ -130,6 +126,7 @@ test("requires Thinkspace Permission before resolving any saved credential", asy
 			credentialLoadCount += 1;
 			return Promise.resolve("sk-test");
 		},
+		hasModelProviderCredentialPermission: () => Promise.resolve(false),
 		modelCatalog,
 		settings: { defaultModel: "openai:gpt-4.1", reasoningEffort: "medium" },
 		thinkspace: createThinkspace(),
@@ -150,9 +147,10 @@ test("reports ready only after the Thinkspace credential Permission is granted",
 			assert.equal(input.userId, "user_123");
 			return Promise.resolve("sk-test");
 		},
+		hasModelProviderCredentialPermission: grantedCredentialPermission("openai"),
 		modelCatalog,
 		settings: { defaultModel: "openai:gpt-4.1", reasoningEffort: "medium" },
-		thinkspace: createThinkspace(grantedCredentialPermission("openai")),
+		thinkspace: createThinkspace(),
 		userId: "user_123",
 	});
 
@@ -168,9 +166,10 @@ test("owner-gated model readiness reports readiness for owned Thinkspaces", asyn
 		getThinkspaceByOwner: (_db, input) => {
 			assert.equal(input.ownerUserId, "owner_user");
 			assert.equal(input.thinkspaceId, "thinkspace_owned");
-			return Promise.resolve(createThinkspace(grantedCredentialPermission("google")));
+			return Promise.resolve(createThinkspace());
 		},
 		getUserCredential: () => Promise.resolve("google-test-key"),
+		hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -185,9 +184,9 @@ test("resolves a usable turn model for ready owned Thinkspaces", async () => {
 		db,
 		env: createEnv(),
 		getActiveRevision: () => Promise.resolve(activeRevision()),
-		getThinkspaceByOwner: () =>
-			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+		getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
 		getUserCredential: () => Promise.resolve("google-test-key"),
+		hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -204,9 +203,9 @@ test("turn model resolution fails closed with a product-safe error when not read
 			db,
 			env: createEnv(),
 			getActiveRevision: () => Promise.resolve(activeRevision()),
-			getThinkspaceByOwner: () =>
-				Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+			getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
 			getUserCredential: () => Promise.resolve(null),
+			hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 			modelCatalog,
 			ownerUserId: "owner_user",
 			thinkspaceId: "thinkspace_owned",
@@ -225,8 +224,7 @@ test("owner-gated model readiness is not ready without an active Agent Profile r
 		db,
 		env: createEnv(),
 		getActiveRevision: () => Promise.resolve(null),
-		getThinkspaceByOwner: () =>
-			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+		getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -272,9 +270,10 @@ test("reports ready for a models.dev-only model from a credentialed, Permission-
 		db,
 		env: createEnv(),
 		getUserCredential: () => Promise.resolve("google-test-key"),
+		hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 		modelCatalog,
 		settings: { defaultModel: "google:gemini-catalog-only", reasoningEffort: "medium" },
-		thinkspace: createThinkspace(grantedCredentialPermission("google")),
+		thinkspace: createThinkspace(),
 		userId: "user_123",
 	});
 
@@ -288,9 +287,9 @@ test("resolves a usable turn model for a models.dev-only model id", async () => 
 		db,
 		env: createEnv(),
 		getActiveRevision: () => Promise.resolve(activeRevision("google:gemini-catalog-only")),
-		getThinkspaceByOwner: () =>
-			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+		getThinkspaceByOwner: () => Promise.resolve(createThinkspace()),
 		getUserCredential: () => Promise.resolve("google-test-key"),
+		hasModelProviderCredentialPermission: grantedCredentialPermission("google"),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -308,7 +307,7 @@ test("catalog unavailability fails closed with a product-safe readiness", async 
 		getUserCredential: () => Promise.resolve("google-test-key"),
 		modelCatalog: unavailableCatalog,
 		settings: null,
-		thinkspace: createThinkspace(grantedCredentialPermission("google")),
+		thinkspace: createThinkspace(),
 		userId: "user_123",
 	});
 

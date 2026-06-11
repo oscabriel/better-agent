@@ -22,12 +22,6 @@ export type ThinkspaceStatus = (typeof THINKSPACE_STATUS)[keyof typeof THINKSPAC
 export const thinkspaces = sqliteTable(
 	"thinkspaces",
 	{
-		/**
-		 * @deprecated Legacy curation config. Approval policy is Permission/
-		 * Approval-owned and never lives on the Agent Profile; this column is
-		 * superseded by Thinkspace-owned Permission storage (ADR-0003/0004/0007).
-		 */
-		approvalDefaults: text("approval_defaults").default("{}").notNull(),
 		archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
 		configurationSummary: text("configuration_summary").default("").notNull(),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampMsNow).notNull(),
@@ -37,13 +31,6 @@ export const thinkspaces = sqliteTable(
 		ownerUserId: text("owner_user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		/**
-		 * @deprecated Legacy curation config, still read by model-credential
-		 * readiness checks. Permission requests are migrating to draft Agent
-		 * Profile revisions; granted Permissions belong to Thinkspace-owned
-		 * Permission storage (ADR-0007).
-		 */
-		requestedPermissions: text("requested_permissions").default("[]").notNull(),
 		status: text("status").default(THINKSPACE_STATUS.DRAFT).notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
 			.default(timestampMsNow)

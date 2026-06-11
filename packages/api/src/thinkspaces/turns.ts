@@ -65,7 +65,7 @@ type ThinkspaceTurnEnv = Pick<
 type GetThinkspaceByOwner = (
 	db: ProductDb,
 	input: { ownerUserId: string; thinkspaceId: string },
-) => Promise<Pick<Thinkspace, "id" | "requestedPermissions" | "status"> | null>;
+) => Promise<Pick<Thinkspace, "id" | "status"> | null>;
 
 type GetActiveRevision = (
 	db: ProductDb,

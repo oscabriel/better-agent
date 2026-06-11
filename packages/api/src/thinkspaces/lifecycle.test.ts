@@ -25,11 +25,6 @@ test("creates a draft Thinkspace record around a trimmed Goal and reviewable con
 		"Review repository shape, sources, permissions, and expected artifact.",
 	);
 	assert.equal(record.status, "draft");
-	assert.equal(record.requestedPermissions, "[]");
-	assert.equal(
-		record.approvalDefaults,
-		JSON.stringify(THINKSPACE_CREATION_DEFAULTS.approvalDefaults),
-	);
 	assert.equal(
 		record.memoryGovernance,
 		JSON.stringify(THINKSPACE_CREATION_DEFAULTS.memoryGovernance),
@@ -44,7 +39,7 @@ test("builds a deterministic configuration summary when none is supplied", () =>
 	});
 
 	assert.match(record.configurationSummary ?? "", /Goal: Compare release notes/u);
-	assert.match(record.configurationSummary ?? "", /Skills, requested Permissions/u);
+	assert.match(record.configurationSummary ?? "", /Skills and Permission requests/u);
 	assert.match(
 		record.configurationSummary ?? "",
 		/Memory governance starts in user-reviewed mode/u,
