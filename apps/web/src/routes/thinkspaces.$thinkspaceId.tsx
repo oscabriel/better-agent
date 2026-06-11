@@ -32,14 +32,24 @@ interface EnabledToolSelection {
 }
 
 interface PermissionPlaceholder {
-	actions: string[];
-	approvalRequired: boolean;
-	resource: {
+	actions?: string[];
+	approvalRequired?: boolean;
+	kind?: "model_provider_credential";
+	providerId?: string;
+	reason?: string;
+	resource?: {
 		serverId: string;
 		toolName: string;
 	};
-	risk: string;
-	type: string;
+	risk?: string;
+	type?: string;
+}
+
+interface GrantedPermissionView {
+	id: string;
+	kind: string;
+	providerId: string | null;
+	reason: string;
 }
 
 interface AgentProfileRevisionView {
@@ -363,6 +373,76 @@ const SubmitTurnSection = ({
 	);
 };
 
+const PermissionsSection = ({
+	grantedPermissions,
+	requestedPermissions,
+}: {
+	grantedPermissions: GrantedPermissionView[];
+	requestedPermissions: PermissionPlaceholder[];
+}) => (
+	<section aria-labelledby="permissions-heading" className="grid gap-4">
+		<div className="grid gap-1">
+			<h2 className="text-lg font-semibold tracking-tight" id="permissions-heading">
+				Permissions
+			</h2>
+			<p className="text-muted-foreground text-sm">
+				Scoped access for this Thinkspace. Permissions are separate from Approvals.
+			</p>
+		</div>
+		<div className="grid gap-3">
+			<div className="grid gap-2">
+				<p className="text-sm font-medium">Requested on draft</p>
+				{requestedPermissions.length === 0 ? (
+					<p className="border border-border p-4 text-muted-foreground text-sm">
+						No draft Permission requests.
+					</p>
+				) : (
+					<div className="border border-border">
+						{requestedPermissions.map((permission, index) => (
+							<div
+								key={`${permission.kind ?? permission.type}:${permission.providerId ?? permission.resource?.serverId ?? index}`}
+								className={`grid gap-0.5 p-4 ${index < requestedPermissions.length - 1 ? "border-b border-border" : ""}`}
+							>
+								<p className="text-sm font-medium">
+									{permission.kind === "model_provider_credential"
+										? `Model credential: ${permission.providerId}`
+										: `${permission.resource?.serverId ?? "Tool"}${permission.resource?.toolName ? `/${permission.resource.toolName}` : ""}`}
+								</p>
+								<p className="text-muted-foreground text-xs">
+									{permission.reason ??
+										`Risk: ${permission.risk ?? "unknown"} · Approval required: ${permission.approvalRequired ? "yes" : "no"}`}
+								</p>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
+			<div className="grid gap-2">
+				<p className="text-sm font-medium">Granted to Thinkspace</p>
+				{grantedPermissions.length === 0 ? (
+					<p className="border border-border p-4 text-muted-foreground text-sm">
+						No granted Permissions.
+					</p>
+				) : (
+					<div className="border border-border">
+						{grantedPermissions.map((permission, index) => (
+							<div
+								key={permission.id}
+								className={`grid gap-0.5 p-4 ${index < grantedPermissions.length - 1 ? "border-b border-border" : ""}`}
+							>
+								<p className="text-sm font-medium">
+									{permission.kind}: {permission.providerId ?? "scoped resource"}
+								</p>
+								<p className="text-muted-foreground text-xs">{permission.reason}</p>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
+		</div>
+	</section>
+);
+
 const RouteComponent = () => {
 	const { thinkspaceId } = routeApi.useParams();
 	const context = routeApi.useRouteContext();
@@ -432,6 +512,7 @@ const RouteComponent = () => {
 	const isDraft = thinkspace.status === "draft";
 	const enabledTools = profileRevision?.toolEnablements.map(toEnabledToolSelection) ?? [];
 	const requestedPermissions = profileRevision?.requestedPermissions ?? [];
+	const grantedPermissions = (thinkspace.grantedPermissions ?? []) as GrantedPermissionView[];
 
 	const toggleCatalogTool = (serverId: string, risk: "read_only" | "mutating" | "unknown") => {
 		const selected = enabledTools.some((tool) => tool.serverId === serverId);
@@ -626,36 +707,10 @@ const RouteComponent = () => {
 
 			<Separator />
 
-			<section aria-labelledby="permissions-heading" className="grid gap-4">
-				<div className="grid gap-1">
-					<h2 className="text-lg font-semibold tracking-tight" id="permissions-heading">
-						Permissions
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						Scoped access for this Thinkspace. Permissions are separate from Approvals.
-					</p>
-				</div>
-				{requestedPermissions.length === 0 ? (
-					<p className="border border-border p-4 text-muted-foreground text-sm">
-						No Permissions configured.
-					</p>
-				) : (
-					<div className="border border-border">
-						{requestedPermissions.map((permission, index) => (
-							<div
-								key={`${permission.resource.serverId}:${permission.resource.toolName}`}
-								className={`grid gap-0.5 p-4 ${index < requestedPermissions.length - 1 ? "border-b border-border" : ""}`}
-							>
-								<p className="text-sm font-medium">{permission.resource.serverId}</p>
-								<p className="text-muted-foreground text-xs">
-									Risk: {permission.risk} · Approval required:{" "}
-									{permission.approvalRequired ? "yes" : "no"}
-								</p>
-							</div>
-						))}
-					</div>
-				)}
-			</section>
+			<PermissionsSection
+				grantedPermissions={grantedPermissions}
+				requestedPermissions={requestedPermissions}
+			/>
 
 			{isArchived || isDraft ? null : (
 				<>

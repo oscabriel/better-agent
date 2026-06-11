@@ -17,6 +17,14 @@ export {
 } from "./agent-profiles";
 export { timestampMsNow } from "./common";
 export {
+	type NewThinkspacePermission,
+	THINKSPACE_PERMISSION_KINDS,
+	thinkspacePermissionRelations,
+	type ThinkspacePermission,
+	thinkspacePermissions,
+	type ThinkspacePermissionKind,
+} from "./permissions";
+export {
 	mcpServerCatalog,
 	mcpServerCatalogRelations,
 	type McpServerCatalogEntry,

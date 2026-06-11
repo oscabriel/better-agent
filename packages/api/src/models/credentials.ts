@@ -107,5 +107,7 @@ export const getDecryptedCredential = async (
 			),
 		)
 		.limit(1);
-	return row ? await decryptCredential(row.encryptedCredential, input.secret) : null;
+	return typeof row?.encryptedCredential === "string"
+		? await decryptCredential(row.encryptedCredential, input.secret)
+		: null;
 };

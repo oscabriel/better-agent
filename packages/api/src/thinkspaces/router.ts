@@ -31,6 +31,7 @@ import {
 	saveAgentProfileDraft,
 } from "./agent-profile-repository";
 import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } from "./inspect";
+import { grantThinkspacePermissions, listThinkspacePermissions } from "./permissions";
 import { createToolPermissionPlaceholder, serializeThinkspaceToolSelections } from "./policy";
 import {
 	createThinkspaceArchivePatch,
@@ -63,6 +64,10 @@ const createThinkspaceInput = z.object({
 
 const thinkspaceIdInput = z.object({
 	thinkspaceId: z.string().min(1),
+});
+
+const activateAgentProfileInput = thinkspaceIdInput.extend({
+	grantedPermissionIndexes: z.array(z.number().int().nonnegative()).optional(),
 });
 
 const toolSelectionSchema = z.object({
@@ -174,7 +179,7 @@ const throwProductSafeProfileError = (error: unknown): never => {
 
 export const thinkspacesRouter = {
 	activateAgentProfile: protectedProcedure
-		.input(thinkspaceIdInput)
+		.input(activateAgentProfileInput)
 		.handler(async ({ context, input }) => {
 			const thinkspace = await getThinkspace(context.db, {
 				ownerUserId: context.session.user.id,
@@ -209,11 +214,29 @@ export const thinkspacesRouter = {
 					draft,
 					thinkspace,
 				});
+				const grantIndexes =
+					input.grantedPermissionIndexes ?? draft.requestedPermissions.map((_, index) => index);
+				const requestedGrants: RequestedPermission[] = [];
+				for (const index of grantIndexes) {
+					const permission = draft.requestedPermissions[index];
+					if (permission) {
+						requestedGrants.push(permission);
+					}
+				}
 
 				await applyAgentProfileActivation(context.db, { activation });
+				const grantedPermissions = await grantThinkspacePermissions(
+					context.db,
+					requestedGrants.map((permission) => ({
+						grantedByUserId: context.session.user.id,
+						permission,
+						thinkspaceId: thinkspace.id,
+					})),
+				);
 
 				return {
 					activatedRevision: activation.activatedRevision,
+					grantedPermissions,
 					thinkspaceId: thinkspace.id,
 					thinkspaceStatus: activation.thinkspaceActivationPatch?.status ?? thinkspace.status,
 				};
@@ -300,6 +323,9 @@ export const thinkspacesRouter = {
 		return {
 			...thinkspace,
 			agentProfileRevision: await getCurrentAgentProfileRevision(context.db, {
+				thinkspaceId: thinkspace.id,
+			}),
+			grantedPermissions: await listThinkspacePermissions(context.db, {
 				thinkspaceId: thinkspace.id,
 			}),
 		};
