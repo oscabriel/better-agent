@@ -5,6 +5,7 @@ import { timestampMsNow } from "./common";
 import { thinkspaces } from "./thinkspaces";
 
 export const THINKSPACE_PERMISSION_KINDS = {
+	MCP_TOOL_ACCESS: "mcp_tool_access",
 	MODEL_PROVIDER_CREDENTIAL: "model_provider_credential",
 } as const;
 
@@ -18,6 +19,12 @@ export const thinkspacePermissions = sqliteTable(
 		grantedByUserId: text("granted_by_user_id").notNull(),
 		id: text("id").primaryKey(),
 		kind: text("kind").notNull(),
+		/**
+		 * The granted resource identity for kinds that target one: the model
+		 * provider id for `model_provider_credential` grants, the built-in MCP
+		 * server id for `mcp_tool_access` grants. The unique index below gives
+		 * every kind per-Thinkspace, per-resource uniqueness.
+		 */
 		providerId: text("provider_id"),
 		reason: text("reason").default("").notNull(),
 		thinkspaceId: text("thinkspace_id")
