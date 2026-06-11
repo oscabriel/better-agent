@@ -2,7 +2,6 @@ import { THINKSPACE_STATUS } from "@better-agent/db/schema/thinkspaces";
 import type { NewThinkspace } from "@better-agent/db/schema/thinkspaces";
 
 const MAX_GOAL_LENGTH = 280;
-const MAX_INITIAL_INSTRUCTIONS_LENGTH = 4000;
 const MAX_CONFIGURATION_SUMMARY_LENGTH = 1600;
 
 export const THINKSPACE_CREATION_DEFAULTS = {
@@ -14,14 +13,12 @@ export const THINKSPACE_CREATION_DEFAULTS = {
 		retention: "user_reviewed",
 	},
 	requestedPermissions: [] as string[],
-	selectedSkillIds: [] as string[],
 } as const;
 
 export interface CreateThinkspaceLifecycleInput {
 	configurationSummary?: string | null;
 	goal: string;
 	id: string;
-	initialInstructions?: string | null;
 	ownerUserId: string;
 }
 
@@ -73,11 +70,9 @@ export const createThinkspaceCreationRecord = ({
 	configurationSummary,
 	goal,
 	id,
-	initialInstructions,
 	ownerUserId,
 }: CreateThinkspaceLifecycleInput): NewThinkspace => {
 	const normalizedGoal = normalizeText(goal);
-	const normalizedInstructions = normalizeText(initialInstructions);
 	const normalizedSummary = normalizeText(configurationSummary);
 
 	if (!ownerUserId) {
@@ -95,7 +90,6 @@ export const createThinkspaceCreationRecord = ({
 	}
 
 	assertMaxLength("Goal", normalizedGoal, MAX_GOAL_LENGTH);
-	assertMaxLength("Initial instructions", normalizedInstructions, MAX_INITIAL_INSTRUCTIONS_LENGTH);
 	assertMaxLength("Configuration summary", normalizedSummary, MAX_CONFIGURATION_SUMMARY_LENGTH);
 
 	return {
@@ -104,11 +98,9 @@ export const createThinkspaceCreationRecord = ({
 		enabledToolIds: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.enabledToolIds),
 		goal: normalizedGoal,
 		id,
-		initialInstructions: normalizedInstructions,
 		memoryGovernance: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.memoryGovernance),
 		ownerUserId,
 		requestedPermissions: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.requestedPermissions),
-		selectedSkillIds: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.selectedSkillIds),
-		status: THINKSPACE_STATUS.ACTIVE,
+		status: THINKSPACE_STATUS.DRAFT,
 	};
 };

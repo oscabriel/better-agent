@@ -8,26 +8,23 @@ import {
 	ThinkspaceLifecycleValidationError,
 } from "./lifecycle";
 
-test("creates an active Thinkspace record around a trimmed Goal and reviewable configuration", () => {
+test("creates a draft Thinkspace record around a trimmed Goal and reviewable configuration", () => {
 	const record = createThinkspaceCreationRecord({
 		configurationSummary:
 			"  Review repository shape, sources, permissions, and expected artifact.  ",
 		goal: "  Prepare a dependency-aligned salvage plan  ",
 		id: "thinkspace_test",
-		initialInstructions: "  Start with the existing ADRs.  ",
 		ownerUserId: "user_123",
 	});
 
 	assert.equal(record.id, "thinkspace_test");
 	assert.equal(record.ownerUserId, "user_123");
 	assert.equal(record.goal, "Prepare a dependency-aligned salvage plan");
-	assert.equal(record.initialInstructions, "Start with the existing ADRs.");
 	assert.equal(
 		record.configurationSummary,
 		"Review repository shape, sources, permissions, and expected artifact.",
 	);
-	assert.equal(record.status, "active");
-	assert.equal(record.selectedSkillIds, "[]");
+	assert.equal(record.status, "draft");
 	assert.equal(record.enabledToolIds, "[]");
 	assert.equal(record.requestedPermissions, "[]");
 	assert.equal(

@@ -39,11 +39,6 @@ export const thinkspaces = sqliteTable(
 		enabledToolIds: text("enabled_tool_ids").default("[]").notNull(),
 		goal: text("goal").notNull(),
 		id: text("id").primaryKey(),
-		/**
-		 * @deprecated Legacy curation config. Agent instructions are owned by
-		 * the Agent Profile revision in `thinkspace_agent_profiles` (ADR-0007).
-		 */
-		initialInstructions: text("initial_instructions").default("").notNull(),
 		memoryGovernance: text("memory_governance").default("{}").notNull(),
 		ownerUserId: text("owner_user_id")
 			.notNull()
@@ -55,13 +50,7 @@ export const thinkspaces = sqliteTable(
 		 * Permission storage (ADR-0007).
 		 */
 		requestedPermissions: text("requested_permissions").default("[]").notNull(),
-		/**
-		 * @deprecated Legacy curation config. Skill references are migrating to
-		 * versioned Agent Profile revisions in `thinkspace_agent_profiles`
-		 * (ADR-0007).
-		 */
-		selectedSkillIds: text("selected_skill_ids").default("[]").notNull(),
-		status: text("status").default(THINKSPACE_STATUS.ACTIVE).notNull(),
+		status: text("status").default(THINKSPACE_STATUS.DRAFT).notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
 			.default(timestampMsNow)
 			.$onUpdate(() => new Date())
