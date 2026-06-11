@@ -112,7 +112,20 @@ export interface ModelProviderCredentialPermissionRequest {
 	reason: string;
 }
 
-export type RequestedPermission = ModelProviderCredentialPermissionRequest;
+export interface ToolPermissionPlaceholderRequest {
+	actions: string[];
+	approvalRequired: boolean;
+	resource: {
+		serverId: string;
+		toolName: string;
+	};
+	risk: "read_only" | "mutating" | "unknown";
+	type: "mcp_tool_permission_placeholder";
+}
+
+export type RequestedPermission =
+	| ModelProviderCredentialPermissionRequest
+	| ToolPermissionPlaceholderRequest;
 
 interface AgentProfileRevisionBase {
 	createdAt: Date;
@@ -308,11 +321,30 @@ const isRoutine = (value: unknown): value is Routine =>
 	isNonEmptyString(value.instruction) &&
 	isRoutineSchedule(value.schedule);
 
+const isToolPermissionPlaceholderRequest = (
+	value: unknown,
+): value is ToolPermissionPlaceholderRequest => {
+	if (!(isRecord(value) && isRecord(value.resource))) {
+		return false;
+	}
+
+	return (
+		value.type === "mcp_tool_permission_placeholder" &&
+		Array.isArray(value.actions) &&
+		value.actions.every((action) => typeof action === "string" && action.length > 0) &&
+		typeof value.approvalRequired === "boolean" &&
+		isNonEmptyString(value.resource.serverId) &&
+		isNonEmptyString(value.resource.toolName) &&
+		(value.risk === "read_only" || value.risk === "mutating" || value.risk === "unknown")
+	);
+};
+
 const isRequestedPermission = (value: unknown): value is RequestedPermission =>
-	isRecord(value) &&
-	value.kind === "model_provider_credential" &&
-	MODEL_PROVIDER_IDS.includes(value.providerId as ModelProviderId) &&
-	typeof value.reason === "string";
+	(isRecord(value) &&
+		value.kind === "model_provider_credential" &&
+		MODEL_PROVIDER_IDS.includes(value.providerId as ModelProviderId) &&
+		typeof value.reason === "string") ||
+	isToolPermissionPlaceholderRequest(value);
 
 const parseJsonArray = <T>(
 	label: string,

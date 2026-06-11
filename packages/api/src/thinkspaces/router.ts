@@ -16,9 +16,11 @@ import {
 	validateAgentProfileIdentity,
 	validateAgentProfileModelBehavior,
 } from "./agent-profile";
+import type { RequestedPermission, ToolEnablement } from "./agent-profile";
 import {
 	AgentProfileLifecycleError,
 	createAgentProfileActivation,
+	createAgentProfileDraftFromActive,
 	createInitialAgentProfileDraft,
 } from "./agent-profile-lifecycle";
 import {
@@ -26,13 +28,10 @@ import {
 	getActiveAgentProfileRevision,
 	getCurrentAgentProfileRevision,
 	getDraftAgentProfileRevision,
+	saveAgentProfileDraft,
 } from "./agent-profile-repository";
 import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } from "./inspect";
-import {
-	createToolPermissionPlaceholder,
-	DEFAULT_APPROVAL_POLICY,
-	serializeThinkspaceToolSelections,
-} from "./policy";
+import { createToolPermissionPlaceholder, serializeThinkspaceToolSelections } from "./policy";
 import {
 	createThinkspaceArchivePatch,
 	createThinkspaceCreationRecord,
@@ -43,7 +42,6 @@ import {
 	createThinkspaceWithAgentProfileDraft,
 	getThinkspace,
 	listThinkspaces,
-	updateThinkspaceConfiguration,
 } from "./repository";
 import {
 	getOwnedThinkspaceAgentRuntimeReadiness,
@@ -91,6 +89,22 @@ const submitTurnInput = z.object({
 
 const createThinkspaceId = (): string => `thinkspace_${crypto.randomUUID()}`;
 const createAgentProfileRevisionId = (): string => `agent_profile_revision_${crypto.randomUUID()}`;
+
+const toToolEnablements = (selections: z.infer<typeof toolSelectionSchema>[]): ToolEnablement[] => {
+	const normalized = JSON.parse(serializeThinkspaceToolSelections(selections)) as z.infer<
+		typeof toolSelectionSchema
+	>[];
+
+	return normalized.map((selection) => ({
+		source: "mcp_server",
+		toolId: selection.toolName ? `${selection.serverId}:${selection.toolName}` : selection.serverId,
+	}));
+};
+
+const toRequestedPermissions = (
+	selections: z.infer<typeof toolSelectionSchema>[],
+): RequestedPermission[] =>
+	selections.map((selection) => createToolPermissionPlaceholder(selection) as RequestedPermission);
 
 const deriveAgentProfileDisplayName = (goal: string): string => {
 	const normalized = goal.trim();
@@ -426,23 +440,43 @@ export const thinkspacesRouter = {
 				});
 			}
 
-			const updated = await updateThinkspaceConfiguration(context.db, {
-				ownerUserId: context.session.user.id,
-				patch: {
-					approvalDefaults: JSON.stringify(DEFAULT_APPROVAL_POLICY),
-					enabledToolIds: serializeThinkspaceToolSelections(input.selections),
-					requestedPermissions: JSON.stringify(
-						input.selections.map((selection) => createToolPermissionPlaceholder(selection)),
-					),
-					updatedAt: new Date(),
-				},
-				thinkspaceId: input.thinkspaceId,
-			});
+			try {
+				const currentDraft = await getDraftAgentProfileRevision(context.db, {
+					thinkspaceId: thinkspace.id,
+				});
+				const activeRevision = await getActiveAgentProfileRevision(context.db, {
+					thinkspaceId: thinkspace.id,
+				});
+				const draft =
+					currentDraft ??
+					(activeRevision
+						? createAgentProfileDraftFromActive({
+								active: activeRevision,
+								id: createAgentProfileRevisionId(),
+							})
+						: null);
 
-			if (!updated) {
-				throw toNotFound();
+				if (!draft) {
+					throw new AgentProfileLifecycleError(
+						"No Agent Profile revision is available for tool enablement.",
+					);
+				}
+
+				const updatedDraft = await saveAgentProfileDraft(context.db, {
+					draft: {
+						...draft,
+						requestedPermissions: toRequestedPermissions(input.selections),
+						toolEnablements: toToolEnablements(input.selections),
+						updatedAt: new Date(),
+					},
+				});
+
+				return {
+					agentProfileRevision: updatedDraft,
+					thinkspaceId: thinkspace.id,
+				};
+			} catch (error) {
+				throwProductSafeProfileError(error);
 			}
-
-			return updated;
 		}),
 };

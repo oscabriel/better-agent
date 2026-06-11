@@ -36,6 +36,13 @@
       "when": 1781139208245,
       "tag": "0004_quick_thunderbird",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781141072949,
+      "tag": "0005_thick_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

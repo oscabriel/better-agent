@@ -51,17 +51,16 @@ interface AgentProfileRevisionView {
 		modelId: string;
 		reasoningLevel: string;
 	};
+	requestedPermissions?: PermissionPlaceholder[];
 	status: "active" | "draft" | "superseded";
+	toolEnablements: { source: string; toolId: string }[];
 	version: number;
 }
 
-const parseJsonArray = <T,>(value: string): T[] => {
-	try {
-		const parsed = JSON.parse(value) as unknown;
-		return Array.isArray(parsed) ? (parsed as T[]) : [];
-	} catch {
-		return [];
-	}
+const toEnabledToolSelection = (enablement: { toolId: string }): EnabledToolSelection => {
+	const [serverId, toolName] = enablement.toolId.split(":", 2);
+
+	return { risk: "unknown", serverId: serverId ?? enablement.toolId, toolName };
 };
 
 type TurnInspectionStatus = "accepted" | "completed" | "failed" | "running" | "unknown";
@@ -431,10 +430,8 @@ const RouteComponent = () => {
 	const profileRevision = thinkspace.agentProfileRevision;
 	const isArchived = thinkspace.status === "archived";
 	const isDraft = thinkspace.status === "draft";
-	const enabledTools = parseJsonArray<EnabledToolSelection>(thinkspace.enabledToolIds);
-	const requestedPermissions = parseJsonArray<PermissionPlaceholder>(
-		thinkspace.requestedPermissions,
-	);
+	const enabledTools = profileRevision?.toolEnablements.map(toEnabledToolSelection) ?? [];
+	const requestedPermissions = profileRevision?.requestedPermissions ?? [];
 
 	const toggleCatalogTool = (serverId: string, risk: "read_only" | "mutating" | "unknown") => {
 		const selected = enabledTools.some((tool) => tool.serverId === serverId);
@@ -575,11 +572,15 @@ const RouteComponent = () => {
 
 			<section aria-labelledby="tools-heading" className="grid gap-4">
 				<div className="grid gap-1">
-					<h2 className="text-lg font-semibold tracking-tight" id="tools-heading">
-						Tools
-					</h2>
+					<div className="flex items-center gap-2">
+						<h2 className="text-lg font-semibold tracking-tight" id="tools-heading">
+							Tools
+						</h2>
+						{profileRevision ? <Badge variant="outline">{profileRevision.status}</Badge> : null}
+					</div>
 					<p className="text-muted-foreground text-sm">
-						Select catalog tools for this Thinkspace. A Permission is required before execution.
+						Select catalog tools on the Agent Profile revision. Draft selections take effect after
+						activation; active selections are used for turns.
 					</p>
 				</div>
 				{mcpCatalogQuery.data.length === 0 ? (
