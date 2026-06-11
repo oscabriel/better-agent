@@ -12,6 +12,7 @@ import type {
 	ThinkspaceTurnInspection,
 	ThinkspaceTurnInspectionRequest,
 } from "@better-agent/api/thinkspaces/inspect";
+import { assembleThinkspaceTurn } from "@better-agent/api/thinkspaces/turn-assembly";
 import {
 	createThinkspaceRuntimeToolSet,
 	createThinkspaceRuntimeTurnConfig,
@@ -94,13 +95,20 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		};
 		const result = await this.submitMessages([message], {
 			idempotencyKey,
-			metadata: { source: THINKSPACE_TURN_SOURCE, thinkspaceId: request.thinkspaceId },
+			metadata: {
+				profileRevisionId: request.profileRevisionId,
+				profileVersion: request.profileVersion,
+				source: THINKSPACE_TURN_SOURCE,
+				thinkspaceId: request.thinkspaceId,
+			},
 		});
 
 		return {
 			acceptedAt: result.createdAt,
 			deduplicated: !result.accepted,
 			idempotencyKey,
+			profileRevisionId: request.profileRevisionId,
+			profileVersion: request.profileVersion,
 			status: "accepted",
 			submissionId: result.submissionId,
 			thinkspaceId: request.thinkspaceId,
@@ -157,17 +165,23 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		}
 
 		const resolved = await this.resolveTurnModel(turnContext);
+		const assembly = assembleThinkspaceTurn({
+			maxSteps: this.maxSteps,
+			revision: resolved.activeRevision,
+			toolPotencies: [],
+		});
 
 		return {
 			...createThinkspaceRuntimeTurnConfig(),
-			maxSteps: this.maxSteps,
-			model: resolved,
+			maxSteps: assembly.maxSteps,
+			model: resolved.model,
+			system: assembly.systemPrompt,
 		};
 	}
 
 	private async resolveTurnModel(
 		turnContext: ThinkspaceTurnRuntimeContext,
-	): Promise<LanguageModel> {
+	): Promise<NonNullable<Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>>> {
 		let resolved: Awaited<ReturnType<typeof resolveOwnedThinkspaceTurnModel>>;
 
 		try {
@@ -189,6 +203,6 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			throw new Error(markThinkspaceTurnProductSafeError(MISSING_THINKSPACE_MESSAGE));
 		}
 
-		return resolved.model;
+		return resolved;
 	}
 }

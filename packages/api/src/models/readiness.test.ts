@@ -54,6 +54,14 @@ const createThinkspace = (requestedPermissions = "[]") => ({
 	requestedPermissions,
 });
 
+const activeRevision = (modelId = "google:gemini-2.5-flash-lite") =>
+	({
+		id: "profile_revision_active",
+		identity: { displayName: "Release Monitor", instructions: "Watch releases." },
+		modelBehavior: { modelId, reasoningLevel: "medium" },
+		version: 1,
+	}) as never;
+
 const grantedCredentialPermission = (providerId: string): string =>
 	JSON.stringify([
 		{
@@ -156,13 +164,13 @@ test("owner-gated model readiness reports readiness for owned Thinkspaces", asyn
 	const readiness = await getOwnedThinkspaceModelReadiness({
 		db,
 		env: createEnv(),
+		getActiveRevision: () => Promise.resolve(activeRevision()),
 		getThinkspaceByOwner: (_db, input) => {
 			assert.equal(input.ownerUserId, "owner_user");
 			assert.equal(input.thinkspaceId, "thinkspace_owned");
 			return Promise.resolve(createThinkspace(grantedCredentialPermission("google")));
 		},
 		getUserCredential: () => Promise.resolve("google-test-key"),
-		getUserSettings: () => Promise.resolve(null),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -176,10 +184,10 @@ test("resolves a usable turn model for ready owned Thinkspaces", async () => {
 	const resolved = await resolveOwnedThinkspaceTurnModel({
 		db,
 		env: createEnv(),
+		getActiveRevision: () => Promise.resolve(activeRevision()),
 		getThinkspaceByOwner: () =>
 			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
 		getUserCredential: () => Promise.resolve("google-test-key"),
-		getUserSettings: () => Promise.resolve(null),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",
@@ -195,10 +203,10 @@ test("turn model resolution fails closed with a product-safe error when not read
 		resolveOwnedThinkspaceTurnModel({
 			db,
 			env: createEnv(),
+			getActiveRevision: () => Promise.resolve(activeRevision()),
 			getThinkspaceByOwner: () =>
 				Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
 			getUserCredential: () => Promise.resolve(null),
-			getUserSettings: () => Promise.resolve(null),
 			modelCatalog,
 			ownerUserId: "owner_user",
 			thinkspaceId: "thinkspace_owned",
@@ -212,12 +220,28 @@ test("turn model resolution fails closed with a product-safe error when not read
 	);
 });
 
+test("owner-gated model readiness is not ready without an active Agent Profile revision", async () => {
+	const readiness = await getOwnedThinkspaceModelReadiness({
+		db,
+		env: createEnv(),
+		getActiveRevision: () => Promise.resolve(null),
+		getThinkspaceByOwner: () =>
+			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
+		modelCatalog,
+		ownerUserId: "owner_user",
+		thinkspaceId: "thinkspace_owned",
+	});
+
+	assert.equal(readiness?.status, "not_ready");
+	assert.equal(readiness?.reason, "no_active_agent_profile_revision");
+});
+
 test("turn model resolution returns null for non-owned Thinkspaces", async () => {
 	const resolved = await resolveOwnedThinkspaceTurnModel({
 		db,
 		env: createEnv(),
+		getActiveRevision: () => Promise.resolve(activeRevision()),
 		getThinkspaceByOwner: () => Promise.resolve(null),
-		getUserSettings: () => Promise.resolve(null),
 		modelCatalog,
 		ownerUserId: "other_user",
 		thinkspaceId: "thinkspace_owned",
@@ -230,11 +254,11 @@ test("owner-gated model readiness returns null for non-owned Thinkspaces", async
 	const readiness = await getOwnedThinkspaceModelReadiness({
 		db,
 		env: createEnv(),
+		getActiveRevision: () => Promise.resolve(activeRevision()),
 		getThinkspaceByOwner: (_db, input) => {
 			assert.equal(input.ownerUserId, "other_user");
 			return Promise.resolve(null);
 		},
-		getUserSettings: () => Promise.resolve(null),
 		modelCatalog,
 		ownerUserId: "other_user",
 		thinkspaceId: "thinkspace_owned",
@@ -263,11 +287,10 @@ test("resolves a usable turn model for a models.dev-only model id", async () => 
 	const resolved = await resolveOwnedThinkspaceTurnModel({
 		db,
 		env: createEnv(),
+		getActiveRevision: () => Promise.resolve(activeRevision("google:gemini-catalog-only")),
 		getThinkspaceByOwner: () =>
 			Promise.resolve(createThinkspace(grantedCredentialPermission("google"))),
 		getUserCredential: () => Promise.resolve("google-test-key"),
-		getUserSettings: () =>
-			Promise.resolve({ defaultModel: "google:gemini-catalog-only", reasoningEffort: "medium" }),
 		modelCatalog,
 		ownerUserId: "owner_user",
 		thinkspaceId: "thinkspace_owned",

@@ -4,7 +4,6 @@ import type { CloudflareEnv } from "@better-agent/env/types";
 
 import {
 	checkThinkspaceModelReadiness,
-	getUserProductModelSettings,
 	ThinkspaceTurnModelUnavailableError,
 } from "../models/readiness";
 import type {
@@ -12,6 +11,8 @@ import type {
 	ThinkspaceModelReadiness,
 } from "../models/readiness";
 import type { ModelCatalog } from "../models/model-catalog";
+import type { ActiveAgentProfileRevision } from "./agent-profile";
+import { getActiveAgentProfileRevision } from "./agent-profile-repository";
 import { getThinkspace } from "./repository";
 import { resolveThinkspaceAgentRuntime, THINKSPACE_AGENT_BINDING_NAME } from "./runtime";
 
@@ -24,6 +25,8 @@ export interface ThinkspaceTurnSubmissionRequest {
 	instruction: string;
 	ownerUserId: string;
 	thinkspaceId: string;
+	profileRevisionId: string;
+	profileVersion: number;
 }
 
 export interface ThinkspaceTurnAcceptance {
@@ -33,6 +36,8 @@ export interface ThinkspaceTurnAcceptance {
 	status: "accepted";
 	submissionId: string;
 	thinkspaceId: string;
+	profileRevisionId: string;
+	profileVersion: number;
 }
 
 export interface SubmitOwnedThinkspaceTurnInput {
@@ -41,7 +46,7 @@ export interface SubmitOwnedThinkspaceTurnInput {
 	db: ProductDb;
 	env: ThinkspaceTurnEnv;
 	getThinkspaceByOwner?: GetThinkspaceByOwner;
-	getUserSettings?: GetUserSettings;
+	getActiveRevision?: GetActiveRevision;
 	idempotencyKey: string;
 	instruction: string;
 	modelCatalog?: ModelCatalog;
@@ -62,7 +67,10 @@ type GetThinkspaceByOwner = (
 	input: { ownerUserId: string; thinkspaceId: string },
 ) => Promise<Pick<Thinkspace, "id" | "requestedPermissions" | "status"> | null>;
 
-type GetUserSettings = typeof getUserProductModelSettings;
+type GetActiveRevision = (
+	db: ProductDb,
+	input: { thinkspaceId: string },
+) => Promise<ActiveAgentProfileRevision | null>;
 
 type CheckModelReadiness = (
 	input: CheckThinkspaceModelReadinessInput,
@@ -141,8 +149,8 @@ export const submitOwnedThinkspaceTurn = async ({
 	checkModelReadiness = checkThinkspaceModelReadiness,
 	db,
 	env,
+	getActiveRevision = getActiveAgentProfileRevision,
 	getThinkspaceByOwner = getThinkspace,
-	getUserSettings = getUserProductModelSettings,
 	idempotencyKey,
 	instruction,
 	modelCatalog,
@@ -164,14 +172,27 @@ export const submitOwnedThinkspaceTurn = async ({
 		);
 	}
 
+	const activeRevision = await getActiveRevision(db, { thinkspaceId: thinkspace.id });
+
 	const readiness = await checkModelReadiness({
 		db,
 		env,
+		modelBehavior: activeRevision?.modelBehavior,
 		modelCatalog,
-		settings: await getUserSettings(db, ownerUserId),
+		settings: null,
 		thinkspace,
 		userId: ownerUserId,
 	});
+
+	if (!activeRevision) {
+		throw new ThinkspaceTurnModelUnavailableError({
+			message: "Activate an Agent Profile revision before running this Thinkspace Agent.",
+			modelId: readiness.modelId,
+			reason: "no_active_agent_profile_revision",
+			reasoningEffort: readiness.reasoningEffort,
+			status: "not_ready",
+		});
+	}
 
 	if (readiness.status !== "ready") {
 		throw new ThinkspaceTurnModelUnavailableError(readiness);
@@ -185,6 +206,8 @@ export const submitOwnedThinkspaceTurn = async ({
 			idempotencyKey: boundedIdempotencyKey,
 			instruction: boundedInstruction,
 			ownerUserId,
+			profileRevisionId: activeRevision.id,
+			profileVersion: activeRevision.version,
 			thinkspaceId: thinkspace.id,
 		},
 		runtimeName: runtime.runtimeName,
