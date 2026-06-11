@@ -6,6 +6,7 @@ import { getThinkspace } from "./repository";
 export const THINKSPACE_RUNTIME_POLICY_ID = "no_tools_v1" as const;
 export const THINKSPACE_RUNTIME_POLICY_MODE = "model_only" as const;
 export const THINKSPACE_RUNTIME_MAX_STEPS = 1 as const;
+export const THINKSPACE_RUNTIME_TOOL_MAX_STEPS = 2 as const;
 
 export const THINKSPACE_RUNTIME_CAPABILITY_IDS = [
 	"workspace_bash",
@@ -40,7 +41,7 @@ export interface ThinkspaceRuntimePolicyReport extends ThinkspaceRuntimePolicy {
 
 export interface ThinkspaceRuntimeTurnConfig {
 	activeTools: string[];
-	maxSteps: typeof THINKSPACE_RUNTIME_MAX_STEPS;
+	maxSteps: typeof THINKSPACE_RUNTIME_MAX_STEPS | typeof THINKSPACE_RUNTIME_TOOL_MAX_STEPS;
 }
 
 export interface GetOwnedThinkspaceRuntimePolicyInput {
@@ -87,9 +88,14 @@ export const isThinkspaceRuntimeCapabilityEnabled = (
 
 export const createThinkspaceRuntimeToolSet = (): Record<string, never> => ({});
 
-export const createThinkspaceRuntimeTurnConfig = (): ThinkspaceRuntimeTurnConfig => ({
-	activeTools: [],
-	maxSteps: THINKSPACE_RUNTIME_POLICY.maxSteps,
+export const createThinkspaceRuntimeTurnConfig = ({
+	activeTools = [],
+}: {
+	activeTools?: string[];
+} = {}): ThinkspaceRuntimeTurnConfig => ({
+	activeTools,
+	maxSteps:
+		activeTools.length > 0 ? THINKSPACE_RUNTIME_TOOL_MAX_STEPS : THINKSPACE_RUNTIME_POLICY.maxSteps,
 });
 
 export const getOwnedThinkspaceRuntimePolicy = async ({
