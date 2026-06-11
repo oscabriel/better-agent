@@ -42,6 +42,19 @@ interface PermissionPlaceholder {
 	type: string;
 }
 
+interface AgentProfileRevisionView {
+	identity: {
+		displayName: string;
+		instructions: string;
+	};
+	modelBehavior: {
+		modelId: string;
+		reasoningLevel: string;
+	};
+	status: "active" | "draft" | "superseded";
+	version: number;
+}
+
 const parseJsonArray = <T,>(value: string): T[] => {
 	try {
 		const parsed = JSON.parse(value) as unknown;
@@ -65,6 +78,30 @@ const TURN_STATUS_BADGE_VARIANTS: Record<
 };
 
 const TURN_STATUS_POLL_INTERVAL_MS = 2000;
+
+const getSubmitTurnBlockedMessage = ({
+	isArchived,
+	isDraft,
+	modelReady,
+}: {
+	isArchived: boolean;
+	isDraft: boolean;
+	modelReady: boolean;
+}): string | null => {
+	if (isArchived) {
+		return "Archived Thinkspaces cannot accept new Thinkspace Agent turns.";
+	}
+
+	if (isDraft) {
+		return "Activate this Thinkspace before submitting turns.";
+	}
+
+	if (!modelReady) {
+		return "Model configuration must be ready before submitting a turn.";
+	}
+
+	return null;
+};
 
 const TurnInspectionPanel = ({
 	initialSubmissionId,
@@ -152,12 +189,90 @@ const TurnInspectionPanel = ({
 	);
 };
 
+const AgentProfileSection = ({
+	activationError,
+	isActivating,
+	isDraft,
+	onActivate,
+	profileRevision,
+}: {
+	activationError?: Error | null;
+	isActivating: boolean;
+	isDraft: boolean;
+	onActivate: () => void;
+	profileRevision: AgentProfileRevisionView | null;
+}) => (
+	<section aria-labelledby="agent-profile-heading" className="grid gap-4">
+		<div className="grid gap-1">
+			<h2 className="text-lg font-semibold tracking-tight" id="agent-profile-heading">
+				Agent Profile
+			</h2>
+			<p className="text-muted-foreground text-sm">
+				Identity, instructions, and model behavior are versioned together. Drafts take effect only
+				when activated.
+			</p>
+		</div>
+		{profileRevision ? (
+			<div className="grid gap-4 border border-border p-4">
+				<div className="flex items-start justify-between gap-4">
+					<div className="grid gap-1">
+						<p className="text-sm font-medium">{profileRevision.identity.displayName}</p>
+						<p className="text-muted-foreground text-xs">
+							Revision {profileRevision.version} · {profileRevision.status}
+						</p>
+					</div>
+					<Badge variant={profileRevision.status === "active" ? "default" : "outline"}>
+						{profileRevision.status}
+					</Badge>
+				</div>
+				<div className="grid gap-1 border-border border-t pt-4">
+					<p className="text-muted-foreground text-xs font-medium">Instructions</p>
+					<p className="whitespace-pre-wrap text-sm leading-relaxed">
+						{profileRevision.identity.instructions || "No instructions yet."}
+					</p>
+				</div>
+				<div className="grid gap-1 border-border border-t pt-4">
+					<p className="text-muted-foreground text-xs font-medium">Model behavior</p>
+					<p className="break-all text-sm">{profileRevision.modelBehavior.modelId}</p>
+					<p className="text-muted-foreground text-xs">
+						Reasoning level: {profileRevision.modelBehavior.reasoningLevel}
+					</p>
+				</div>
+				{isDraft && profileRevision.status === "draft" ? (
+					<div className="grid gap-2 border-border border-t pt-4">
+						<p className="text-muted-foreground text-sm">
+							Activation makes this revision the Thinkspace Agent&apos;s active behavior and moves
+							the Thinkspace out of draft.
+						</p>
+						<div>
+							<Button disabled={isActivating} onClick={onActivate} type="button">
+								{isActivating ? "Activating…" : "Activate Thinkspace"}
+							</Button>
+						</div>
+						{activationError ? (
+							<p className="text-destructive text-sm" role="alert">
+								{activationError.message}
+							</p>
+						) : null}
+					</div>
+				) : null}
+			</div>
+		) : (
+			<p className="border border-border p-4 text-muted-foreground text-sm">
+				No Agent Profile revision has been created for this Thinkspace yet.
+			</p>
+		)}
+	</section>
+);
+
 const SubmitTurnSection = ({
 	isArchived,
+	isDraft,
 	modelReady,
 	thinkspaceId,
 }: {
 	isArchived: boolean;
+	isDraft: boolean;
 	modelReady: boolean;
 	thinkspaceId: string;
 }) => {
@@ -172,8 +287,10 @@ const SubmitTurnSection = ({
 			},
 		}),
 	);
+	const blockedMessage = getSubmitTurnBlockedMessage({ isArchived, isDraft, modelReady });
+	const turnInputDisabled = Boolean(blockedMessage);
 	const submitDisabled =
-		isArchived || !modelReady || !turnInstruction.trim() || submitTurnMutation.isPending;
+		turnInputDisabled || !turnInstruction.trim() || submitTurnMutation.isPending;
 
 	return (
 		<section aria-labelledby="submit-turn-heading" className="grid gap-4">
@@ -203,7 +320,7 @@ const SubmitTurnSection = ({
 				<div className="grid gap-2">
 					<Label htmlFor="turn-instruction">Instruction</Label>
 					<Textarea
-						disabled={isArchived || !modelReady}
+						disabled={turnInputDisabled}
 						id="turn-instruction"
 						maxLength={4000}
 						onChange={(event) => setTurnInstruction(event.target.value)}
@@ -212,16 +329,7 @@ const SubmitTurnSection = ({
 						value={turnInstruction}
 					/>
 				</div>
-				{isArchived ? (
-					<p className="text-muted-foreground text-xs">
-						Archived Thinkspaces cannot accept new Thinkspace Agent turns.
-					</p>
-				) : null}
-				{isArchived || modelReady ? null : (
-					<p className="text-muted-foreground text-xs">
-						Model configuration must be ready before submitting a turn.
-					</p>
-				)}
+				{blockedMessage ? <p className="text-muted-foreground text-xs">{blockedMessage}</p> : null}
 				{submitTurnMutation.isError ? (
 					<p className="text-destructive text-xs">{submitTurnMutation.error.message}</p>
 				) : null}
@@ -287,6 +395,25 @@ const RouteComponent = () => {
 			},
 		}),
 	);
+	const activateAgentProfileMutation = useMutation(
+		context.orpc.thinkspaces.activateAgentProfile.mutationOptions({
+			onSuccess: async () => {
+				await Promise.all([
+					queryClient.invalidateQueries({
+						queryKey: context.orpc.thinkspaces.get.queryKey({ input: { thinkspaceId } }),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: context.orpc.thinkspaces.list.queryKey(),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: context.orpc.thinkspaces.modelReadiness.queryKey({
+							input: { thinkspaceId },
+						}),
+					}),
+				]);
+			},
+		}),
+	);
 	const updateToolSelectionsMutation = useMutation(
 		context.orpc.thinkspaces.updateToolSelections.mutationOptions({
 			onSuccess: async () => {
@@ -301,7 +428,9 @@ const RouteComponent = () => {
 	const runtimeReadiness = runtimeReadinessQuery.data;
 	const modelReadiness = modelReadinessQuery.data;
 	const runtimePolicy = runtimePolicyQuery.data;
+	const profileRevision = thinkspace.agentProfileRevision;
 	const isArchived = thinkspace.status === "archived";
+	const isDraft = thinkspace.status === "draft";
 	const enabledTools = parseJsonArray<EnabledToolSelection>(thinkspace.enabledToolIds);
 	const requestedPermissions = parseJsonArray<PermissionPlaceholder>(
 		thinkspace.requestedPermissions,
@@ -314,6 +443,17 @@ const RouteComponent = () => {
 			: [...enabledTools, { risk, serverId }];
 
 		updateToolSelectionsMutation.mutate({ selections, thinkspaceId });
+	};
+
+	const handleActivateAgentProfile = () => {
+		if (
+			!(isDraft && profileRevision?.status === "draft") ||
+			activateAgentProfileMutation.isPending
+		) {
+			return;
+		}
+
+		activateAgentProfileMutation.mutate({ thinkspaceId });
 	};
 
 	const handleArchive = () => {
@@ -343,12 +483,6 @@ const RouteComponent = () => {
 				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
 					{thinkspace.configurationSummary}
 				</p>
-				{thinkspace.initialInstructions ? (
-					<div className="border border-border p-4">
-						<p className="mb-1 text-muted-foreground text-xs font-medium">Initial instructions</p>
-						<p className="text-sm leading-relaxed">{thinkspace.initialInstructions}</p>
-					</div>
-				) : null}
 				<div className="flex gap-4 text-muted-foreground text-xs">
 					<span>Updated {formatDateTime(thinkspace.updatedAt)}</span>
 					{thinkspace.archivedAt ? (
@@ -356,6 +490,16 @@ const RouteComponent = () => {
 					) : null}
 				</div>
 			</div>
+
+			<Separator />
+
+			<AgentProfileSection
+				activationError={activateAgentProfileMutation.error}
+				isActivating={activateAgentProfileMutation.isPending}
+				isDraft={isDraft}
+				onActivate={handleActivateAgentProfile}
+				profileRevision={profileRevision}
+			/>
 
 			<Separator />
 
@@ -422,6 +566,7 @@ const RouteComponent = () => {
 
 			<SubmitTurnSection
 				isArchived={isArchived}
+				isDraft={isDraft}
 				modelReady={modelReadiness.status === "ready"}
 				thinkspaceId={thinkspaceId}
 			/>
@@ -511,7 +656,7 @@ const RouteComponent = () => {
 				)}
 			</section>
 
-			{isArchived ? null : (
+			{isArchived || isDraft ? null : (
 				<>
 					<Separator />
 					<section className="grid gap-4">
