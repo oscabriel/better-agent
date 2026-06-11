@@ -16,6 +16,7 @@ import type { ThinkspaceTurnInspection } from "./inspect";
 import type { ThinkspaceTurnAcceptance } from "./turns";
 
 const OWNED_THINKSPACE_ID = "thinkspace_router";
+const NOW = new Date("2026-06-10T12:00:00.000Z");
 
 /**
  * A db that fails the test if any query is attempted. Used to prove that
@@ -44,11 +45,79 @@ const createDbReturning = (rows: Record<string, unknown>[]): ProductDb =>
 		}),
 	}) as unknown as ProductDb;
 
-const ownedThinkspaceRow = (): Record<string, unknown> => ({
-	enabledToolIds: "[]",
+const createDbForThinkspaceCreation = (settingsRows: Record<string, unknown>[] = []) => {
+	const inserted: Record<string, unknown>[] = [];
+	const db = {
+		batch: () =>
+			Promise.resolve([[{ ...inserted[0], createdAt: NOW, updatedAt: NOW }], [{ ...inserted[1] }]]),
+		insert: () => ({
+			values: (value: Record<string, unknown>) => {
+				inserted.push(value);
+				return { returning: () => ({ value }) };
+			},
+		}),
+		select: () => ({
+			from: () => ({
+				where: () => ({ limit: () => Promise.resolve(settingsRows) }),
+			}),
+		}),
+	};
+
+	return { db: db as unknown as ProductDb, inserted };
+};
+
+const createDbForAgentProfileActivation = (row: Record<string, unknown>) => {
+	const patches: Record<string, unknown>[] = [];
+	const db = {
+		batch: (statements: unknown[]) => Promise.resolve(statements.map(() => [])),
+		select: () => ({
+			from: () => ({
+				where: () => ({ limit: () => Promise.resolve([row]) }),
+			}),
+		}),
+		update: () => ({
+			set: (patch: Record<string, unknown>) => ({
+				where: () => {
+					patches.push(patch);
+					return { patch };
+				},
+			}),
+		}),
+	};
+
+	return { db: db as unknown as ProductDb, patches };
+};
+
+const ownedAgentProfileColumns = (status: "active" | "draft" = "active") => ({
+	activatedAt: status === "active" ? NOW : null,
+	createdAt: NOW,
+	displayName: "Release Monitor",
 	id: OWNED_THINKSPACE_ID,
+	instructions: "Watch SDK releases.",
+	modelId: "google:gemini-2.5-flash-lite",
+	reasoningLevel: "medium",
 	requestedPermissions: "[]",
-	status: "active",
+	routines: "[]",
+	skillReferences: "[]",
+	status,
+	supersededAt: null,
+	thinkspaceId: OWNED_THINKSPACE_ID,
+	toolEnablements: "[]",
+	updatedAt: NOW,
+	version: 1,
+});
+
+const ownedThinkspaceRow = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+	...ownedAgentProfileColumns(),
+	archivedAt: null,
+	configurationSummary: "Watch release notes and draft a handoff.",
+	enabledToolIds: "[]",
+	goal: "Monitor releases",
+	id: OWNED_THINKSPACE_ID,
+	memoryGovernance: "{}",
+	ownerUserId: "owner_user",
+	requestedPermissions: "[]",
+	...overrides,
 });
 
 const authenticatedSession = {
@@ -138,6 +207,105 @@ const expectCode =
 	(code: string) =>
 	(error: unknown): boolean =>
 		error instanceof ORPCError && error.code === code;
+
+test("creating a Thinkspace persists a draft Agent Profile revision seeded from settings", async () => {
+	const { db, inserted } = createDbForThinkspaceCreation([
+		{ defaultModel: "google:gemini-catalog-only", reasoningEffort: "high" },
+	]);
+	const context = createCallContext({ db });
+
+	const created = await call(
+		thinkspacesRouter.create,
+		{
+			configurationSummary: " Watch model catalog changes. ",
+			goal: " Monitor model catalog releases ",
+			initialInstructions: " Use release notes first. ",
+		},
+		{ context },
+	);
+
+	assert.ok(created);
+	assert.equal(created.status, "draft");
+	assert.equal(created.agentProfileRevision.status, "draft");
+	assert.equal(created.agentProfileRevision.identity.displayName, "Monitor model catalog releases");
+	assert.equal(created.agentProfileRevision.identity.instructions, "Use release notes first.");
+	assert.deepEqual(created.agentProfileRevision.modelBehavior, {
+		modelId: "google:gemini-catalog-only",
+		reasoningLevel: "high",
+	});
+	assert.equal(inserted[0]?.status, "draft");
+	assert.equal("initialInstructions" in (inserted[0] ?? {}), false);
+	assert.equal("selectedSkillIds" in (inserted[0] ?? {}), false);
+	assert.equal(inserted[1]?.status, "draft");
+});
+
+test("creating a Thinkspace rejects models outside the catalog before persistence", async () => {
+	const { db, inserted } = createDbForThinkspaceCreation([
+		{ defaultModel: "google:not-real", reasoningEffort: "medium" },
+	]);
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.create,
+			{
+				configurationSummary: "Track unsupported models.",
+				goal: "Track unsupported models",
+			},
+			{ context: createCallContext({ db }) },
+		),
+		expectCode("BAD_REQUEST"),
+	);
+	assert.equal(inserted.length, 0);
+});
+
+test("owners can activate the draft Agent Profile revision and draft Thinkspace together", async () => {
+	const { db, patches } = createDbForAgentProfileActivation(
+		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),
+	);
+	const context = createCallContext({ db });
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.activatedRevision.status, "active");
+	assert.equal(activation.thinkspaceStatus, "active");
+	assert.ok(patches.some((patch) => patch.status === "active" && patch.version === 1));
+	assert.ok(patches.some((patch) => patch.status === "active" && !("version" in patch)));
+});
+
+test("Agent Profile activation rejects archived Thinkspaces before writes", async () => {
+	const { db, patches } = createDbForAgentProfileActivation(
+		ownedThinkspaceRow({ status: "archived" }),
+	);
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.activateAgentProfile,
+			{ thinkspaceId: OWNED_THINKSPACE_ID },
+			{ context: createCallContext({ db }) },
+		),
+		expectCode("BAD_REQUEST"),
+	);
+	assert.deepEqual(patches, []);
+});
+
+test("Agent Profile activation rejects Thinkspaces without a draft revision", async () => {
+	const { db, patches } = createDbForAgentProfileActivation(ownedThinkspaceRow());
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.activateAgentProfile,
+			{ thinkspaceId: OWNED_THINKSPACE_ID },
+			{ context: createCallContext({ db }) },
+		),
+		expectCode("BAD_REQUEST"),
+	);
+	assert.deepEqual(patches, []);
+});
 
 test("unauthenticated requests cannot reach any Thinkspace runtime operation", async () => {
 	for (const operation of runtimeOperations) {
@@ -393,5 +561,6 @@ test("Thinkspace control-plane reads still work for owners", async () => {
 	const listed = await call(thinkspacesRouter.list, undefined, { context });
 
 	assert.equal(thinkspace.id, OWNED_THINKSPACE_ID);
+	assert.equal(thinkspace.agentProfileRevision?.identity.instructions, "Watch SDK releases.");
 	assert.equal(listed.length, 1);
 });

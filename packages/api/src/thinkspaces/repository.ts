@@ -1,7 +1,11 @@
 import type { ProductDb } from "@better-agent/db";
+import { thinkspaceAgentProfiles } from "@better-agent/db/schema/agent-profiles";
 import { THINKSPACE_STATUS, thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import type { Thinkspace, ThinkspaceStatus } from "@better-agent/db/schema/thinkspaces";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
+
+import { parseAgentProfileRevision, serializeAgentProfileRevision } from "./agent-profile";
+import type { DraftAgentProfileRevision } from "./agent-profile";
 
 export interface ListThinkspacesInput {
 	ownerUserId: string;
@@ -28,17 +32,37 @@ export interface CreateThinkspaceInput {
 	record: typeof thinkspaces.$inferInsert;
 }
 
-export const createThinkspace = async (
+export interface CreateThinkspaceWithAgentProfileDraftInput extends CreateThinkspaceInput {
+	draft: DraftAgentProfileRevision;
+}
+
+export const createThinkspaceWithAgentProfileDraft = async (
 	db: ProductDb,
-	{ record }: CreateThinkspaceInput,
-): Promise<Thinkspace> => {
-	const [created] = await db.insert(thinkspaces).values(record).returning();
+	{ draft, record }: CreateThinkspaceWithAgentProfileDraftInput,
+): Promise<{ draft: DraftAgentProfileRevision; thinkspace: Thinkspace }> => {
+	const draftRecord = serializeAgentProfileRevision(draft);
+	const [thinkspaceRows, draftRows] = await db.batch([
+		db.insert(thinkspaces).values(record).returning(),
+		db.insert(thinkspaceAgentProfiles).values(draftRecord).returning(),
+	]);
+	const [created] = thinkspaceRows;
+	const [savedDraft] = draftRows;
 
 	if (!created) {
 		throw new Error("Thinkspace was not persisted.");
 	}
 
-	return created;
+	if (!savedDraft) {
+		throw new Error("Agent Profile draft was not persisted.");
+	}
+
+	const savedRevision = parseAgentProfileRevision(savedDraft);
+
+	if (savedRevision.status !== "draft") {
+		throw new Error("Agent Profile draft persistence returned a non-draft revision.");
+	}
+
+	return { draft: savedRevision, thinkspace: created };
 };
 
 export const getThinkspace = async (
@@ -82,10 +106,17 @@ export const updateThinkspaceConfiguration = async (
 
 export const listThinkspaces = async (
 	db: ProductDb,
-	{ ownerUserId, status = THINKSPACE_STATUS.ACTIVE }: ListThinkspacesInput,
+	{ ownerUserId, status }: ListThinkspacesInput,
 ): Promise<Thinkspace[]> =>
 	await db
 		.select()
 		.from(thinkspaces)
-		.where(and(eq(thinkspaces.ownerUserId, ownerUserId), eq(thinkspaces.status, status)))
+		.where(
+			and(
+				eq(thinkspaces.ownerUserId, ownerUserId),
+				status
+					? eq(thinkspaces.status, status)
+					: ne(thinkspaces.status, THINKSPACE_STATUS.ARCHIVED),
+			),
+		)
 		.orderBy(desc(thinkspaces.updatedAt));

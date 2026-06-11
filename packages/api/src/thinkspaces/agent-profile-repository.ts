@@ -68,6 +68,19 @@ export const getDraftAgentProfileRevision = async (
 	return revision?.status === AGENT_PROFILE_REVISION_STATUS.DRAFT ? revision : null;
 };
 
+export const getCurrentAgentProfileRevision = async (
+	db: ProductDb,
+	{ thinkspaceId }: GetAgentProfileRevisionInput,
+): Promise<ActiveAgentProfileRevision | DraftAgentProfileRevision | null> => {
+	const active = await getActiveAgentProfileRevision(db, { thinkspaceId });
+
+	if (active) {
+		return active;
+	}
+
+	return await getDraftAgentProfileRevision(db, { thinkspaceId });
+};
+
 export const listAgentProfileRevisions = async (
 	db: ProductDb,
 	{ thinkspaceId }: GetAgentProfileRevisionInput,
@@ -120,33 +133,56 @@ export interface ApplyAgentProfileActivationInput {
 /**
  * Persists an activation computed by `createAgentProfileActivation`.
  *
- * Writes run sequentially; the partial unique indexes on the table keep the
- * "one active, one draft" invariant safe even if a step fails. Atomic batch
- * semantics and the runtime-side snapshot/schedule reconciliation RPC are
- * deliberately left to the activation behavior slice.
+ * Writes are batched so revision activation and first Thinkspace activation
+ * succeed or fail as one D1 unit. Superseding the previous active revision
+ * is ordered before activating the draft to satisfy the partial unique index.
  */
 export const applyAgentProfileActivation = async (
 	db: ProductDb,
 	{ activation }: ApplyAgentProfileActivationInput,
 ): Promise<void> => {
 	const { activatedRevision, supersededRevision, thinkspaceActivationPatch } = activation;
-
-	if (supersededRevision) {
-		await db
-			.update(thinkspaceAgentProfiles)
-			.set(serializeAgentProfileRevision(supersededRevision))
-			.where(eq(thinkspaceAgentProfiles.id, supersededRevision.id));
-	}
-
-	await db
+	const activationUpdate = db
 		.update(thinkspaceAgentProfiles)
 		.set(serializeAgentProfileRevision(activatedRevision))
 		.where(eq(thinkspaceAgentProfiles.id, activatedRevision.id));
 
-	if (thinkspaceActivationPatch) {
-		await db
-			.update(thinkspaces)
-			.set(thinkspaceActivationPatch)
-			.where(eq(thinkspaces.id, activatedRevision.thinkspaceId));
+	if (supersededRevision && thinkspaceActivationPatch) {
+		await db.batch([
+			db
+				.update(thinkspaceAgentProfiles)
+				.set(serializeAgentProfileRevision(supersededRevision))
+				.where(eq(thinkspaceAgentProfiles.id, supersededRevision.id)),
+			activationUpdate,
+			db
+				.update(thinkspaces)
+				.set(thinkspaceActivationPatch)
+				.where(eq(thinkspaces.id, activatedRevision.thinkspaceId)),
+		]);
+		return;
 	}
+
+	if (supersededRevision) {
+		await db.batch([
+			db
+				.update(thinkspaceAgentProfiles)
+				.set(serializeAgentProfileRevision(supersededRevision))
+				.where(eq(thinkspaceAgentProfiles.id, supersededRevision.id)),
+			activationUpdate,
+		]);
+		return;
+	}
+
+	if (thinkspaceActivationPatch) {
+		await db.batch([
+			activationUpdate,
+			db
+				.update(thinkspaces)
+				.set(thinkspaceActivationPatch)
+				.where(eq(thinkspaces.id, activatedRevision.thinkspaceId)),
+		]);
+		return;
+	}
+
+	await db.batch([activationUpdate]);
 };
