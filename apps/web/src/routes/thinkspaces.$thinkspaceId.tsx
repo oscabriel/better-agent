@@ -80,10 +80,10 @@ const toEnabledToolSelection = (enablement: { toolId: string }): EnabledToolSele
 
 const formatMcpScope = (scope: McpToolAccessScopeView | undefined): string => {
 	if (!scope) {
-		return "server scope";
+		return "source scope";
 	}
 
-	return scope.type === "server" ? "server scope" : `tool: ${scope.toolName}`;
+	return scope.type === "server" ? "source scope" : `specific tool: ${scope.toolName}`;
 };
 
 const parseStoredMcpScope = (value: string): McpToolAccessScopeView | undefined => {
@@ -112,7 +112,7 @@ const getPermissionRequestTitle = (permission: PermissionRequestView, index: num
 	}
 
 	if (permission.kind === "mcp_tool_access") {
-		return `MCP tool access: ${permission.serverId}`;
+		return `External information access: ${permission.serverId}`;
 	}
 
 	return `${permission.resource?.serverId ?? `Permission request ${index + 1}`}${
@@ -133,7 +133,7 @@ const getPermissionRequestDescription = (permission: PermissionRequestView): str
 
 const getGrantedPermissionTitle = (permission: GrantedPermissionView): string => {
 	if (permission.kind === "mcp_tool_access") {
-		return `MCP tool access: ${permission.providerId ?? "scoped server"}`;
+		return `External information access: ${permission.providerId ?? "scoped source"}`;
 	}
 
 	if (permission.kind === "model_provider_credential") {
@@ -454,10 +454,16 @@ const SubmitTurnSection = ({
 
 const PermissionsSection = ({
 	grantedPermissions,
+	onRevokeGrantedPermission,
 	requestedPermissions,
+	revokePermissionError,
+	revokingPermissionId,
 }: {
 	grantedPermissions: GrantedPermissionView[];
+	onRevokeGrantedPermission: (permissionId: string) => void;
 	requestedPermissions: PermissionRequestView[];
+	revokePermissionError?: Error | null;
+	revokingPermissionId: string | null;
 }) => (
 	<section aria-labelledby="permissions-heading" className="grid gap-4">
 		<div className="grid gap-1">
@@ -501,19 +507,42 @@ const PermissionsSection = ({
 					</p>
 				) : (
 					<div className="border border-border">
-						{grantedPermissions.map((permission, index) => (
-							<div
-								key={permission.id}
-								className={`grid gap-0.5 p-4 ${index < grantedPermissions.length - 1 ? "border-b border-border" : ""}`}
-							>
-								<p className="text-sm font-medium">{getGrantedPermissionTitle(permission)}</p>
-								<p className="text-muted-foreground text-xs">
-									{getGrantedPermissionDescription(permission)}
-								</p>
-							</div>
-						))}
+						{grantedPermissions.map((permission, index) => {
+							const canRevoke = permission.kind === "mcp_tool_access";
+							const isRevoking = revokingPermissionId === permission.id;
+
+							return (
+								<div
+									key={permission.id}
+									className={`flex items-start justify-between gap-4 p-4 ${index < grantedPermissions.length - 1 ? "border-b border-border" : ""}`}
+								>
+									<div className="grid gap-0.5">
+										<p className="text-sm font-medium">{getGrantedPermissionTitle(permission)}</p>
+										<p className="text-muted-foreground text-xs">
+											{getGrantedPermissionDescription(permission)}
+										</p>
+									</div>
+									{canRevoke ? (
+										<Button
+											disabled={Boolean(revokingPermissionId)}
+											onClick={() => onRevokeGrantedPermission(permission.id)}
+											size="sm"
+											type="button"
+											variant="outline"
+										>
+											{isRevoking ? "Revoking…" : "Revoke"}
+										</Button>
+									) : null}
+								</div>
+							);
+						})}
 					</div>
 				)}
+				{revokePermissionError ? (
+					<p className="text-destructive text-sm" role="alert">
+						{revokePermissionError.message}
+					</p>
+				) : null}
 			</div>
 		</div>
 	</section>
@@ -523,6 +552,7 @@ const RouteComponent = () => {
 	const { thinkspaceId } = routeApi.useParams();
 	const context = routeApi.useRouteContext();
 	const queryClient = useQueryClient();
+	const [revokingPermissionId, setRevokingPermissionId] = useState<string | null>(null);
 	const thinkspaceQuery = useSuspenseQuery(
 		context.orpc.thinkspaces.get.queryOptions({ input: { thinkspaceId } }),
 	);
@@ -578,6 +608,21 @@ const RouteComponent = () => {
 			},
 		}),
 	);
+	const revokePermissionMutation = useMutation(
+		context.orpc.thinkspaces.revokePermission.mutationOptions({
+			onMutate: ({ permissionId }) => {
+				setRevokingPermissionId(permissionId);
+			},
+			onSettled: () => {
+				setRevokingPermissionId(null);
+			},
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: context.orpc.thinkspaces.get.queryKey({ input: { thinkspaceId } }),
+				});
+			},
+		}),
+	);
 
 	const thinkspace = thinkspaceQuery.data;
 	const runtimeReadiness = runtimeReadinessQuery.data;
@@ -616,6 +661,14 @@ const RouteComponent = () => {
 		}
 
 		archiveMutation.mutate({ thinkspaceId });
+	};
+
+	const handleRevokePermission = (permissionId: string) => {
+		if (revokePermissionMutation.isPending) {
+			return;
+		}
+
+		revokePermissionMutation.mutate({ permissionId, thinkspaceId });
 	};
 
 	return (
@@ -785,7 +838,10 @@ const RouteComponent = () => {
 
 			<PermissionsSection
 				grantedPermissions={grantedPermissions}
+				onRevokeGrantedPermission={handleRevokePermission}
 				requestedPermissions={requestedPermissions}
+				revokePermissionError={revokePermissionMutation.error}
+				revokingPermissionId={revokingPermissionId}
 			/>
 
 			{isArchived || isDraft ? null : (
