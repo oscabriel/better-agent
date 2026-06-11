@@ -131,6 +131,16 @@ test("routine validation requires identity, instruction, and a usable schedule",
 
 test("rows round-trip through parse and serialize", () => {
 	const row = createRow({
+		requestedPermissions: JSON.stringify([
+			{
+				kind: "mcp_tool_access",
+				reason:
+					"Allow this Thinkspace Agent to read all explicitly enabled tools from the cloudflare-docs MCP server.",
+				risk: "read_only",
+				scope: { type: "server" },
+				serverId: "cloudflare-docs",
+			},
+		]),
 		routines:
 			'[{"instruction":"Check releases.","name":"Weekly","routineId":"routine_1","schedule":{"expression":"0 9 * * 1","kind":"cron"}}]',
 		toolEnablements: '[{"source":"built_in","toolId":"web_search"}]',

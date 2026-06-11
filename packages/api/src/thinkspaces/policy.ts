@@ -45,16 +45,20 @@ export const assessPermissionPolicy = ({
 	return "approved_action_required";
 };
 
-export const createToolPermissionPlaceholder = (selection: ThinkspaceToolSelection) => ({
-	actions: selection.risk === "read_only" ? ["read"] : ["propose_action"],
-	approvalRequired: selection.risk !== "read_only",
-	resource: {
-		serverId: selection.serverId,
-		toolName: selection.toolName ?? "any_explicitly_enabled_tool",
-	},
-	risk: selection.risk,
-	type: "mcp_tool_permission_placeholder",
-});
+export const createMcpToolAccessPermissionRequest = (selection: ThinkspaceToolSelection) => {
+	const serverId = selection.serverId.trim();
+	const toolName = selection.toolName?.trim() || undefined;
+	const scope = toolName ? ({ toolName, type: "tool" } as const) : ({ type: "server" } as const);
+	const scopeLabel = scope.type === "server" ? "all explicitly enabled tools" : scope.toolName;
+
+	return {
+		kind: "mcp_tool_access" as const,
+		reason: `Allow this Thinkspace Agent to read ${scopeLabel} from the ${serverId} MCP server.`,
+		risk: selection.risk,
+		scope,
+		serverId,
+	};
+};
 
 export const serializeThinkspaceToolSelections = (
 	selections: ThinkspaceToolSelection[],

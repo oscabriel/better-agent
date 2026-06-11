@@ -2,8 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { ProductDb } from "@better-agent/db";
+import { thinkspaceAgentProfiles } from "@better-agent/db/schema/agent-profiles";
+import { user } from "@better-agent/db/schema/auth";
+import {
+	THINKSPACE_PERMISSION_KINDS,
+	thinkspacePermissions,
+} from "@better-agent/db/schema/permissions";
+import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import { ORPCError, call } from "@orpc/server";
 import type { AnyProcedure } from "@orpc/server";
+import { eq } from "drizzle-orm";
 
 import type { Context } from "../context";
 import { getModelCatalog } from "../models/catalog";
@@ -11,6 +19,7 @@ import type { ModelCatalogEntry } from "../models/catalog";
 import { encryptCredential } from "../models/credentials";
 import { createMemoryModelCatalog } from "../models/model-catalog";
 import type { ModelCatalog } from "../models/model-catalog";
+import { createTestProductDb } from "../testing/product-db";
 import { thinkspacesRouter } from "./router";
 import type { ThinkspaceTurnInspection } from "./inspect";
 import type { ThinkspaceTurnAcceptance } from "./turns";
@@ -187,6 +196,47 @@ const createCallContext = ({
 		session,
 	}) as unknown as Context;
 
+const firstClassMcpPermissionRequest = (serverId = "cloudflare-docs") => ({
+	kind: "mcp_tool_access" as const,
+	reason: `Allow this Thinkspace Agent to read all explicitly enabled tools from the ${serverId} MCP server.`,
+	risk: "read_only" as const,
+	scope: { type: "server" as const },
+	serverId,
+});
+
+const seedRealThinkspaceWithProfile = async ({
+	db,
+	profileStatus = "draft",
+	requestedPermissions = [],
+	thinkspaceStatus = "draft",
+}: {
+	db: ProductDb;
+	profileStatus?: "active" | "draft";
+	requestedPermissions?: unknown[];
+	thinkspaceStatus?: "active" | "draft";
+}) => {
+	await db.insert(user).values({
+		email: "owner@example.com",
+		id: authenticatedSession.user.id,
+		name: "Owner",
+	});
+	await db.insert(thinkspaces).values({
+		configurationSummary: "Watch release notes and draft a handoff.",
+		goal: "Monitor releases",
+		id: OWNED_THINKSPACE_ID,
+		ownerUserId: authenticatedSession.user.id,
+		status: thinkspaceStatus,
+	});
+	await db.insert(thinkspaceAgentProfiles).values({
+		...ownedAgentProfileColumns(profileStatus),
+		id: `profile_${profileStatus}_${crypto.randomUUID()}`,
+		requestedPermissions: JSON.stringify(requestedPermissions),
+		status: profileStatus,
+		thinkspaceId: OWNED_THINKSPACE_ID,
+		toolEnablements: JSON.stringify([{ source: "mcp_server", toolId: "cloudflare-docs" }]),
+	});
+};
+
 interface RuntimeOperationAttempt {
 	input: Record<string, string>;
 	name: string;
@@ -299,6 +349,71 @@ test("owners can activate the draft Agent Profile revision and draft Thinkspace 
 	assert.ok(patches.some((patch) => patch.status === "active" && !("version" in patch)));
 });
 
+test("activating a granted MCP request creates a Thinkspace Permission grant and clears active requests", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [firstClassMcpPermissionRequest()],
+	});
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ grantedPermissionIndexes: [0], thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.activatedRevision.status, "active");
+	assert.equal("requestedPermissions" in activation.activatedRevision, false);
+	assert.equal(activation.grantedPermissions.length, 1);
+	assert.equal(activation.grantedPermissions[0]?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+	assert.equal(activation.grantedPermissions[0]?.providerId, "cloudflare-docs");
+	assert.equal(activation.grantedPermissions[0]?.resourceScope, JSON.stringify({ type: "server" }));
+});
+
+test("declining an MCP request creates no grant while activation still succeeds", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [firstClassMcpPermissionRequest()],
+	});
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ grantedPermissionIndexes: [], thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	const grants = await db.select().from(thinkspacePermissions);
+
+	assert.ok(activation);
+	assert.equal(activation.activatedRevision.status, "active");
+	assert.deepEqual(activation.grantedPermissions, []);
+	assert.deepEqual(grants, []);
+});
+
+test("invalid MCP grants reject before the draft activates", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [firstClassMcpPermissionRequest("context7")],
+	});
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.activateAgentProfile,
+			{ thinkspaceId: OWNED_THINKSPACE_ID },
+			{ context: createCallContext({ db }) },
+		),
+		expectCode("BAD_REQUEST"),
+	);
+
+	const [revision] = await db
+		.select({ status: thinkspaceAgentProfiles.status })
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+	assert.equal(revision?.status, "draft");
+});
+
 test("updating tools writes enablements and permission requests to the draft Agent Profile", async () => {
 	const { db, saved } = createDbForAgentProfileDraftUpdate(
 		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),
@@ -320,7 +435,8 @@ test("updating tools writes enablements and permission requests to the draft Age
 		saved[0]?.toolEnablements,
 		'[{"source":"mcp_server","toolId":"github:create_issue"}]',
 	);
-	assert.match(String(saved[0]?.requestedPermissions), /mcp_tool_permission_placeholder/u);
+	assert.match(String(saved[0]?.requestedPermissions), /mcp_tool_access/u);
+	assert.doesNotMatch(String(saved[0]?.requestedPermissions), /mcp_tool_permission_placeholder/u);
 	assert.equal("enabledToolIds" in (saved[0] ?? {}), false);
 });
 
@@ -616,4 +732,43 @@ test("Thinkspace control-plane reads still work for owners", async () => {
 	assert.equal(thinkspace.id, OWNED_THINKSPACE_ID);
 	assert.equal(thinkspace.agentProfileRevision?.identity.instructions, "Watch SDK releases.");
 	assert.equal(listed.length, 1);
+});
+
+test("Thinkspace detail includes MCP grants and remains owner-gated", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({ db, profileStatus: "active", thinkspaceStatus: "active" });
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: authenticatedSession.user.id,
+		id: "thinkspace_permission_cloudflare_docs",
+		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
+		providerId: "cloudflare-docs",
+		reason: "Allow this Thinkspace Agent to read Cloudflare docs.",
+		resourceScope: JSON.stringify({ type: "server" }),
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	});
+
+	const thinkspace = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.equal(thinkspace.grantedPermissions.length, 1);
+	assert.equal(thinkspace.grantedPermissions[0]?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+	assert.equal(thinkspace.grantedPermissions[0]?.providerId, "cloudflare-docs");
+	assert.equal(thinkspace.grantedPermissions[0]?.resourceScope, JSON.stringify({ type: "server" }));
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.get,
+			{ thinkspaceId: OWNED_THINKSPACE_ID },
+			{
+				context: createCallContext({
+					db,
+					session: { session: { id: "session_other" }, user: { id: "other_user" } },
+				}),
+			},
+		),
+		expectCode("NOT_FOUND"),
+	);
 });

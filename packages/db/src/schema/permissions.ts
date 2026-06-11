@@ -27,6 +27,12 @@ export const thinkspacePermissions = sqliteTable(
 		 */
 		providerId: text("provider_id"),
 		reason: text("reason").default("").notNull(),
+		/**
+		 * JSON-encoded scope details for resource-targeted grants. MCP tool access
+		 * uses this to record whether the grant covers the whole built-in server
+		 * or a narrower tool selection, while still living on this table.
+		 */
+		resourceScope: text("resource_scope").default("{}").notNull(),
 		thinkspaceId: text("thinkspace_id")
 			.notNull()
 			.references(() => thinkspaces.id, { onDelete: "cascade" }),

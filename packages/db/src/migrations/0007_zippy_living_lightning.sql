@@ -1,0 +1,1 @@
+ALTER TABLE `thinkspace_permissions` ADD `resource_scope` text DEFAULT '{}' NOT NULL;

@@ -31,8 +31,13 @@ import {
 	saveAgentProfileDraft,
 } from "./agent-profile-repository";
 import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } from "./inspect";
-import { grantThinkspacePermissions, listThinkspacePermissions } from "./permissions";
-import { createToolPermissionPlaceholder, serializeThinkspaceToolSelections } from "./policy";
+import {
+	listThinkspacePermissions,
+	prepareThinkspacePermissionGrants,
+	saveThinkspacePermissionGrants,
+	ThinkspacePermissionGrantError,
+} from "./permissions";
+import { createMcpToolAccessPermissionRequest, serializeThinkspaceToolSelections } from "./policy";
 import {
 	createThinkspaceArchivePatch,
 	createThinkspaceCreationRecord,
@@ -109,7 +114,7 @@ const toToolEnablements = (selections: z.infer<typeof toolSelectionSchema>[]): T
 const toRequestedPermissions = (
 	selections: z.infer<typeof toolSelectionSchema>[],
 ): RequestedPermission[] =>
-	selections.map((selection) => createToolPermissionPlaceholder(selection) as RequestedPermission);
+	selections.map((selection) => createMcpToolAccessPermissionRequest(selection));
 
 const deriveAgentProfileDisplayName = (goal: string): string => {
 	const normalized = goal.trim();
@@ -161,7 +166,8 @@ const throwProductSafeProfileError = (error: unknown): never => {
 	if (
 		error instanceof ThinkspaceLifecycleValidationError ||
 		error instanceof AgentProfileLifecycleError ||
-		error instanceof AgentProfileValidationError
+		error instanceof AgentProfileValidationError ||
+		error instanceof ThinkspacePermissionGrantError
 	) {
 		throw toBadRequest(error);
 	}
@@ -224,14 +230,17 @@ export const thinkspacesRouter = {
 					}
 				}
 
+				const grantInputs = requestedGrants.map((permission) => ({
+					grantedByUserId: context.session.user.id,
+					permission,
+					thinkspaceId: thinkspace.id,
+				}));
+				const permissionGrants = prepareThinkspacePermissionGrants(grantInputs);
+
 				await applyAgentProfileActivation(context.db, { activation });
-				const grantedPermissions = await grantThinkspacePermissions(
+				const grantedPermissions = await saveThinkspacePermissionGrants(
 					context.db,
-					requestedGrants.map((permission) => ({
-						grantedByUserId: context.session.user.id,
-						permission,
-						thinkspaceId: thinkspace.id,
-					})),
+					permissionGrants,
 				);
 
 				return {
