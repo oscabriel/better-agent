@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
 	assessPermissionPolicy,
-	createToolPermissionPlaceholder,
+	createMcpToolAccessPermissionRequest,
 	DEFAULT_APPROVAL_POLICY,
 	PermissionPolicyError,
 	serializeThinkspaceToolSelections,
@@ -44,12 +44,28 @@ test("serializes explicit Thinkspace tool selections and rejects duplicates", ()
 	);
 });
 
-test("permission placeholders keep possible access separate from Approval", () => {
-	assert.deepEqual(createToolPermissionPlaceholder({ risk: "unknown", serverId: "custom" }), {
-		actions: ["propose_action"],
-		approvalRequired: true,
-		resource: { serverId: "custom", toolName: "any_explicitly_enabled_tool" },
+test("MCP tool access requests keep possible access separate from Approval", () => {
+	assert.deepEqual(createMcpToolAccessPermissionRequest({ risk: "unknown", serverId: "custom" }), {
+		kind: "mcp_tool_access",
+		reason:
+			"Allow this Thinkspace Agent to read all explicitly enabled tools from the custom MCP server.",
 		risk: "unknown",
-		type: "mcp_tool_permission_placeholder",
+		scope: { type: "server" },
+		serverId: "custom",
 	});
+	assert.deepEqual(
+		createMcpToolAccessPermissionRequest({
+			risk: "read_only",
+			serverId: "cloudflare-docs",
+			toolName: "search_docs",
+		}),
+		{
+			kind: "mcp_tool_access",
+			reason:
+				"Allow this Thinkspace Agent to read search_docs from the cloudflare-docs MCP server.",
+			risk: "read_only",
+			scope: { toolName: "search_docs", type: "tool" },
+			serverId: "cloudflare-docs",
+		},
+	);
 });

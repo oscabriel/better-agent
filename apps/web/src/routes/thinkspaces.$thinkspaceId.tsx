@@ -31,10 +31,12 @@ interface EnabledToolSelection {
 	toolName?: string;
 }
 
-interface PermissionPlaceholder {
+type McpToolAccessScopeView = { type: "server" } | { toolName: string; type: "tool" };
+
+interface PermissionRequestView {
 	actions?: string[];
 	approvalRequired?: boolean;
-	kind?: "model_provider_credential";
+	kind?: "mcp_tool_access" | "model_provider_credential";
 	providerId?: string;
 	reason?: string;
 	resource?: {
@@ -42,6 +44,8 @@ interface PermissionPlaceholder {
 		toolName: string;
 	};
 	risk?: string;
+	scope?: McpToolAccessScopeView;
+	serverId?: string;
 	type?: string;
 }
 
@@ -50,6 +54,7 @@ interface GrantedPermissionView {
 	kind: string;
 	providerId: string | null;
 	reason: string;
+	resourceScope: string;
 }
 
 interface AgentProfileRevisionView {
@@ -61,7 +66,7 @@ interface AgentProfileRevisionView {
 		modelId: string;
 		reasoningLevel: string;
 	};
-	requestedPermissions?: PermissionPlaceholder[];
+	requestedPermissions?: PermissionRequestView[];
 	status: "active" | "draft" | "superseded";
 	toolEnablements: { source: string; toolId: string }[];
 	version: number;
@@ -71,6 +76,80 @@ const toEnabledToolSelection = (enablement: { toolId: string }): EnabledToolSele
 	const [serverId, toolName] = enablement.toolId.split(":", 2);
 
 	return { risk: "unknown", serverId: serverId ?? enablement.toolId, toolName };
+};
+
+const formatMcpScope = (scope: McpToolAccessScopeView | undefined): string => {
+	if (!scope) {
+		return "server scope";
+	}
+
+	return scope.type === "server" ? "server scope" : `tool: ${scope.toolName}`;
+};
+
+const parseStoredMcpScope = (value: string): McpToolAccessScopeView | undefined => {
+	try {
+		const parsed = JSON.parse(value) as unknown;
+
+		if (typeof parsed === "object" && parsed !== null && "type" in parsed) {
+			const { type } = parsed as { type?: unknown };
+			if (type === "server") {
+				return { type: "server" };
+			}
+			if (type === "tool" && typeof (parsed as { toolName?: unknown }).toolName === "string") {
+				return { toolName: (parsed as { toolName: string }).toolName, type: "tool" };
+			}
+		}
+	} catch {
+		return undefined;
+	}
+
+	return undefined;
+};
+
+const getPermissionRequestTitle = (permission: PermissionRequestView, index: number): string => {
+	if (permission.kind === "model_provider_credential") {
+		return `Model credential: ${permission.providerId}`;
+	}
+
+	if (permission.kind === "mcp_tool_access") {
+		return `MCP tool access: ${permission.serverId}`;
+	}
+
+	return `${permission.resource?.serverId ?? `Permission request ${index + 1}`}${
+		permission.resource?.toolName ? `/${permission.resource.toolName}` : ""
+	}`;
+};
+
+const getPermissionRequestDescription = (permission: PermissionRequestView): string => {
+	if (permission.kind === "mcp_tool_access") {
+		return `${formatMcpScope(permission.scope)} · Risk: ${permission.risk ?? "unknown"} · ${permission.reason ?? "No reason provided."}`;
+	}
+
+	return (
+		permission.reason ??
+		`Risk: ${permission.risk ?? "unknown"} · Approval required: ${permission.approvalRequired ? "yes" : "no"}`
+	);
+};
+
+const getGrantedPermissionTitle = (permission: GrantedPermissionView): string => {
+	if (permission.kind === "mcp_tool_access") {
+		return `MCP tool access: ${permission.providerId ?? "scoped server"}`;
+	}
+
+	if (permission.kind === "model_provider_credential") {
+		return `Model credential: ${permission.providerId ?? "provider"}`;
+	}
+
+	return `${permission.kind}: ${permission.providerId ?? "scoped resource"}`;
+};
+
+const getGrantedPermissionDescription = (permission: GrantedPermissionView): string => {
+	const scope =
+		permission.kind === "mcp_tool_access"
+			? `${formatMcpScope(parseStoredMcpScope(permission.resourceScope))} · `
+			: "";
+
+	return `${scope}${permission.reason || "No reason provided."}`;
 };
 
 type TurnInspectionStatus = "accepted" | "completed" | "failed" | "running" | "unknown";
@@ -378,7 +457,7 @@ const PermissionsSection = ({
 	requestedPermissions,
 }: {
 	grantedPermissions: GrantedPermissionView[];
-	requestedPermissions: PermissionPlaceholder[];
+	requestedPermissions: PermissionRequestView[];
 }) => (
 	<section aria-labelledby="permissions-heading" className="grid gap-4">
 		<div className="grid gap-1">
@@ -400,17 +479,14 @@ const PermissionsSection = ({
 					<div className="border border-border">
 						{requestedPermissions.map((permission, index) => (
 							<div
-								key={`${permission.kind ?? permission.type}:${permission.providerId ?? permission.resource?.serverId ?? index}`}
+								key={`${permission.kind ?? permission.type}:${permission.providerId ?? permission.serverId ?? permission.resource?.serverId ?? index}`}
 								className={`grid gap-0.5 p-4 ${index < requestedPermissions.length - 1 ? "border-b border-border" : ""}`}
 							>
 								<p className="text-sm font-medium">
-									{permission.kind === "model_provider_credential"
-										? `Model credential: ${permission.providerId}`
-										: `${permission.resource?.serverId ?? "Tool"}${permission.resource?.toolName ? `/${permission.resource.toolName}` : ""}`}
+									{getPermissionRequestTitle(permission, index)}
 								</p>
 								<p className="text-muted-foreground text-xs">
-									{permission.reason ??
-										`Risk: ${permission.risk ?? "unknown"} · Approval required: ${permission.approvalRequired ? "yes" : "no"}`}
+									{getPermissionRequestDescription(permission)}
 								</p>
 							</div>
 						))}
@@ -430,10 +506,10 @@ const PermissionsSection = ({
 								key={permission.id}
 								className={`grid gap-0.5 p-4 ${index < grantedPermissions.length - 1 ? "border-b border-border" : ""}`}
 							>
-								<p className="text-sm font-medium">
-									{permission.kind}: {permission.providerId ?? "scoped resource"}
+								<p className="text-sm font-medium">{getGrantedPermissionTitle(permission)}</p>
+								<p className="text-muted-foreground text-xs">
+									{getGrantedPermissionDescription(permission)}
 								</p>
-								<p className="text-muted-foreground text-xs">{permission.reason}</p>
 							</div>
 						))}
 					</div>

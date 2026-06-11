@@ -112,20 +112,22 @@ export interface ModelProviderCredentialPermissionRequest {
 	reason: string;
 }
 
-export interface ToolPermissionPlaceholderRequest {
-	actions: string[];
-	approvalRequired: boolean;
-	resource: {
-		serverId: string;
-		toolName: string;
-	};
-	risk: "read_only" | "mutating" | "unknown";
-	type: "mcp_tool_permission_placeholder";
+export const MCP_TOOL_ACCESS_REQUEST_RISKS = ["read_only", "mutating", "unknown"] as const;
+export type McpToolAccessRequestRisk = (typeof MCP_TOOL_ACCESS_REQUEST_RISKS)[number];
+
+export type McpToolAccessScope = { type: "server" } | { toolName: string; type: "tool" };
+
+export interface McpToolAccessPermissionRequest {
+	kind: "mcp_tool_access";
+	reason: string;
+	risk: McpToolAccessRequestRisk;
+	scope: McpToolAccessScope;
+	serverId: string;
 }
 
 export type RequestedPermission =
 	| ModelProviderCredentialPermissionRequest
-	| ToolPermissionPlaceholderRequest;
+	| McpToolAccessPermissionRequest;
 
 interface AgentProfileRevisionBase {
 	createdAt: Date;
@@ -321,30 +323,34 @@ const isRoutine = (value: unknown): value is Routine =>
 	isNonEmptyString(value.instruction) &&
 	isRoutineSchedule(value.schedule);
 
-const isToolPermissionPlaceholderRequest = (
-	value: unknown,
-): value is ToolPermissionPlaceholderRequest => {
-	if (!(isRecord(value) && isRecord(value.resource))) {
+const isMcpToolAccessScope = (value: unknown): value is McpToolAccessScope => {
+	if (!isRecord(value)) {
 		return false;
 	}
 
-	return (
-		value.type === "mcp_tool_permission_placeholder" &&
-		Array.isArray(value.actions) &&
-		value.actions.every((action) => typeof action === "string" && action.length > 0) &&
-		typeof value.approvalRequired === "boolean" &&
-		isNonEmptyString(value.resource.serverId) &&
-		isNonEmptyString(value.resource.toolName) &&
-		(value.risk === "read_only" || value.risk === "mutating" || value.risk === "unknown")
-	);
+	if (value.type === "server") {
+		return true;
+	}
+
+	return value.type === "tool" && isNonEmptyString(value.toolName);
 };
+
+const isMcpToolAccessPermissionRequest = (
+	value: unknown,
+): value is McpToolAccessPermissionRequest =>
+	isRecord(value) &&
+	value.kind === "mcp_tool_access" &&
+	isNonEmptyString(value.serverId) &&
+	MCP_TOOL_ACCESS_REQUEST_RISKS.includes(value.risk as McpToolAccessRequestRisk) &&
+	isMcpToolAccessScope(value.scope) &&
+	typeof value.reason === "string";
 
 const isRequestedPermission = (value: unknown): value is RequestedPermission =>
 	(isRecord(value) &&
 		value.kind === "model_provider_credential" &&
 		MODEL_PROVIDER_IDS.includes(value.providerId as ModelProviderId) &&
 		typeof value.reason === "string") ||
-	isToolPermissionPlaceholderRequest(value);
+	isMcpToolAccessPermissionRequest(value);
 
 const parseJsonArray = <T>(
 	label: string,

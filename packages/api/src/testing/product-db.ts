@@ -35,5 +35,10 @@ export const createTestProductDb = (): ProductDb => {
 		}
 	}
 
-	return drizzle(sqlite, { schema }) as unknown as ProductDb;
+	const db = drizzle(sqlite, { schema });
+	const dbWithBatch: unknown = Object.assign(db, {
+		batch: async (queries: readonly PromiseLike<unknown>[]) => await Promise.all(queries),
+	});
+
+	return dbWithBatch as ProductDb;
 };
