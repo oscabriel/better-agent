@@ -43,7 +43,14 @@ typography:
     fontWeight: 500
     lineHeight: 1.3
 rounded:
-  none: "0"
+  sm: "6px"
+  md: "8px"
+  lg: "10px"
+  full: "9999px"
+shadows:
+  overlay: "0 1px 2px var(--shadow-color), 0 4px 8px -2px var(--shadow-color)"
+  shadow-color-dark: "oklch(0 0 0 / 32%)"
+  shadow-color-light: "oklch(0 0 0 / 6%)"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -54,7 +61,7 @@ components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
-    rounded: "{rounded.none}"
+    rounded: "{rounded.md}"
     padding: "0 10px"
     height: "32px"
   button-primary-hover:
@@ -62,13 +69,13 @@ components:
   button-outline:
     backgroundColor: "transparent"
     textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
+    rounded: "{rounded.md}"
     padding: "0 10px"
     height: "32px"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.ink-muted}"
-    rounded: "{rounded.none}"
+    rounded: "{rounded.md}"
     padding: "0 10px"
     height: "32px"
   button-ghost-hover:
@@ -77,14 +84,17 @@ components:
   input-default:
     backgroundColor: "oklch(1 0 0 / 15%)"
     textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
+    rounded: "{rounded.md}"
     padding: "4px 10px"
     height: "32px"
   card-default:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
+    rounded: "{rounded.lg}"
     padding: "16px"
+  badge-default:
+    rounded: "{rounded.full}"
+    height: "20px"
 ---
 
 # Design System: Better Agent
@@ -95,22 +105,26 @@ components:
 
 A clean, purpose-made surface where every tool has a fixed place. Nothing decorative; everything functional. The Workbench is not a dashboard with dials and readouts. It is the surface you compose on: you place a Goal, attach Sources, grant Permissions, and the Thinkspace Agent works while you step away. When you return, the Artifacts and Audit Trail are laid out where you left them.
 
-The system is achromatic by default. Color enters only with intention: destructive red for danger, sage green for deliberate accent, and nothing else. Surfaces are flat and sharp-cornered. There are no shadows, no gradients, no rounded edges. Depth is conveyed through tonal layering (surface → surface-raised → surface-active) and border opacity, never through elevation.
+The system is achromatic by default. Color enters only with intention: destructive red for danger, sage green for deliberate accent, and nothing else. Surfaces are calm and softly rounded (6–10px, full-pill for badges), with no gradients and no decorative blur. Depth is conveyed primarily through tonal layering (surface → surface-raised → surface-active) and border opacity; floating surfaces (menus, popovers, dialogs) may additionally carry one small overlay shadow to separate from content beneath.
 
 The Workbench rejects orchestration theater. There are no agent-count badges, no throughput graphs, no node graphs, no encouragement to scale. The interface shows what the user needs to judge (the Review Queue) and what the agent produced (Artifacts, Memory), not what the agent is doing. PRODUCT.md's framing holds: "Activity is not the value; reviewed outcomes are."
 
 **Key Characteristics:**
 
 - Achromatic palette with sage accent (provisional, restrained use)
-- Sharp corners on every surface and control (border-radius: 0)
-- Flat: no shadows, no elevation, no blur-as-decoration
+- Soft rounded corners on a tight scale: 6px (compact controls), 8px (controls), 10px (containers), full-pill (badges)
+- Tonal layering as the primary depth cue; one small overlay shadow reserved for floating surfaces
 - Not dense: generous whitespace, 14px body text, legible at a glance
 - One typeface (Inter Variable) across all roles
-- Dark mode as the primary theme
+- Dark mode as the primary theme; light mode tokens exist and must be kept in parity (no dark-only styling decisions)
+
+**Reference anchors:** two melior.design pieces set the bar. The _document page_ (Atrium "Spruce" customer view): a centered single-column brief with title, metadata pills, and structured cards inline with prose. The _projects index_ (dark "Projects" page): display heading, one toolbar row, and a teaching empty state with ghost cards. Both are codified in §7 Patterns.
 
 ## 2. Colors: The Workbench Palette
 
 Achromatic with surgical restraint. The palette is a greyscale ramp in OKLCH at zero chroma, with one provisional accent (sage) and one semantic color (destructive red). Color is not decoration; it is signal.
+
+**Themes.** Dark is the primary theme and the values documented below are the dark ramp. A light token block exists in `globals.css` (`:root`) as a supported option — not yet user-togglable, but every styling decision must hold in both themes. Use semantic tokens (`bg-background`, `text-foreground`, `ring-foreground/10`), never raw dark-ramp values, so light mode stays one provider-wire away.
 
 ### Primary
 
@@ -162,27 +176,29 @@ Achromatic with surgical restraint. The palette is a greyscale ramp in OKLCH at 
 
 **The Fixed Scale Rule.** No `clamp()` on type sizes. Product UI runs at consistent viewport sizes; fluid typography creates more problems than it solves in app shells.
 
-## 4. Elevation
+## 4. Shape & Elevation
 
-There is no elevation. The Workbench is flat.
+**Corners are soft, on a tight scale.** `--radius: 0.625rem` drives the Tailwind scale: `rounded-sm` (6px) for compact controls and menu items, `rounded-md` (8px) for buttons, inputs, and tooltips, `rounded-lg` (10px) for cards, popovers, menus, and dialogs, `rounded-full` for badges and pills. Nothing rounder than 10px on a container — over-rounding (24px+) is as wrong as sharp-everything was austere.
 
-Depth is conveyed entirely through tonal layering: `surface` (0.145) → `surface-raised` (0.205) → `surface-muted` (0.269) → `surface-active` (0.371). Each step is a deliberate lightness increment in OKLCH. Borders at `oklch(1 0 0 / 10%)` reinforce edges where tonal contrast alone is insufficient.
+**Tonal layering is still the primary depth cue:** `surface` (0.145) → `surface-raised` (0.205) → `surface-muted` (0.269) → `surface-active` (0.371). Each step is a deliberate lightness increment in OKLCH. Borders at `oklch(1 0 0 / 10%)` reinforce edges where tonal contrast alone is insufficient.
 
-No box-shadow values exist in the system. No blur-as-depth, no ambient glow, no elevation tokens.
+**One shadow exists:** `shadow-overlay` (`0 1px 2px var(--shadow-color), 0 4px 8px -2px var(--shadow-color)`), theme-aware via `--shadow-color` (6% black in light, 32% black in dark). It belongs only on floating surfaces — dropdown menus, select popups, popovers, dialogs — where it separates the layer from content beneath. Static surfaces (cards, buttons, inputs, headers) never carry it.
 
 ### Named Rules
 
-**The No Shadow Rule.** Shadows are prohibited. Not "flat by default with shadows on hover." Not "shadows only on popovers." Zero shadows, zero exceptions. If a surface needs to feel elevated, it gets a lighter background and a `ring-1` border. If that's not enough, the layout is wrong.
+**The Radius Ceiling Rule.** Containers top out at `rounded-lg` (10px). Badges and pills are the only `rounded-full` elements. If you reach for `rounded-xl` or beyond on a card, dialog, or section, you are over-rounding.
+
+**The Floating Shadow Rule.** `shadow-overlay` is the only shadow token, and it applies only to surfaces that float above the page (menus, popovers, dialogs). Never on static cards, never on buttons, never on hover states, never a larger blur. Elevation on static surfaces is still tonal: lighter background + `ring-1` border.
 
 ## 5. Components
 
-The component vocabulary is precise, austere, and restrained. Every component uses sharp corners (border-radius: 0), flat surfaces (no shadows), and the achromatic palette. Components feel purposefully placed, not packed. Generous padding and whitespace prevent density from creeping in.
+The component vocabulary is precise, austere, and restrained. Every component uses the soft radius scale (§4), the achromatic palette, and tonal depth (overlay shadow on floating surfaces only). Components feel purposefully placed, not packed. Generous padding and whitespace prevent density from creeping in.
 
 All components are built on Base UI React primitives with CVA (class-variance-authority) for variant management.
 
 ### Buttons
 
-- **Shape:** Sharp corners (border-radius: 0), height 32px (default), border-transparent by default.
+- **Shape:** `rounded-md` (8px) at default/lg sizes, `rounded-sm` (6px) at sm/xs; height 32px (default), border-transparent by default.
 - **Primary:** `bg-primary text-primary-foreground` (light grey on near-black text). The only button that reads as "the action." Hover reduces opacity to 80%.
 - **Outline:** Transparent background, `border-border`, ink text. Hover fills with `surface-muted`.
 - **Ghost:** Transparent, muted text. Hover fills with `surface-muted` and text shifts to full ink. Used in nav, menus, toolbars.
@@ -193,16 +209,16 @@ All components are built on Base UI React primitives with CVA (class-variance-au
 
 ### Cards / Containers
 
-- **Shape:** Sharp corners. No border-radius on any card, ever.
+- **Shape:** `rounded-lg` (10px).
 - **Background:** `surface-raised` (oklch(0.205 0 0)). One tonal step above the page.
 - **Border:** `ring-1 ring-foreground/10`. Subtle outline, not a heavy stroke.
-- **Shadow:** None. Prohibited.
+- **Shadow:** None. Cards are static surfaces; depth is tonal.
 - **Internal padding:** 16px (md spacing). Compact variant at 12px.
 - **Content text:** Body scale (14px). Card descriptions in muted ink.
 
 ### Inputs / Fields
 
-- **Shape:** Sharp corners. Height 32px.
+- **Shape:** `rounded-md` (8px). Height 32px.
 - **Border:** `border-input` (oklch(1 0 0 / 15%)).
 - **Background:** `bg-input/30` in dark mode (subtle transparency).
 - **Focus:** `border-ring ring-1 ring-ring/50`. Same treatment as buttons.
@@ -219,29 +235,31 @@ All components are built on Base UI React primitives with CVA (class-variance-au
 
 ### Dialogs / Popovers
 
-- **Shape:** Sharp corners. No rounding.
+- **Shape:** `rounded-lg` (10px).
 - **Background:** `bg-popover` (surface-raised).
-- **Border:** `ring-1 ring-foreground/10`.
+- **Border:** `ring-1 ring-foreground/10` plus `shadow-overlay` (floating surface).
 - **Overlay:** `bg-black/10` with `backdrop-blur-xs`. Light, not heavy.
 - **Animation:** Fade in + scale from 95% (100ms). `prefers-reduced-motion` falls back to instant.
 
 ### Badges
 
-- **Shape:** Sharp corners. Height 20px.
+- **Shape:** Full pill (`rounded-full`). Height 20px. The pill silhouette is the badge's identity — metadata chips, status indicators, counts (per the melior reference: "Public", view counts, "Positive"/"Churned").
 - **Default:** `bg-primary text-primary-foreground`. Small, high-contrast.
 - **Outline:** `border-border text-foreground`. For lower-emphasis labels.
 - **Destructive:** `bg-destructive/10 text-destructive`. Tinted, not solid.
 
 ### Tooltips
 
+- **Shape:** `rounded-md` (8px).
 - **Background:** `bg-foreground` (ink-colored). Inverted contrast.
 - **Text:** `text-background`. 12px.
-- **Arrow:** Square (sharp corners), matching background.
+- **Arrow:** Rotated square (kept sharp; rounding breaks the pointer shape), matching background.
 
 ### Dropdown Menus
 
+- **Shape:** `rounded-lg` (10px) container, `rounded-sm` (6px) items.
 - **Background:** `bg-popover`.
-- **Border:** `ring-1 ring-foreground/10`, `shadow-md` — **exception note:** dropdown menus currently use `shadow-md`; this should be removed to comply with the No Shadow Rule. Use `ring-1` alone.
+- **Border:** `ring-1 ring-foreground/10` plus `shadow-overlay` (floating surface).
 - **Items:** 12px text, `focus:bg-accent focus:text-accent-foreground`. Keyboard-navigable.
 - **Destructive items:** Red text, `bg-destructive/10` on focus.
 
@@ -252,7 +270,9 @@ All components are built on Base UI React primitives with CVA (class-variance-au
 - **Do** use the achromatic palette as the default. Sage accent earns its place through deliberate, sparse use (success indicators, affirmative actions). If a screen has no sage, that is correct.
 - **Do** use `ring-1 ring-foreground/10` for surface boundaries. The 10% white-opacity approach adapts to any tonal surface.
 - **Do** keep body text at 14px (0.875rem) minimum. Legibility at a glance is a design principle, not a suggestion.
-- **Do** use tonal layering (surface → surface-raised → surface-active) to create depth. Each step is a lightness increment, not a shadow.
+- **Do** use tonal layering (surface → surface-raised → surface-active) to create depth on static surfaces. Each step is a lightness increment, not a shadow.
+- **Do** use `shadow-overlay` on floating surfaces (menus, popovers, dialogs) — it is the one sanctioned shadow, theme-aware via `--shadow-color`.
+- **Do** follow the radius scale: `rounded-sm` compact controls, `rounded-md` controls, `rounded-lg` containers, `rounded-full` badges.
 - **Do** give every interactive element all six states: default, hover, focus, active, disabled, error. Ship none with half.
 - **Do** use generous whitespace. Padding and gaps should feel spacious (16-32px between sections), not packed. "Restrained, not dense" means the absence of content is as intentional as its presence.
 - **Do** use `text-wrap: balance` on display and headline text. Use `text-wrap: pretty` on body prose.
@@ -260,8 +280,9 @@ All components are built on Base UI React primitives with CVA (class-variance-au
 
 ### Don't:
 
-- **Don't** add shadows. Not on cards, not on buttons, not on popovers, not on hover. The No Shadow Rule has zero exceptions.
-- **Don't** round corners. Every surface, button, input, badge, dialog, and tooltip uses border-radius: 0. No exceptions for "friendliness" or "approachability."
+- **Don't** add shadows to static surfaces — cards, buttons, inputs, headers, hover states. `shadow-overlay` on floating surfaces is the only exception; no other shadow value may exist.
+- **Don't** exceed the radius ceiling. `rounded-lg` (10px) is the maximum for any container; `rounded-xl`+ on cards, dialogs, or sections is over-rounding. Don't return to `rounded-none` either — sharp corners were retired deliberately.
+- **Don't** style against the dark ramp directly (raw oklch values, `dark:`-only fixes without a light counterpart). Light mode is a supported option; semantic tokens keep it viable.
 - **Don't** build a generic chat window with a sidebar. PRODUCT.md: "Better Agent is not a conversation list with a text input bar at the bottom. The input surface should feel like a full-page note or brief, not a chat prompt."
 - **Don't** show agent metrics, running counts, or throughput graphs. PRODUCT.md: "No running-agent counts, no throughput graphs, no encouragement to scale up. Activity is not the value; reviewed outcomes are."
 - **Don't** build node graphs, drag-and-drop pipelines, or visual orchestration. PRODUCT.md: "Delegation is a single intentional act, not a wiring diagram."
@@ -271,3 +292,28 @@ All components are built on Base UI React primitives with CVA (class-variance-au
 - **Don't** introduce opaque grey border values. Borders are `oklch(1 0 0 / 10%)` or nothing.
 - **Don't** use `text-xs` (12px) as the default body size. 12px is for labels, badges, and button text only. Body and description text starts at 14px.
 - **Don't** introduce a second accent color. Sage is provisional and singular. If you need a second hue, the design is wrong.
+
+## 7. Patterns
+
+Two page-level patterns adopted from melior.design references (Atrium customer page; dark Projects index). These are build specs: new surfaces of these kinds follow them unless a deliberate decision is recorded here.
+
+### The Document Page (detail views: Thinkspace, Artifact review)
+
+The detail view is a brief, not a dashboard. Reference: melior's Atrium "Spruce" customer page.
+
+- **Frame:** breadcrumb in the top bar (`Thinkspaces › {name}`), slim sidebar, then a centered single column, max-width ~720px (65–75ch at 14px). No second content panel.
+- **Header block:** Title (display or headline scale per route depth) with an identifying icon, followed by one row of metadata pills — `rounded-full` badges carrying scope facts (source count, permission grants, status). Status pills may use sage (affirmative) or destructive-tinted (attention) per the Achromatic Default Rule.
+- **Section navigation:** one tab row directly under the header (e.g. Goal / Artifacts / Audit Trail). Tabs, not accordion, not split panes.
+- **Body rhythm:** prose paragraphs (body scale, 65ch cap) interleaved with structured cards. Each card: `rounded-lg`, `ring-1 ring-foreground/10`, a pill-shaped section label in its top-left, a quiet "More" affordance top-right, and internal rows of icon + text + trailing inline action. Rows are the unit of interaction; the card is just their container.
+- **What this pattern forbids:** stat tiles, multi-column card grids, persistent side panels. The page reads top to bottom like a document.
+
+### The Teaching Empty State (index views: Thinkspaces list)
+
+An empty index teaches what a populated one looks like. Reference: melior's dark Projects page.
+
+- **Frame:** display-scale page title + one muted-ink subtitle line, then a single toolbar row: search input left, segmented filter group center-left, primary action (+ secondary) right-aligned. Toolbar controls at the 32px height standard.
+- **Empty state body:** one full-width panel (`rounded-lg`, `ring-1 ring-foreground/10`), split in two:
+  - **Left — the invitation:** headline-scale heading naming the outcome ("Set up your first Thinkspace"), one body line of muted ink explaining what goes here, then primary button + ghost "How it works" button. Grounded copy per PRODUCT.md: name what it does, no aspiration.
+  - **Right — the demonstration:** 1–2 ghost preview cards at reduced emphasis (muted borders, no interaction) on a subtly textured backdrop (dotted grid at border-level opacity, _not_ stripes/gradients). Each ghost card shows the real anatomy of a populated item: icon + name, metadata pills, created-date row. The user learns the card by seeing it.
+- **Populated state:** the same card anatomy the ghosts demonstrated, in a responsive grid (`repeat(auto-fit, minmax(280px, 1fr))`). Card: icon + name + domain line, pill row (status, counts), muted footer row, overflow menu top-right.
+- **What this pattern forbids:** a bare "No thinkspaces yet" line with a lone button; illustration-as-filler; onboarding modals. The empty state is layout, not apology.
