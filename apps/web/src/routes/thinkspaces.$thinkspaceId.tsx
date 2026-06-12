@@ -490,6 +490,250 @@ const SubmitTurnSection = ({
 	);
 };
 
+const formatSourceSize = (sizeBytes: number): string => {
+	if (sizeBytes < 1024) {
+		return `${sizeBytes} B`;
+	}
+
+	return `${(sizeBytes / 1024).toFixed(1)} KB`;
+};
+
+const formatSourceContentType = (contentType: string): string =>
+	contentType === "text/markdown" ? "Markdown" : "Plain text";
+
+const SOURCE_CONTENT_TYPE_OPTIONS = [
+	{ label: "Markdown", value: "text/markdown" },
+	{ label: "Plain text", value: "text/plain" },
+] as const;
+
+type SourceContentTypeOption = (typeof SOURCE_CONTENT_TYPE_OPTIONS)[number]["value"];
+
+const SourcesSection = ({
+	isArchived,
+	thinkspaceId,
+}: {
+	isArchived: boolean;
+	thinkspaceId: string;
+}) => {
+	const context = routeApi.useRouteContext();
+	const queryClient = useQueryClient();
+	const [sourceName, setSourceName] = useState("");
+	const [sourceDescription, setSourceDescription] = useState("");
+	const [sourceContentType, setSourceContentType] =
+		useState<SourceContentTypeOption>("text/markdown");
+	const [sourceContent, setSourceContent] = useState("");
+	const [viewedSourceId, setViewedSourceId] = useState<string | null>(null);
+	const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null);
+	const sourcesQuery = useQuery(
+		context.orpc.sources.list.queryOptions({ input: { thinkspaceId } }),
+	);
+	const sourceContentQuery = useQuery(
+		context.orpc.sources.getContent.queryOptions({
+			enabled: Boolean(viewedSourceId),
+			input: { sourceId: viewedSourceId ?? "", thinkspaceId },
+		}),
+	);
+	const invalidateSources = async () => {
+		await queryClient.invalidateQueries({
+			queryKey: context.orpc.sources.list.queryKey({ input: { thinkspaceId } }),
+		});
+	};
+	const uploadSourceMutation = useMutation(
+		context.orpc.sources.upload.mutationOptions({
+			onSuccess: async () => {
+				setSourceName("");
+				setSourceDescription("");
+				setSourceContent("");
+				await invalidateSources();
+			},
+		}),
+	);
+	const deleteSourceMutation = useMutation(
+		context.orpc.sources.delete.mutationOptions({
+			onMutate: ({ sourceId }) => {
+				setDeletingSourceId(sourceId);
+			},
+			onSettled: () => {
+				setDeletingSourceId(null);
+			},
+			onSuccess: async ({ deletedSourceId }) => {
+				setViewedSourceId((current) => (current === deletedSourceId ? null : current));
+				await invalidateSources();
+			},
+		}),
+	);
+	const sources = sourcesQuery.data ?? [];
+	const uploadDisabled =
+		isArchived || !sourceName.trim() || !sourceContent || uploadSourceMutation.isPending;
+
+	return (
+		<section aria-labelledby="sources-heading" className="grid gap-4">
+			<div className="grid gap-1">
+				<h2 className="text-lg font-semibold tracking-tight" id="sources-heading">
+					Sources
+				</h2>
+				<p className="text-muted-foreground text-sm">
+					Material you hand to this Thinkspace — requirement docs, exported notes, ADRs. Sources are
+					scoped to this Thinkspace only.
+				</p>
+			</div>
+			<form
+				className="grid gap-3 border border-border p-4"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (uploadDisabled) {
+						return;
+					}
+					uploadSourceMutation.mutate({
+						content: sourceContent,
+						contentType: sourceContentType,
+						description: sourceDescription.trim() || undefined,
+						name: sourceName,
+						thinkspaceId,
+					});
+				}}
+			>
+				<div className="grid gap-2 sm:grid-cols-2">
+					<div className="grid gap-2">
+						<Label htmlFor="source-name">Name</Label>
+						<Input
+							disabled={isArchived}
+							id="source-name"
+							maxLength={120}
+							onChange={(event) => setSourceName(event.target.value)}
+							placeholder="Vendor pricing notes"
+							value={sourceName}
+						/>
+					</div>
+					<div className="grid gap-2">
+						<Label htmlFor="source-content-type">Format</Label>
+						<select
+							className="border-input bg-transparent flex h-9 w-full min-w-0 border px-3 py-1 text-sm shadow-xs outline-none disabled:cursor-not-allowed disabled:opacity-50"
+							disabled={isArchived}
+							id="source-content-type"
+							onChange={(event) =>
+								setSourceContentType(event.target.value as SourceContentTypeOption)
+							}
+							value={sourceContentType}
+						>
+							{SOURCE_CONTENT_TYPE_OPTIONS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+					</div>
+				</div>
+				<div className="grid gap-2">
+					<Label htmlFor="source-description">Description (optional)</Label>
+					<Input
+						disabled={isArchived}
+						id="source-description"
+						maxLength={500}
+						onChange={(event) => setSourceDescription(event.target.value)}
+						placeholder="What this material is for"
+						value={sourceDescription}
+					/>
+				</div>
+				<div className="grid gap-2">
+					<Label htmlFor="source-content">Content</Label>
+					<Textarea
+						disabled={isArchived}
+						id="source-content"
+						onChange={(event) => setSourceContent(event.target.value)}
+						placeholder="Paste the text or markdown content of this Source."
+						rows={5}
+						value={sourceContent}
+					/>
+				</div>
+				{uploadSourceMutation.isError ? (
+					<p className="text-destructive text-xs" role="alert">
+						{uploadSourceMutation.error.message}
+					</p>
+				) : null}
+				<div>
+					<Button disabled={uploadDisabled} type="submit">
+						{uploadSourceMutation.isPending ? "Uploading…" : "Upload Source"}
+					</Button>
+				</div>
+			</form>
+			{sources.length === 0 ? (
+				<p className="border border-border p-4 text-muted-foreground text-sm">
+					No Sources uploaded to this Thinkspace yet.
+				</p>
+			) : (
+				<div className="border border-border">
+					{sources.map((source, index) => (
+						<div
+							key={source.id}
+							className={`grid gap-2 p-4 ${index < sources.length - 1 ? "border-b border-border" : ""}`}
+						>
+							<div className="flex items-start justify-between gap-4">
+								<div className="grid gap-0.5">
+									<p className="text-sm font-medium">{source.name}</p>
+									{source.description ? (
+										<p className="text-muted-foreground text-xs">{source.description}</p>
+									) : null}
+									<p className="text-muted-foreground text-xs">
+										{formatSourceContentType(source.contentType)} ·{" "}
+										{formatSourceSize(source.sizeBytes)} · Uploaded{" "}
+										{formatDateTime(source.createdAt)}
+									</p>
+								</div>
+								<div className="flex shrink-0 gap-2">
+									<Button
+										onClick={() =>
+											setViewedSourceId((current) => (current === source.id ? null : source.id))
+										}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										{viewedSourceId === source.id ? "Hide" : "View"}
+									</Button>
+									<Button
+										disabled={Boolean(deletingSourceId)}
+										onClick={() =>
+											deleteSourceMutation.mutate({ sourceId: source.id, thinkspaceId })
+										}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										{deletingSourceId === source.id ? "Deleting…" : "Delete"}
+									</Button>
+								</div>
+							</div>
+							{viewedSourceId === source.id ? (
+								<div className="grid gap-2 border-border border-t pt-3">
+									{sourceContentQuery.isError ? (
+										<p className="text-destructive text-xs" role="alert">
+											{sourceContentQuery.error.message}
+										</p>
+									) : null}
+									{sourceContentQuery.isFetching ? (
+										<p className="text-muted-foreground text-xs">Loading content…</p>
+									) : null}
+									{sourceContentQuery.data && sourceContentQuery.data.id === source.id ? (
+										<p className="max-h-80 overflow-y-auto whitespace-pre-wrap border border-border p-3 text-sm leading-relaxed">
+											{sourceContentQuery.data.content}
+										</p>
+									) : null}
+								</div>
+							) : null}
+						</div>
+					))}
+				</div>
+			)}
+			{deleteSourceMutation.isError ? (
+				<p className="text-destructive text-sm" role="alert">
+					{deleteSourceMutation.error.message}
+				</p>
+			) : null}
+		</section>
+	);
+};
+
 interface McpCatalogServerView {
 	description: string;
 	id: string;
@@ -945,6 +1189,10 @@ const RouteComponent = () => {
 				modelReady={modelReadiness.status === "ready"}
 				thinkspaceId={thinkspaceId}
 			/>
+
+			<Separator />
+
+			<SourcesSection isArchived={isArchived} thinkspaceId={thinkspaceId} />
 
 			<Separator />
 
