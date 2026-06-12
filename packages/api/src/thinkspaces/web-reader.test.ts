@@ -27,6 +27,64 @@ test("only http(s) URLs are fetchable; everything else is rejected product-safel
 	}
 });
 
+test("loopback and private-network hosts are rejected before any request is made", () => {
+	const privateUrls = [
+		"http://localhost:8787/admin",
+		"https://127.0.0.1/secrets",
+		"http://0.0.0.0:6379",
+		"http://10.0.0.5/internal",
+		"https://192.168.1.1/router",
+		"http://172.16.0.1/metadata",
+		"http://169.254.169.254/latest/meta-data/",
+		"http://[::1]:8080",
+		"https://service.local/api",
+	];
+
+	for (const url of privateUrls) {
+		assert.throws(
+			() => assertFetchableWebUrl(url),
+			ThinkspaceWebReadError,
+			`${url} must be rejected`,
+		);
+	}
+});
+
+test("redirect hops are re-validated: a public page cannot bounce the fetch onto a private host", async () => {
+	const requestedUrls: string[] = [];
+	const reader = createFetchWebReader((input) => {
+		requestedUrls.push(String(input));
+		return Promise.resolve(
+			new Response(null, {
+				headers: { location: "http://127.0.0.1:6379/" },
+				status: 302,
+			}),
+		);
+	});
+
+	await assert.rejects(reader.fetchPage("https://example.com/page"), ThinkspaceWebReadError);
+	assert.deepEqual(requestedUrls, ["https://example.com/page"]);
+});
+
+test("legitimate redirects are followed to the final page with a hop cap", async () => {
+	const reader = createFetchWebReader((input) => {
+		const url = String(input);
+
+		if (url === "https://example.com/old") {
+			return Promise.resolve(new Response(null, { headers: { location: "/new" }, status: 301 }));
+		}
+
+		assert.equal(url, "https://example.com/new");
+		return Promise.resolve(new Response("the moved page"));
+	});
+
+	assert.equal(await reader.fetchPage("https://example.com/old"), "the moved page");
+
+	const loopingReader = createFetchWebReader(() =>
+		Promise.resolve(new Response(null, { headers: { location: "/loop" }, status: 302 })),
+	);
+	await assert.rejects(loopingReader.fetchPage("https://example.com/loop"), ThinkspaceWebReadError);
+});
+
 test("fetchPage performs a GET and truncates oversized content to the cap", async () => {
 	const requests: { method?: string; url: string }[] = [];
 	const reader = createFetchWebReader((input, init) => {
