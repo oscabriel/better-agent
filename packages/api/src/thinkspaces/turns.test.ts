@@ -281,6 +281,44 @@ test("missing or disallowed model configuration fails closed before runtime acce
 	assert.equal(runtimeCallCount, 0);
 });
 
+test("default runtime adapter initializes the runtime before accepting the turn", async () => {
+	const runtimeCalls: string[] = [];
+	const env = {
+		BETTER_AUTH_SECRET: "test-secret",
+		THINKSPACE_AGENT: {
+			get: () => ({
+				acceptTurnSubmission: (request: { idempotencyKey: string }) => {
+					runtimeCalls.push("acceptTurnSubmission");
+					return Promise.resolve(acceptedHandle(request.idempotencyKey));
+				},
+				setName: (name: string) => {
+					runtimeCalls.push(`setName:${name}`);
+					return Promise.resolve();
+				},
+			}),
+			idFromName: (name: string) =>
+				({
+					toString: () => `durable-object-id:${name}`,
+				}) as DurableObjectId,
+		} as unknown as DurableObjectNamespace,
+	} as Pick<CloudflareEnv, "BETTER_AUTH_SECRET" | "THINKSPACE_AGENT">;
+
+	const acceptance = await submitOwnedThinkspaceTurn({
+		checkModelReadiness: () => Promise.resolve(readyReadiness),
+		db,
+		env,
+		getActiveRevision: () => Promise.resolve(activeRevision as never),
+		getThinkspaceByOwner: () => Promise.resolve(createOwnedThinkspace()),
+		idempotencyKey: "runtime-init-key-1",
+		instruction: "Summarize the Thinkspace goal.",
+		ownerUserId: "owner_user",
+		thinkspaceId: "thinkspace_turns",
+	});
+
+	assert.equal(acceptance?.status, "accepted");
+	assert.deepEqual(runtimeCalls, ["setName:thinkspace_turns", "acceptTurnSubmission"]);
+});
+
 test("missing runtime binding fails with a runtime resolution error", async () => {
 	await assert.rejects(
 		submitOwnedThinkspaceTurn({
