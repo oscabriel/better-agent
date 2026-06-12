@@ -629,6 +629,7 @@ test("owners can still submit and inspect turns through the router with the Thin
 			get: () => ({
 				acceptTurnSubmission: () => Promise.resolve(acceptance),
 				inspectTurnSubmission: () => Promise.resolve(inspection),
+				setName: () => Promise.resolve(),
 			}),
 			idFromName: (name: string) => {
 				runtimeNames.push(name);
@@ -687,7 +688,10 @@ test("a turn submits end-to-end on a models.dev-only model from a credentialed, 
 	const env = {
 		BETTER_AUTH_SECRET: "test-secret",
 		THINKSPACE_AGENT: {
-			get: () => ({ acceptTurnSubmission: () => Promise.resolve(acceptance) }),
+			get: () => ({
+				acceptTurnSubmission: () => Promise.resolve(acceptance),
+				setName: () => Promise.resolve(),
+			}),
 			idFromName: (name: string) => ({ toString: () => `durable-object-id:${name}` }),
 		},
 	};

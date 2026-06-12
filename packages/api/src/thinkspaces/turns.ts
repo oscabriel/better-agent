@@ -86,6 +86,13 @@ interface ThinkspaceAgentTurnStub {
 	acceptTurnSubmission: (
 		request: ThinkspaceTurnSubmissionRequest,
 	) => Promise<ThinkspaceTurnAcceptance>;
+	/**
+	 * PartyServer's initialization RPC. User-defined RPC methods do not pass
+	 * through the runtime's fetch/alarm entry points where `onStart()` would
+	 * run, so the runtime must be initialized explicitly before the turn RPC
+	 * (the same synchronization `getServerByName()` performs).
+	 */
+	setName: (name: string) => Promise<void>;
 }
 
 export class ThinkspaceTurnValidationError extends Error {
@@ -140,6 +147,8 @@ const acceptViaThinkspaceAgentRuntime: AcceptTurnSubmission = async ({
 	const stub = namespace.get(
 		namespace.idFromName(runtimeName),
 	) as unknown as ThinkspaceAgentTurnStub;
+
+	await stub.setName(runtimeName);
 
 	return await stub.acceptTurnSubmission(request);
 };

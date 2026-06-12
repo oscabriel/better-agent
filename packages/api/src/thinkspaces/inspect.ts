@@ -118,6 +118,13 @@ interface ThinkspaceAgentInspectStub {
 	inspectTurnSubmission: (
 		request: ThinkspaceTurnInspectionRequest,
 	) => Promise<ThinkspaceTurnInspection>;
+	/**
+	 * PartyServer's initialization RPC. User-defined RPC methods do not pass
+	 * through the runtime's fetch/alarm entry points where `onStart()` would
+	 * run, so the runtime must be initialized explicitly before the turn RPC
+	 * (the same synchronization `getServerByName()` performs).
+	 */
+	setName: (name: string) => Promise<void>;
 }
 
 export const validateThinkspaceTurnSubmissionId = (submissionId: string): string => {
@@ -272,6 +279,8 @@ const inspectViaThinkspaceAgentRuntime: InspectTurnSubmission = async ({
 	const stub = namespace.get(
 		namespace.idFromName(runtimeName),
 	) as unknown as ThinkspaceAgentInspectStub;
+
+	await stub.setName(runtimeName);
 
 	return await stub.inspectTurnSubmission(request);
 };

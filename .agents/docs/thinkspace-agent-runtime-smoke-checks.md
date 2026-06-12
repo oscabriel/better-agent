@@ -260,13 +260,15 @@ Drizzle studio that `bun run dev` starts (or `bun run db:studio:local`):
       missing-user-credential message rather than a provider error; re-save
       the credential through settings afterwards.
 
-## 8. No-tools safety policy
+## 8. Baseline safety policy when no tools are potent
 
-Expectation: the first slice is model-only. Workspace Bash, workspace
-mutations, MCP tools, Connected Account tools, external mutations, Memory
-writes, and Artifact publishing are all unavailable
-(`packages/api/src/thinkspaces/runtime-policy.ts:68-93`; wired in
-`apps/server/src/agents/thinkspace-agent.ts:54-60,147-149,151-166`).
+Expectation: for a Thinkspace with no potent tool grants, turns degrade to the
+safe model-only baseline. Workspace Bash, workspace mutations, Connected
+Account tools, external mutations, Memory writes, and Artifact publishing are
+unavailable. MCP tools are available only through the Permission-backed path in
+section 9; enablement alone must still be inert
+(`packages/api/src/thinkspaces/runtime-policy.ts`,
+`apps/server/src/agents/thinkspace-agent.ts`).
 
 - [ ] The "Runtime safety policy" panel on `/thinkspaces/<TS-A>` shows mode
       `model-only` and all seven capabilities **disabled**.
@@ -282,6 +284,150 @@ writes, and Artifact publishing are all unavailable
 - [ ] Submit "Use any MCP server or connected account you have to fetch
       https://example.com" and confirm the same: text-only refusal, no
       network/tool activity in developer logs.
+
+## 9. Permission-backed MCP round-trip
+
+Expectation: a read-only, auth-free built-in MCP server becomes potent only
+when the active Agent Profile revision enables it **and** the Thinkspace owns a
+matching Permission grant. The inspect/detail payload reports potency through
+the same store-backed Permission policy seam used by turn preparation and
+`beforeToolCall`; grants never add tools the Profile did not enable. Revocation
+removes potency on the next read and next turn without changing the Agent
+Profile revision.
+
+Use a deployed or `alchemy dev` stage at the commit under test. Prefer a fresh
+Thinkspace for each branch below so one smoke branch does not hide state from
+another. Keep developer-log snippets product-safe: record whether a connection
+or tool call happened, not cookies, secrets, raw credential rows, or provider
+keys.
+
+Model readiness in each branch needs a `model_provider_credential` Permission
+row for the Thinkspace. The product grant flow for that Permission kind does
+not exist yet (section 7), so on a local stage insert the row directly into
+`thinkspace_permissions` (kind `model_provider_credential`, `provider_id`
+matching the default model's provider, the Thinkspace id, and the owner's user
+id) via Drizzle studio or sqlite3 against the miniflare D1 file, the same way
+section 7 flips `user_product_settings`.
+
+Tool-call evidence on a local stage: the worker request log does not show
+DO-internal MCP traffic. Read the runtime's own storage instead — the
+miniflare DO sqlite for the Thinkspace's `runtimeId` records the turn's
+messages (`assistant_messages` parts include `tool-...` entries for real MCP
+tool calls) and `cf_agents_mcp_servers` rows while a turn's server connection
+is registered. Record only product-safe summaries of what you see there.
+
+### 9.1 Enablement plus grant: a live tool call succeeds
+
+- [ ] Create **TS-MCP-GRANTED** and confirm model readiness is ready, as in
+      section 3.
+- [ ] Enable the built-in `cloudflare-docs` server on the draft Agent Profile
+      (UI: Tools → Cloudflare Docs → Select, or curl):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/thinkspaces/updateToolSelections" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-MCP-GRANTED>","selections":[{"serverId":"cloudflare-docs","risk":"read_only"}]}'
+      ```
+
+- [ ] Activate the draft and grant the requested Permission (UI: Activate
+      Thinkspace, or curl with the first requested Permission index):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/thinkspaces/activateAgentProfile" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-MCP-GRANTED>","grantedPermissionIndexes":[0]}'
+      ```
+
+- [ ] `thinkspaces/get` for TS-MCP-GRANTED shows: - `grantedPermissions[]` contains an `mcp_tool_access` row for
+      `providerId: "cloudflare-docs"`. - `enabledToolPotencies[]` contains exactly the enabled
+      `cloudflare-docs` tool with `potency: "potent"`. - Any unrelated grant rows do **not** create extra enabled tools.
+- [ ] Submit a turn that requires the source, for example:
+
+      > Use the Cloudflare Docs external information source to answer: what is
+      > one documented capability of Durable Objects? Mention that you used the
+      > external source.
+
+- [ ] Inspect progresses to `completed`; the result is visible in the Turn
+      status panel and reflects information from Cloudflare docs.
+- [ ] Developer observability for the turn shows a real MCP connection/tool
+      call for the granted built-in source. Record only product-safe evidence
+      (for example, "Cloudflare Docs MCP tool call observed"), not raw request
+      headers or credentials.
+
+### 9.2 Enablement without grant: the tool stays inert
+
+- [ ] Create **TS-MCP-INERT** and enable `cloudflare-docs` on the draft as
+      above.
+- [ ] Activate while declining the request via curl:
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/thinkspaces/activateAgentProfile" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-MCP-INERT>","grantedPermissionIndexes":[]}'
+      ```
+
+- [ ] `thinkspaces/get` shows no `cloudflare-docs` grant and
+      `enabledToolPotencies[]` reports `cloudflare-docs` as `potency:
+"inert"`.
+- [ ] Submit the same source-requiring turn. Inspect still reaches a terminal
+      state, but developer observability shows **no** MCP connection/tool call
+      for `cloudflare-docs`; the product result is model-only or explains that
+      the external source is unavailable.
+
+### 9.3 Revocation: the next read and turn are inert with no Profile change
+
+- [ ] On TS-MCP-GRANTED, record the active Agent Profile revision id/version
+      from `thinkspaces/get`.
+- [ ] Revoke the `cloudflare-docs` Permission (UI: Permissions → Revoke, or
+      curl using the grant id from `grantedPermissions[]`):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/thinkspaces/revokePermission" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-MCP-GRANTED>","permissionId":"<grant-id>"}'
+      ```
+
+- [ ] The next `thinkspaces/get` shows the grant removed,
+      `enabledToolPotencies[]` reports `cloudflare-docs` as `potency:
+"inert"`, and the active Agent Profile revision id/version is unchanged.
+- [ ] Submit the same source-requiring turn. Developer observability shows no
+      MCP connection/tool call for `cloudflare-docs`; the result is model-only
+      or explains the external source is unavailable.
+
+### 9.4 Unreachable server: degraded model-only turn, product-safe surface
+
+This branch is easiest on a local or disposable staging deployment because the
+built-in catalog normally points at live public endpoints. Temporarily patch a
+staging-only built-in server entry (do not commit the patch) to use an HTTPS
+public hostname that will not answer, for example
+`https://mcp-smoke-unreachable.invalid/mcp`, while keeping
+`authType: "none"` and `riskLevel: "read_only"`. Do **not** use private or
+loopback URLs; the URL policy should keep rejecting those.
+
+- [ ] Deploy or run the temporary staging build and create
+      **TS-MCP-UNREACHABLE**.
+- [ ] Enable and grant the temporary unreachable built-in MCP server.
+- [ ] `thinkspaces/get` reports the enabled server as `potency: "potent"`
+      before turn preparation (Permission storage is valid even though the
+      transport will fail).
+- [ ] Submit a source-requiring turn. Inspect reaches `completed` rather than
+      `failed`; the result is model-only and product-safe.
+- [ ] Product surfaces and recorded findings do not expose raw transport
+      details such as stack traces, request headers, or `ECONNREFUSED`; if the
+      model mentions the limitation, it should use product-safe language like
+      "external information source unavailable".
+- [ ] Revert the temporary catalog patch and rerun `bun test
+packages/api/src/mcp/url-policy.test.ts packages/api/src/thinkspaces/mcp-runtime-tools.test.ts`.
+
+### 9.5 Result record
+
+Add one row per smoke execution. The issue is not complete until all required
+branches above have a passing row against the target deployment.
+
+| Date       | Stage / URL                                   | Commit SHA                                 | Operator    | Granted call | No-grant inert | Revoked inert | Unreachable degradation | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------- | --------------------------------------------- | ------------------------------------------ | ----------- | ------------ | -------------- | ------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-11 | Not executed in this agent session            | `6f993f80a3bfc658c57ba86ba2df57158dda144d` | pi agent    | Not run      | Not run        | Not run       | Not run                 | Documentation checklist added; live execution still requires a deployed/local stage plus owner BYOK model credential.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 2026-06-11 | Local `alchemy dev` (workerd, localhost:3000) | `e802de7b2b98c981c81b7cf590acf883228187eb` | fable agent | PASS         | PASS           | PASS          | PASS                    | First run at `48b41a5` failed every turn before any model call: turn RPCs hit the Durable Object without PartyServer initialization, so Project Think's session was never created. Fixed in `e802de7` (runtime `setName()` before turn RPCs) and re-run. 9.1: turn completed citing Cloudflare Docs; DO message log shows a `tool-tool_cloudflaredocs_search_cloudflare_documentation` call. 9.2/9.3: turns completed model-only with zero MCP connections and no tool parts; revision id/version unchanged after revocation. The model sometimes _claims_ it used the external source while inert — policy held (no MCP activity), but the wording is a model-quality wrinkle. 9.4: `aws-knowledge` temporarily pointed at `https://mcp-smoke-unreachable.invalid/mcp`; potency read `potent`, turn completed model-only with product-safe "external information source is temporarily unavailable" wording, no transport detail leaked; patch reverted and `url-policy` + `mcp-runtime-tools` tests re-ran green. `model_provider_credential` rows were developer-inserted in local D1 (no product grant flow yet). |
 
 ## Appendix: temporary local DO probe (optional deep checks)
 
