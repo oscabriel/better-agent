@@ -28,6 +28,30 @@ const WEB_FETCH_UNAVAILABLE_MESSAGE =
 const WEB_SEARCH_UNAVAILABLE_MESSAGE =
 	"Web search is temporarily unavailable for this turn. Continue with the available context.";
 
+const PRIVATE_HOSTNAME_PATTERNS = [
+	/^localhost$/iu,
+	/\.local(?:host|domain)?$/iu,
+	/^127\./u,
+	/^0\.0\.0\.0$/u,
+	/^10\./u,
+	/^192\.168\./u,
+	/^172\.(?:1[6-9]|2\d|3[01])\./u,
+	/^169\.254\./u,
+	/^\[?::1\]?$/u,
+	/^\[?f[cd][0-9a-f]{2}:/iu,
+	/^\[?fe80:/iu,
+];
+
+const isPrivateHostname = (hostname: string): boolean =>
+	PRIVATE_HOSTNAME_PATTERNS.some((pattern) => pattern.test(hostname));
+
+/**
+ * Scheme and obvious-private-host gate, applied to the requested URL and to
+ * every redirect hop. The deployed Workers platform blocks private-network
+ * egress anyway; this keeps local and future runtimes from reaching loopback
+ * or RFC1918 hosts through the agent. A public hostname resolving privately
+ * is the platform's job to stop — DNS is not visible at this layer.
+ */
 export const assertFetchableWebUrl = (url: string): URL => {
 	let parsed: URL;
 
@@ -38,6 +62,10 @@ export const assertFetchableWebUrl = (url: string): URL => {
 	}
 
 	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+		throw new ThinkspaceWebReadError(WEB_FETCH_UNSUPPORTED_URL_MESSAGE);
+	}
+
+	if (isPrivateHostname(parsed.hostname)) {
 		throw new ThinkspaceWebReadError(WEB_FETCH_UNSUPPORTED_URL_MESSAGE);
 	}
 
@@ -93,23 +121,45 @@ const formatSearchAnswer = (query: string, answer: DuckDuckGoAnswer): string => 
  * Credential-free provider on the platform fetch: search through the
  * DuckDuckGo Instant Answer API, page reads as plain GET requests.
  */
+const WEB_FETCH_MAX_REDIRECTS = 5;
+
+const isRedirectStatus = (status: number): boolean => status >= 300 && status < 400;
+
 export const createFetchWebReader = (fetchImpl: typeof fetch = fetch): ThinkspaceWebReader => ({
+	// Redirects are followed manually so every hop passes the same URL gate
+	// the requested URL did — a public page cannot bounce the agent onto a
+	// loopback or private host.
 	fetchPage: async (url) => {
-		const parsed = assertFetchableWebUrl(url);
+		let target = assertFetchableWebUrl(url);
 
-		let response: Response;
+		for (let hop = 0; hop <= WEB_FETCH_MAX_REDIRECTS; hop += 1) {
+			let response: Response;
 
-		try {
-			response = await fetchImpl(parsed.toString(), { method: "GET", redirect: "follow" });
-		} catch {
-			throw new ThinkspaceWebReadError(WEB_FETCH_UNAVAILABLE_MESSAGE);
+			try {
+				response = await fetchImpl(target.toString(), { method: "GET", redirect: "manual" });
+			} catch {
+				throw new ThinkspaceWebReadError(WEB_FETCH_UNAVAILABLE_MESSAGE);
+			}
+
+			if (isRedirectStatus(response.status)) {
+				const location = response.headers.get("location");
+
+				if (!location) {
+					throw new ThinkspaceWebReadError(WEB_FETCH_UNAVAILABLE_MESSAGE);
+				}
+
+				target = assertFetchableWebUrl(new URL(location, target).toString());
+				continue;
+			}
+
+			if (!response.ok) {
+				throw new ThinkspaceWebReadError(WEB_FETCH_UNAVAILABLE_MESSAGE);
+			}
+
+			return truncate(await response.text(), WEB_FETCH_CONTENT_MAX_CHARS);
 		}
 
-		if (!response.ok) {
-			throw new ThinkspaceWebReadError(WEB_FETCH_UNAVAILABLE_MESSAGE);
-		}
-
-		return truncate(await response.text(), WEB_FETCH_CONTENT_MAX_CHARS);
+		throw new ThinkspaceWebReadError(WEB_FETCH_UNAVAILABLE_MESSAGE);
 	},
 	search: async (query) => {
 		const endpoint = new URL("https://api.duckduckgo.com/");
