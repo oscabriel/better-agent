@@ -354,6 +354,16 @@ const TurnInspectionPanel = ({
 							{inspection.resultText}
 						</p>
 					) : null}
+					{inspection.toolActivity.length > 0 ? (
+						<div className="grid gap-1">
+							<p className="font-medium text-sm">Tool activity</p>
+							<ul className="grid list-disc gap-1 pl-5 text-muted-foreground text-sm">
+								{inspection.toolActivity.map((entry, position) => (
+									<li key={`${position}-${entry}`}>{entry}</li>
+								))}
+							</ul>
+						</div>
+					) : null}
 					<div className="flex flex-wrap gap-4 text-muted-foreground text-xs">
 						<span>Accepted {formatDateTime(inspection.acceptedAt)}</span>
 						<span>Started {formatDateTime(inspection.startedAt)}</span>

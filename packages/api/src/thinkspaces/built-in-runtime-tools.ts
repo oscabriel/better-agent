@@ -15,7 +15,7 @@ import { z } from "zod";
 import { SourceContentStorageError } from "../sources/content-store";
 import type { ThinkspaceSourceManifestEntry, ThinkspaceSourceReader } from "../sources/reader";
 import type { ActiveAgentProfileRevision } from "./agent-profile";
-import { isBuiltInToolId } from "./built-in-tools";
+import { formatBuiltInSourceReadResult, isBuiltInToolId } from "./built-in-tools";
 import type { BuiltInToolId } from "./built-in-tools";
 import { markThinkspaceTurnProductSafeError } from "./inspect";
 import type { ThinkspacePermissionPolicy } from "./permission-policy";
@@ -125,7 +125,7 @@ const createSourceReadTool = (sourceReader: ThinkspaceSourceReader) =>
 					return SOURCE_NOT_FOUND_MESSAGE;
 				}
 
-				return `Source ${document.id}: "${document.name}"\n\n${document.content}`;
+				return formatBuiltInSourceReadResult(document);
 			} catch (error) {
 				return toProductSafeToolFailure(error);
 			}

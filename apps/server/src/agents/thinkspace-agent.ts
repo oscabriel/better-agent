@@ -4,6 +4,7 @@ import {
 } from "@better-agent/api/models/readiness";
 import {
 	extractThinkspaceTurnResultText,
+	extractThinkspaceTurnToolActivity,
 	mapThinkspaceTurnInspection,
 	markThinkspaceTurnProductSafeError,
 	validateThinkspaceTurnSubmissionId,
@@ -170,16 +171,14 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		}
 
 		const snapshot = await this.inspectSubmission(submissionId);
-		const resultText =
-			snapshot?.status === "completed"
-				? extractThinkspaceTurnResultText(await this.getMessages())
-				: null;
+		const messages = snapshot?.status === "completed" ? await this.getMessages() : null;
 
 		return mapThinkspaceTurnInspection({
-			resultText,
+			resultText: messages ? extractThinkspaceTurnResultText(messages) : null,
 			snapshot,
 			submissionId,
 			thinkspaceId: request.thinkspaceId,
+			toolActivity: messages ? extractThinkspaceTurnToolActivity(messages) : [],
 		});
 	}
 
