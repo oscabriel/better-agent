@@ -3,12 +3,13 @@ import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
 
 import { getThinkspace } from "./repository";
 
-export const THINKSPACE_RUNTIME_POLICY_ID = "no_tools_v1" as const;
-export const THINKSPACE_RUNTIME_POLICY_MODE = "model_only" as const;
+export const THINKSPACE_RUNTIME_POLICY_ID = "safe_reads_v2" as const;
+export const THINKSPACE_RUNTIME_POLICY_MODE = "read_only" as const;
 export const THINKSPACE_RUNTIME_MAX_STEPS = 1 as const;
-export const THINKSPACE_RUNTIME_TOOL_MAX_STEPS = 2 as const;
+export const THINKSPACE_RUNTIME_TOOL_MAX_STEPS = 8 as const;
 
 export const THINKSPACE_RUNTIME_CAPABILITY_IDS = [
+	"builtin_read_tools",
 	"workspace_bash",
 	"workspace_mutations",
 	"mcp_tools",
@@ -20,8 +21,13 @@ export const THINKSPACE_RUNTIME_CAPABILITY_IDS = [
 
 export type ThinkspaceRuntimeCapabilityId = (typeof THINKSPACE_RUNTIME_CAPABILITY_IDS)[number];
 
+/** Every capability except built-in read-only tools stays disabled (PRD #73). */
+export const THINKSPACE_RUNTIME_DISABLED_CAPABILITY_IDS = THINKSPACE_RUNTIME_CAPABILITY_IDS.filter(
+	(id) => id !== "builtin_read_tools",
+);
+
 export interface ThinkspaceRuntimeCapability {
-	enabled: false;
+	enabled: boolean;
 	id: ThinkspaceRuntimeCapabilityId;
 	label: string;
 }
@@ -58,6 +64,7 @@ type GetThinkspaceByOwner = (
 
 const CAPABILITY_LABELS: Record<ThinkspaceRuntimeCapabilityId, string> = {
 	artifact_publishing: "Artifact publishing",
+	builtin_read_tools: "Built-in read-only tools",
 	connected_account_tools: "Connected Account tools",
 	external_mutations: "External mutation tools",
 	mcp_tools: "MCP tools",
@@ -68,13 +75,13 @@ const CAPABILITY_LABELS: Record<ThinkspaceRuntimeCapabilityId, string> = {
 
 export const THINKSPACE_RUNTIME_POLICY: ThinkspaceRuntimePolicy = {
 	capabilities: THINKSPACE_RUNTIME_CAPABILITY_IDS.map((id) => ({
-		enabled: false,
+		enabled: id === "builtin_read_tools",
 		id,
 		label: CAPABILITY_LABELS[id],
 	})),
 	maxSteps: THINKSPACE_RUNTIME_MAX_STEPS,
 	message:
-		"This Thinkspace Agent runs model-only. No tools are enabled in this slice; future tool use requires Thinkspace-scoped Permission policy.",
+		"This Thinkspace Agent can read but never mutate: built-in read-only tools are the only enabled capability, and each tool still requires enablement on the active Agent Profile revision plus a potent Permission verdict.",
 	mode: THINKSPACE_RUNTIME_POLICY_MODE,
 	policyId: THINKSPACE_RUNTIME_POLICY_ID,
 	workspaceBash: false,
