@@ -42,6 +42,8 @@ import {
 	saveThinkspacePermissionGrants,
 	ThinkspacePermissionGrantError,
 } from "./permissions";
+import { BUILT_IN_TOOL_IDS, createBuiltInToolPermissionRequests } from "./built-in-tools";
+import type { BuiltInToolId } from "./built-in-tools";
 import { createMcpToolAccessPermissionRequest, serializeThinkspaceToolSelections } from "./policy";
 import {
 	createThinkspaceArchivePatch,
@@ -93,6 +95,7 @@ const toolSelectionSchema = z.object({
 });
 
 const updateToolSelectionsInput = z.object({
+	builtInToolIds: z.array(z.enum(BUILT_IN_TOOL_IDS)).optional(),
 	selections: z.array(toolSelectionSchema),
 	thinkspaceId: z.string().min(1),
 });
@@ -111,21 +114,46 @@ const submitTurnInput = z.object({
 const createThinkspaceId = (): string => `thinkspace_${crypto.randomUUID()}`;
 const createAgentProfileRevisionId = (): string => `agent_profile_revision_${crypto.randomUUID()}`;
 
-const toToolEnablements = (selections: z.infer<typeof toolSelectionSchema>[]): ToolEnablement[] => {
+/** Deduped, in stable catalog order, however the caller ordered them. */
+const normalizeBuiltInToolIds = (toolIds: readonly BuiltInToolId[]): BuiltInToolId[] => {
+	const requested = new Set(toolIds);
+
+	return BUILT_IN_TOOL_IDS.filter((toolId) => requested.has(toolId));
+};
+
+const toToolEnablements = (
+	builtInToolIds: readonly BuiltInToolId[],
+	selections: z.infer<typeof toolSelectionSchema>[],
+): ToolEnablement[] => {
 	const normalized = JSON.parse(serializeThinkspaceToolSelections(selections)) as z.infer<
 		typeof toolSelectionSchema
 	>[];
 
-	return normalized.map((selection) => ({
-		source: "mcp_server",
-		toolId: selection.toolName ? `${selection.serverId}:${selection.toolName}` : selection.serverId,
-	}));
+	return [
+		...builtInToolIds.map(
+			(toolId): ToolEnablement => ({
+				source: "built_in",
+				toolId,
+			}),
+		),
+		...normalized.map(
+			(selection): ToolEnablement => ({
+				source: "mcp_server",
+				toolId: selection.toolName
+					? `${selection.serverId}:${selection.toolName}`
+					: selection.serverId,
+			}),
+		),
+	];
 };
 
 const toRequestedPermissions = (
+	builtInToolIds: readonly BuiltInToolId[],
 	selections: z.infer<typeof toolSelectionSchema>[],
-): RequestedPermission[] =>
-	selections.map((selection) => createMcpToolAccessPermissionRequest(selection));
+): RequestedPermission[] => [
+	...createBuiltInToolPermissionRequests(builtInToolIds),
+	...selections.map((selection) => createMcpToolAccessPermissionRequest(selection)),
+];
 
 export interface EnabledToolPotencyInspection {
 	potency: ToolPotency;
@@ -573,11 +601,12 @@ export const thinkspacesRouter = {
 					);
 				}
 
+				const builtInToolIds = normalizeBuiltInToolIds(input.builtInToolIds ?? []);
 				const updatedDraft = await saveAgentProfileDraft(context.db, {
 					draft: {
 						...draft,
-						requestedPermissions: toRequestedPermissions(input.selections),
-						toolEnablements: toToolEnablements(input.selections),
+						requestedPermissions: toRequestedPermissions(builtInToolIds, input.selections),
+						toolEnablements: toToolEnablements(builtInToolIds, input.selections),
 						updatedAt: new Date(),
 					},
 				});

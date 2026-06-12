@@ -443,6 +443,173 @@ test("updating tools writes enablements and permission requests to the draft Age
 	assert.equal("enabledToolIds" in (saved[0] ?? {}), false);
 });
 
+test("enabling built-in tools writes built_in enablements and deduped Permission requests to the draft", async () => {
+	const { db, saved } = createDbForAgentProfileDraftUpdate(
+		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),
+	);
+	const context = createCallContext({ db });
+
+	const updated = await call(
+		thinkspacesRouter.updateToolSelections,
+		{
+			builtInToolIds: ["source_read", "web_fetch", "web_search"],
+			selections: [],
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context },
+	);
+
+	assert.ok(updated);
+	assert.equal(updated.agentProfileRevision.status, "draft");
+	assert.deepEqual(JSON.parse(String(saved[0]?.toolEnablements)), [
+		{ source: "built_in", toolId: "web_search" },
+		{ source: "built_in", toolId: "web_fetch" },
+		{ source: "built_in", toolId: "source_read" },
+	]);
+
+	// Both web tools share one web reading request; Source reading gets its own.
+	const requests = JSON.parse(String(saved[0]?.requestedPermissions)) as { kind: string }[];
+	assert.deepEqual(
+		requests.map((request) => request.kind).toSorted((left, right) => left.localeCompare(right)),
+		["built_in_source_read", "built_in_web_read"],
+	);
+});
+
+test("activating granted built-in requests creates the two Permission kinds with their resource identities", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [
+			{ kind: "built_in_web_read", reason: "Web reading for research turns." },
+			{ kind: "built_in_source_read", reason: "Read this Thinkspace's Sources." },
+		],
+		toolEnablements: [
+			{ source: "built_in", toolId: "web_search" },
+			{ source: "built_in", toolId: "web_fetch" },
+			{ source: "built_in", toolId: "source_read" },
+		],
+	});
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ grantedPermissionIndexes: [0, 1], thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.grantedPermissions.length, 2);
+	const grantsByKind = new Map(activation.grantedPermissions.map((grant) => [grant.kind, grant]));
+	assert.equal(grantsByKind.get("built_in_web_read")?.providerId, "web");
+	assert.equal(
+		grantsByKind.get("built_in_web_read")?.resourceScope,
+		JSON.stringify({ type: "web_read" }),
+	);
+	assert.equal(grantsByKind.get("built_in_source_read")?.providerId, "sources");
+	assert.equal(
+		grantsByKind.get("built_in_source_read")?.resourceScope,
+		JSON.stringify({ type: "source_read" }),
+	);
+
+	const detail = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	assert.deepEqual(detail.enabledToolPotencies, [
+		{ potency: "potent", source: "built_in", toolId: "web_search" },
+		{ potency: "potent", source: "built_in", toolId: "web_fetch" },
+		{ potency: "potent", source: "built_in", toolId: "source_read" },
+	]);
+});
+
+test("declining a built-in request leaves the enabled tool inert after activation", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [
+			{ kind: "built_in_web_read", reason: "Web reading for research turns." },
+			{ kind: "built_in_source_read", reason: "Read this Thinkspace's Sources." },
+		],
+		toolEnablements: [
+			{ source: "built_in", toolId: "web_search" },
+			{ source: "built_in", toolId: "source_read" },
+		],
+	});
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ grantedPermissionIndexes: [0], thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.grantedPermissions.length, 1);
+	assert.equal(activation.grantedPermissions[0]?.kind, "built_in_web_read");
+
+	const detail = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	assert.deepEqual(detail.enabledToolPotencies, [
+		{ potency: "potent", source: "built_in", toolId: "web_search" },
+		{ potency: "inert", source: "built_in", toolId: "source_read" },
+	]);
+});
+
+test("revoking a built-in Permission flips the tool inert on the next read without touching revisions", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		profileStatus: "active",
+		thinkspaceStatus: "active",
+		toolEnablements: [{ source: "built_in", toolId: "source_read" }],
+	});
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: authenticatedSession.user.id,
+		id: "thinkspace_permission_source_read",
+		kind: THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ,
+		providerId: "sources",
+		reason: "Read this Thinkspace's Sources.",
+		resourceScope: JSON.stringify({ type: "source_read" }),
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	});
+
+	const granted = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	const revisionsBefore = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+
+	await call(
+		thinkspacesRouter.revokePermission,
+		{ permissionId: "thinkspace_permission_source_read", thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	const revoked = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	const revisionsAfter = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+
+	assert.deepEqual(granted.enabledToolPotencies, [
+		{ potency: "potent", source: "built_in", toolId: "source_read" },
+	]);
+	assert.deepEqual(revoked.enabledToolPotencies, [
+		{ potency: "inert", source: "built_in", toolId: "source_read" },
+	]);
+	assert.deepEqual(revisionsAfter, revisionsBefore);
+});
+
 test("Agent Profile activation rejects archived Thinkspaces before writes", async () => {
 	const { db, patches } = createDbForAgentProfileActivation(
 		ownedThinkspaceRow({ status: "archived" }),
@@ -821,8 +988,10 @@ test("Thinkspace detail includes active revision tool potency indicators", async
 		{ context: createCallContext({ db }) },
 	);
 
+	// web_search is enabled but ungoverned: built-ins are no longer potent on
+	// enablement alone, so without a web reading grant it reads inert.
 	assert.deepEqual(thinkspace.enabledToolPotencies, [
-		{ potency: "potent", source: "built_in", toolId: "web_search" },
+		{ potency: "inert", source: "built_in", toolId: "web_search" },
 		{ potency: "potent", source: "mcp_server", toolId: "cloudflare-docs" },
 		{ potency: "inert", source: "mcp_server", toolId: "aws-knowledge" },
 		{ potency: "inert", source: "connected_account", toolId: "github" },
