@@ -309,10 +309,18 @@ test("bounds tool activity entry length and entry count for safe rendering", () 
 		},
 	]);
 	const capped = extractThinkspaceTurnToolActivity([{ parts: manyParts, role: "assistant" }]);
+	const truncatedFailure = extractThinkspaceTurnToolActivity([
+		{
+			parts: [{ input: { query: longQuery }, state: "output-error", type: "tool-web_search" }],
+			role: "assistant",
+		},
+	]);
 
 	assert.equal(bounded[0]?.length, THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH);
 	assert.equal(bounded[0]?.endsWith("…"), true);
 	assert.equal(capped.length, THINKSPACE_TURN_TOOL_ACTIVITY_MAX_ENTRIES);
+	assert.equal(truncatedFailure[0]?.length, THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH);
+	assert.equal(truncatedFailure[0]?.endsWith("(did not complete)"), true);
 });
 
 test("unknown handles map to a product-safe unknown state", () => {
