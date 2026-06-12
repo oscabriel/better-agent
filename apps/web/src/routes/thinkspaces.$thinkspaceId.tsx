@@ -33,10 +33,44 @@ interface EnabledToolSelection {
 
 type McpToolAccessScopeView = { type: "server" } | { toolName: string; type: "tool" };
 
+type BuiltInToolId = "web_search" | "web_fetch" | "source_read";
+
+interface BuiltInToolView {
+	description: string;
+	id: BuiltInToolId;
+	name: string;
+}
+
+const BUILT_IN_TOOLS: readonly BuiltInToolView[] = [
+	{
+		description: "Search the public web. Read-only; potent only with the web reading Permission.",
+		id: "web_search",
+		name: "Web search",
+	},
+	{
+		description:
+			"Fetch and read public web pages. Read-only; potent only with the web reading Permission.",
+		id: "web_fetch",
+		name: "Web fetch",
+	},
+	{
+		description: "Read this Thinkspace's Sources. Potent only with the Source reading Permission.",
+		id: "source_read",
+		name: "Source reading",
+	},
+];
+
+const isBuiltInToolId = (value: string): value is BuiltInToolId =>
+	BUILT_IN_TOOLS.some((tool) => tool.id === value);
+
 interface PermissionRequestView {
 	actions?: string[];
 	approvalRequired?: boolean;
-	kind?: "mcp_tool_access" | "model_provider_credential";
+	kind?:
+		| "built_in_source_read"
+		| "built_in_web_read"
+		| "mcp_tool_access"
+		| "model_provider_credential";
 	providerId?: string;
 	reason?: string;
 	resource?: {
@@ -145,6 +179,14 @@ const parseStoredMcpScope = (value: string): McpToolAccessScopeView | undefined 
 };
 
 const getPermissionRequestTitle = (permission: PermissionRequestView, index: number): string => {
+	if (permission.kind === "built_in_web_read") {
+		return "Web reading (built-in)";
+	}
+
+	if (permission.kind === "built_in_source_read") {
+		return "Source reading (built-in)";
+	}
+
 	if (permission.kind === "model_provider_credential") {
 		return `Model credential: ${permission.providerId}`;
 	}
@@ -170,6 +212,14 @@ const getPermissionRequestDescription = (permission: PermissionRequestView): str
 };
 
 const getGrantedPermissionTitle = (permission: GrantedPermissionView): string => {
+	if (permission.kind === "built_in_web_read") {
+		return "Web reading (built-in)";
+	}
+
+	if (permission.kind === "built_in_source_read") {
+		return "Source reading (built-in)";
+	}
+
 	if (permission.kind === "mcp_tool_access") {
 		return `External information access: ${permission.providerId ?? "scoped source"}`;
 	}
@@ -742,18 +792,22 @@ interface McpCatalogServerView {
 }
 
 const ToolsSection = ({
+	enabledBuiltInToolIds,
 	enabledTools,
 	isArchived,
 	mcpCatalog,
+	onToggleBuiltInTool,
 	onToggleCatalogTool,
 	profileRevision,
 	toolPotencyById,
 	updateToolSelectionsError,
 	updateToolSelectionsPending,
 }: {
+	enabledBuiltInToolIds: BuiltInToolId[];
 	enabledTools: EnabledToolSelection[];
 	isArchived: boolean;
 	mcpCatalog: McpCatalogServerView[];
+	onToggleBuiltInTool: (toolId: BuiltInToolId) => void;
 	onToggleCatalogTool: (serverId: string, risk: EnabledToolSelection["risk"]) => void;
 	profileRevision: AgentProfileRevisionView | null;
 	toolPotencyById: ReadonlyMap<string, EnabledToolPotencyView>;
@@ -772,6 +826,44 @@ const ToolsSection = ({
 				Select catalog tools on the Agent Profile revision. Draft selections take effect after
 				activation; active selections are used for turns.
 			</p>
+		</div>
+		<div className="grid gap-2">
+			<p className="text-sm font-medium">Built-in tools</p>
+			<div className="border border-border">
+				{BUILT_IN_TOOLS.map((tool, index) => {
+					const selected = enabledBuiltInToolIds.includes(tool.id);
+					const toolPotency = selected ? toolPotencyById.get(tool.id) : undefined;
+
+					return (
+						<div
+							key={tool.id}
+							className={`flex items-center justify-between gap-4 p-4 ${index < BUILT_IN_TOOLS.length - 1 ? "border-b border-border" : ""} ${selected ? "bg-muted/30" : ""}`}
+						>
+							<div className="grid gap-0.5">
+								<div className="flex items-center gap-2">
+									<p className="text-sm font-medium">{tool.name}</p>
+									<span className="text-muted-foreground text-xs">read_only</span>
+									{toolPotency ? (
+										<Badge variant={getToolPotencyBadgeVariant(toolPotency.potency)}>
+											{getToolPotencyLabel(toolPotency.potency)}
+										</Badge>
+									) : null}
+								</div>
+								<p className="text-muted-foreground text-sm">{tool.description}</p>
+							</div>
+							<Button
+								disabled={isArchived || updateToolSelectionsPending}
+								onClick={() => onToggleBuiltInTool(tool.id)}
+								size="sm"
+								type="button"
+								variant={selected ? "secondary" : "outline"}
+							>
+								{selected ? "Remove" : "Select"}
+							</Button>
+						</div>
+					);
+				})}
+			</div>
 		</div>
 		{mcpCatalog.length === 0 ? (
 			<p className="border border-border p-4 text-muted-foreground text-sm">
@@ -916,7 +1008,10 @@ const PermissionsSection = ({
 				) : (
 					<div className="border border-border">
 						{grantedPermissions.map((permission, index) => {
-							const canRevoke = permission.kind === "mcp_tool_access";
+							const canRevoke =
+								permission.kind === "mcp_tool_access" ||
+								permission.kind === "built_in_web_read" ||
+								permission.kind === "built_in_source_read";
 							const isRevoking = revokingPermissionId === permission.id;
 
 							return (
@@ -1039,7 +1134,15 @@ const RouteComponent = () => {
 	const profileRevision = thinkspace.agentProfileRevision;
 	const isArchived = thinkspace.status === "archived";
 	const isDraft = thinkspace.status === "draft";
-	const enabledTools = profileRevision?.toolEnablements.map(toEnabledToolSelection) ?? [];
+	const enabledTools =
+		profileRevision?.toolEnablements
+			.filter((enablement) => enablement.source === "mcp_server")
+			.map(toEnabledToolSelection) ?? [];
+	const enabledBuiltInToolIds =
+		profileRevision?.toolEnablements
+			.filter((enablement) => enablement.source === "built_in")
+			.map((enablement) => enablement.toolId)
+			.filter(isBuiltInToolId) ?? [];
 	const enabledToolPotencies = (thinkspace.enabledToolPotencies ?? []) as EnabledToolPotencyView[];
 	const toolPotencyById = new Map(
 		enabledToolPotencies.map((toolPotency) => [toolPotency.toolId, toolPotency] as const),
@@ -1053,7 +1156,24 @@ const RouteComponent = () => {
 			? enabledTools.filter((tool) => tool.serverId !== serverId)
 			: [...enabledTools, { risk, serverId }];
 
-		updateToolSelectionsMutation.mutate({ selections, thinkspaceId });
+		updateToolSelectionsMutation.mutate({
+			builtInToolIds: enabledBuiltInToolIds,
+			selections,
+			thinkspaceId,
+		});
+	};
+
+	const toggleBuiltInTool = (toolId: BuiltInToolId) => {
+		const selected = enabledBuiltInToolIds.includes(toolId);
+		const builtInToolIds = selected
+			? enabledBuiltInToolIds.filter((enabledToolId) => enabledToolId !== toolId)
+			: [...enabledBuiltInToolIds, toolId];
+
+		updateToolSelectionsMutation.mutate({
+			builtInToolIds,
+			selections: enabledTools,
+			thinkspaceId,
+		});
 	};
 
 	const handleActivateAgentProfile = () => {
@@ -1197,9 +1317,11 @@ const RouteComponent = () => {
 			<Separator />
 
 			<ToolsSection
+				enabledBuiltInToolIds={enabledBuiltInToolIds}
 				enabledTools={enabledTools}
 				isArchived={isArchived}
 				mcpCatalog={mcpCatalogQuery.data}
+				onToggleBuiltInTool={toggleBuiltInTool}
 				onToggleCatalogTool={toggleCatalogTool}
 				profileRevision={profileRevision}
 				toolPotencyById={toolPotencyById}

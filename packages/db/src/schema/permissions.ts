@@ -5,6 +5,10 @@ import { timestampMsNow } from "./common";
 import { thinkspaces } from "./thinkspaces";
 
 export const THINKSPACE_PERMISSION_KINDS = {
+	/** Governs the built-in Source reading tool for one Thinkspace. */
+	BUILT_IN_SOURCE_READ: "built_in_source_read",
+	/** Governs built-in web reading — search and fetch together. */
+	BUILT_IN_WEB_READ: "built_in_web_read",
 	MCP_TOOL_ACCESS: "mcp_tool_access",
 	MODEL_PROVIDER_CREDENTIAL: "model_provider_credential",
 } as const;
