@@ -429,6 +429,111 @@ branches above have a passing row against the target deployment.
 | 2026-06-11 | Not executed in this agent session            | `6f993f80a3bfc658c57ba86ba2df57158dda144d` | pi agent    | Not run      | Not run        | Not run       | Not run                 | Documentation checklist added; live execution still requires a deployed/local stage plus owner BYOK model credential.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 2026-06-11 | Local `alchemy dev` (workerd, localhost:3000) | `e802de7b2b98c981c81b7cf590acf883228187eb` | fable agent | PASS         | PASS           | PASS          | PASS                    | First run at `48b41a5` failed every turn before any model call: turn RPCs hit the Durable Object without PartyServer initialization, so Project Think's session was never created. Fixed in `e802de7` (runtime `setName()` before turn RPCs) and re-run. 9.1: turn completed citing Cloudflare Docs; DO message log shows a `tool-tool_cloudflaredocs_search_cloudflare_documentation` call. 9.2/9.3: turns completed model-only with zero MCP connections and no tool parts; revision id/version unchanged after revocation. The model sometimes _claims_ it used the external source while inert — policy held (no MCP activity), but the wording is a model-quality wrinkle. 9.4: `aws-knowledge` temporarily pointed at `https://mcp-smoke-unreachable.invalid/mcp`; potency read `potent`, turn completed model-only with product-safe "external information source is temporarily unavailable" wording, no transport detail leaked; patch reverted and `url-policy` + `mcp-runtime-tools` tests re-ran green. `model_provider_credential` rows were developer-inserted in local D1 (no product grant flow yet). |
 
+## 10. Built-in reads round-trip: Sources, web, and inspection
+
+Expectation: the built-in read tools (`web_search`, `web_fetch`, `source_read`)
+become potent only when the active Agent Profile revision enables them **and**
+the Thinkspace owns a grant of the governing Permission kind
+(`built_in_web_read` for the web pair, `built_in_source_read` for Source
+reading) — enablement alone confers nothing. A granted turn can read the
+Thinkspace's uploaded Sources (sealed to the bound Thinkspace) and the public
+web (credential-free, GET-only), the Source manifest is injected so the agent
+discovers material unprompted, and the Turn status panel's tool activity lists
+the reads in product language — Sources by name, searches by query, fetches by
+URL — never raw runtime payloads. Revocation makes the next turn inert without
+changing the Agent Profile revision.
+
+Reuse the environment setup, model-readiness workaround
+(`model_provider_credential` row developer-inserted into local D1, section 9),
+and DO-storage observability notes from section 9. Built-in tool calls appear
+in the runtime's message log as `tool-web_search`, `tool-web_fetch`, and
+`tool-source_read` parts; record only product-safe summaries.
+
+### 10.1 Upload, enable, grant: the tool loop reads a Source and the web
+
+- [ ] Create **TS-READS-GRANTED** and confirm model readiness is ready, as in
+      section 3.
+- [ ] Upload a small text Source with distinctive content (UI: Sources →
+      Upload, or curl):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/sources/upload" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-READS-GRANTED>","name":"Q2 pricing notes","contentType":"text/markdown","content":"# Q2 pricing notes\nThe internal launch codename is BLUE-HERON."}'
+      ```
+
+- [ ] Enable all three built-in tools on the draft Agent Profile (UI: Tools →
+      Built-in tools, or curl):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/thinkspaces/updateToolSelections" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-READS-GRANTED>","selections":[],"builtInToolIds":["web_search","web_fetch","source_read"]}'
+      ```
+
+- [ ] Activate the draft granting every requested Permission (UI: Activate
+      Thinkspace, or curl with all requested indexes).
+- [ ] `thinkspaces/get` shows: - `grantedPermissions[]` contains a `built_in_web_read` row
+      (`providerId: "web"`) and a `built_in_source_read` row
+      (`providerId: "sources"`). - `enabledToolPotencies[]` reports all three built-in tools as
+      `potency: "potent"`.
+- [ ] Submit a turn that needs both reads, for example:
+
+      > Read my uploaded pricing notes Source and tell me the launch codename
+      > it contains, then search the web for one public fact about Cloudflare
+      > Durable Objects and cite the page you fetched.
+
+- [ ] Inspect progresses to `completed`; the result reflects the Source
+      content (the codename) and the web read.
+- [ ] The Turn status panel's **Tool activity** lists the reads in product
+      language — the Source by its name (`Read the Source "Q2 pricing
+notes".`), the search by its query, the fetch by its URL — with no raw
+      tool payloads, bucket names, or transport detail.
+- [ ] DO-storage observability shows the corresponding `tool-source_read` /
+      `tool-web_search` / `tool-web_fetch` message parts. Record only a
+      product-safe summary.
+
+### 10.2 Enablement without grant: the built-ins stay inert
+
+- [ ] Create **TS-READS-INERT**, upload a Source, and enable the three
+      built-in tools as above.
+- [ ] Activate while declining the requested Permissions
+      (`"grantedPermissionIndexes":[]`).
+- [ ] `thinkspaces/get` shows no `built_in_web_read` or
+      `built_in_source_read` grant and reports the built-in tools as
+      `potency: "inert"`.
+- [ ] Submit the same reads-requiring turn. Inspect reaches a terminal state;
+      the result is model-only or explains the limitation, the Tool activity
+      list shows no Source or web reads, and DO-storage observability shows
+      no built-in tool parts.
+
+### 10.3 Revocation: the next turn is inert with no Profile change
+
+- [ ] On TS-READS-GRANTED, record the active Agent Profile revision
+      id/version, then revoke the `built_in_source_read` grant (UI:
+      Permissions → Revoke, or `thinkspaces/revokePermission` with the grant
+      id).
+- [ ] The next `thinkspaces/get` shows the grant removed, `source_read` as
+      `potency: "inert"`, the web pair still `potent`, and the revision
+      id/version unchanged.
+- [ ] Submit a Source-requiring turn. The result does not contain the Source
+      content, Tool activity shows no Source read (web reads may still
+      appear), and DO-storage observability shows no `tool-source_read` part
+      with Source content.
+- [ ] Cross-Thinkspace seal: from TS-READS-INERT (or any other Thinkspace
+      with `source_read` granted), submit a turn asking it to read the
+      TS-READS-GRANTED Source by its id. The read resolves as not found
+      inside the turn; no content crosses Thinkspaces.
+
+### 10.4 Result record
+
+Add one row per smoke execution. The issue is not complete until all required
+branches above have a passing row against the target deployment.
+
+| Date       | Stage / URL                        | Commit SHA | Operator    | Granted reads + inspection | No-grant inert | Revoked inert | Cross-Thinkspace seal | Notes                                                                                                                |
+| ---------- | ---------------------------------- | ---------- | ----------- | -------------------------- | -------------- | ------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-12 | Not executed in this agent session | (issue #89 branch) | fable agent | Not run | Not run | Not run | Not run | Documentation checklist added with the inspection-rendering slice; live execution still requires a deployed/local stage plus owner BYOK model credential. |
+
 ## Appendix: temporary local DO probe (optional deep checks)
 
 The two optional deep checks exercise the DO boundary directly, which no

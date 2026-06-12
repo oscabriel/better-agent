@@ -7,11 +7,14 @@ import type { CloudflareEnv } from "@better-agent/env/types";
 import {
 	extractThinkspaceTurnProductSafeFailureMessage,
 	extractThinkspaceTurnResultText,
+	extractThinkspaceTurnToolActivity,
 	inspectOwnedThinkspaceTurn,
 	mapThinkspaceTurnInspection,
 	markThinkspaceTurnProductSafeError,
 	THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH,
 	THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH,
+	THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH,
+	THINKSPACE_TURN_TOOL_ACTIVITY_MAX_ENTRIES,
 	validateThinkspaceTurnSubmissionId,
 } from "./inspect";
 import type { ThinkspaceRuntimeSubmissionSnapshot, ThinkspaceTurnInspection } from "./inspect";
@@ -126,6 +129,192 @@ test("bounds completed result text for safe rendering", () => {
 	assert.equal(resultText?.endsWith("…"), true);
 });
 
+test("renders built-in tool calls from the latest assistant message in product language", () => {
+	const activity = extractThinkspaceTurnToolActivity([
+		{
+			parts: [
+				{ text: "Working on it.", type: "text" },
+				{
+					input: { query: "durable objects pricing" },
+					output: "1. https://example.com — Durable Objects pricing",
+					state: "output-available",
+					type: "tool-web_search",
+				},
+				{
+					input: { url: "https://example.com/pricing" },
+					output: "Pricing page content…",
+					state: "output-available",
+					type: "tool-web_fetch",
+				},
+				{
+					input: { sourceId: "source_abc" },
+					output: 'Source source_abc: "Q2 pricing notes"\n\nThe notes content.',
+					state: "output-available",
+					type: "tool-source_read",
+				},
+			],
+			role: "assistant",
+		},
+	]);
+
+	assert.deepEqual(activity, [
+		'Searched the web for "durable objects pricing".',
+		"Fetched the web page https://example.com/pricing.",
+		'Read the Source "Q2 pricing notes".',
+	]);
+});
+
+test("a Source read that did not succeed falls back to the requested id", () => {
+	const activity = extractThinkspaceTurnToolActivity([
+		{
+			parts: [
+				{
+					input: { sourceId: "source_forged" },
+					output:
+						"That Source is not available in this Thinkspace. It may have been deleted. Check the Source manifest for what exists.",
+					state: "output-available",
+					type: "tool-source_read",
+				},
+			],
+			role: "assistant",
+		},
+	]);
+
+	assert.deepEqual(activity, ["Tried to read Source source_forged."]);
+});
+
+test("external information source calls render with the catalog server's product name", () => {
+	const servers = [
+		{
+			authType: "none" as const,
+			description: "Docs.",
+			enabledByDefaultForThinkspaces: false as const,
+			id: "cloudflare-docs",
+			name: "Cloudflare Docs",
+			riskLevel: "read_only" as const,
+			transport: "streamable_http" as const,
+			url: "https://docs.mcp.cloudflare.com/mcp",
+		},
+	];
+	const activity = extractThinkspaceTurnToolActivity(
+		[
+			{
+				parts: [
+					{
+						input: { query: "durable objects" },
+						state: "output-available",
+						type: "tool-tool_cloudflaredocs_search_cloudflare_documentation",
+					},
+					{
+						input: { query: "durable objects" },
+						state: "output-available",
+						toolName: "tool_cloudflaredocs_search_cloudflare_documentation",
+						type: "dynamic-tool",
+					},
+				],
+				role: "assistant",
+			},
+		],
+		servers,
+	);
+
+	assert.deepEqual(activity, [
+		"Used the Cloudflare Docs external information source: search_cloudflare_documentation.",
+		"Used the Cloudflare Docs external information source: search_cloudflare_documentation.",
+	]);
+});
+
+test("unrecognized tools render generically and never leak their payloads", () => {
+	const activity = extractThinkspaceTurnToolActivity([
+		{
+			parts: [
+				{
+					input: { secret: "sk-ant-secret", url: "https://internal.example" },
+					output: "401 Unauthorized: invalid x-api-key sk-ant-secret",
+					state: "output-available",
+					type: "tool-mystery_tool",
+				},
+			],
+			role: "assistant",
+		},
+	]);
+
+	assert.equal(activity.length, 1);
+	assert.equal(activity[0]?.includes("sk-ant-secret"), false);
+	assert.equal(activity[0]?.includes("internal.example"), false);
+	assert.equal(activity[0]?.includes("mystery_tool"), false);
+});
+
+test("tool calls that did not complete are marked without exposing the error", () => {
+	const activity = extractThinkspaceTurnToolActivity([
+		{
+			parts: [
+				{
+					input: { query: "blocked query" },
+					state: "output-error",
+					type: "tool-web_search",
+				},
+			],
+			role: "assistant",
+		},
+	]);
+
+	assert.deepEqual(activity, ['Searched the web for "blocked query". (did not complete)']);
+});
+
+test("only the latest assistant message's tool calls become activity", () => {
+	const activity = extractThinkspaceTurnToolActivity([
+		{
+			parts: [
+				{
+					input: { query: "older turn" },
+					state: "output-available",
+					type: "tool-web_search",
+				},
+			],
+			role: "assistant",
+		},
+		{ parts: [{ text: "Next instruction.", type: "text" }], role: "user" },
+		{
+			parts: [{ text: "Model-only answer.", type: "text" }],
+			role: "assistant",
+		},
+	]);
+
+	assert.deepEqual(activity, []);
+	assert.deepEqual(extractThinkspaceTurnToolActivity([]), []);
+});
+
+test("bounds tool activity entry length and entry count for safe rendering", () => {
+	const longQuery = "q".repeat(THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH + 100);
+	const manyParts = Array.from(
+		{ length: THINKSPACE_TURN_TOOL_ACTIVITY_MAX_ENTRIES + 10 },
+		(_, index) => ({
+			input: { query: `query ${index}` },
+			state: "output-available",
+			type: "tool-web_search",
+		}),
+	);
+
+	const bounded = extractThinkspaceTurnToolActivity([
+		{
+			parts: [
+				{
+					input: { query: longQuery },
+					state: "output-available",
+					type: "tool-web_search",
+				},
+			],
+			role: "assistant",
+		},
+	]);
+	const capped = extractThinkspaceTurnToolActivity([{ parts: manyParts, role: "assistant" }]);
+
+	assert.equal(bounded[0]?.length, THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH);
+	assert.equal(bounded[0]?.endsWith("…"), true);
+	assert.equal(capped.length, THINKSPACE_TURN_TOOL_ACTIVITY_MAX_ENTRIES);
+});
+
 test("unknown handles map to a product-safe unknown state", () => {
 	const inspection = mapThinkspaceTurnInspection({
 		snapshot: null,
@@ -229,6 +418,40 @@ test("completed turns carry the bounded model-only result text", () => {
 	assert.equal(completed.status, "completed");
 	assert.equal(completed.resultText, "The Thinkspace goal summary.");
 	assert.equal(completed.completedAt, 1_717_000_001_000);
+});
+
+test("only completed turns carry tool activity; every other state stays empty", () => {
+	const toolActivity = ['Searched the web for "durable objects pricing".'];
+	const completed = mapThinkspaceTurnInspection({
+		resultText: "Answer.",
+		snapshot: createSnapshot({ completedAt: 1_717_000_001_000, status: "completed" }),
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+		toolActivity,
+	});
+	const running = mapThinkspaceTurnInspection({
+		snapshot: createSnapshot({ status: "running" }),
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+		toolActivity,
+	});
+	const failed = mapThinkspaceTurnInspection({
+		snapshot: createSnapshot({ status: "error" }),
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+		toolActivity,
+	});
+	const unknown = mapThinkspaceTurnInspection({
+		snapshot: null,
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+		toolActivity,
+	});
+
+	assert.deepEqual(completed.toolActivity, toolActivity);
+	assert.deepEqual(running.toolActivity, []);
+	assert.deepEqual(failed.toolActivity, []);
+	assert.deepEqual(unknown.toolActivity, []);
 });
 
 test("completed tool-using turns remain attributable to their Agent Profile revision", () => {
