@@ -15,6 +15,14 @@ import type {
 import type { BuiltInMcpServer } from "@better-agent/api/mcp/catalog";
 import { listBuiltInMcpServers } from "@better-agent/api/mcp/catalog";
 import {
+	assertThinkspaceRuntimePolicySupportsBuiltInTools,
+	evaluateBuiltInRuntimeToolCallPermission,
+	prepareThinkspaceBuiltInRuntimeTools,
+	THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON,
+} from "@better-agent/api/thinkspaces/built-in-runtime-tools";
+import { createFetchWebReader } from "@better-agent/api/thinkspaces/web-reader";
+import { createThinkspaceSourceReader } from "@better-agent/api/sources/reader";
+import {
 	createThinkspaceMcpDegradationNotice,
 	evaluateMcpRuntimeToolCallPermission,
 	planThinkspaceMcpRuntimeTools,
@@ -208,6 +216,19 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			revision: resolved.activeRevision,
 			toolPotencies,
 		});
+		assertThinkspaceRuntimePolicySupportsBuiltInTools({
+			activeProductToolIds: assembly.activeTools,
+		});
+
+		const builtInPreparation = await prepareThinkspaceBuiltInRuntimeTools({
+			activeProductToolIds: assembly.activeTools,
+			sourceReader: createThinkspaceSourceReader({
+				db,
+				env: this.env,
+				thinkspaceId: turnContext.thinkspaceId,
+			}),
+			webReader: createFetchWebReader(),
+		});
 		const mcpPlan = planThinkspaceMcpRuntimeTools({
 			activeProductToolIds: assembly.activeTools,
 			revision: resolved.activeRevision,
@@ -221,17 +242,18 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			servers: mcpPlan.servers,
 		});
 		const turnConfig = createThinkspaceRuntimeTurnConfig({
-			activeTools: mcpPreparation.activeToolNames,
+			activeTools: [...builtInPreparation.activeToolNames, ...mcpPreparation.activeToolNames],
 		});
-		const degradationNotice = createThinkspaceMcpDegradationNotice(mcpPreparation.degradedServers);
+		const systemNotices = [
+			builtInPreparation.sourceManifestNotice,
+			createThinkspaceMcpDegradationNotice(mcpPreparation.degradedServers),
+		].filter((notice): notice is string => notice !== null);
 
 		return {
 			...turnConfig,
 			model: resolved.model,
-			system: degradationNotice
-				? `${assembly.systemPrompt}\n\n${degradationNotice}`
-				: assembly.systemPrompt,
-			tools: mcpPreparation.tools,
+			system: [assembly.systemPrompt, ...systemNotices].join("\n\n"),
+			tools: { ...builtInPreparation.tools, ...mcpPreparation.tools },
 		};
 	}
 
@@ -270,8 +292,27 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		try {
 			const db = createDb(this.env.DB);
 			const resolved = await this.resolveTurnModel(db, turnContext);
+			const permissionPolicy = createPermissionStorePolicy({ db });
+			const builtInDecision = await evaluateBuiltInRuntimeToolCallPermission({
+				permissionPolicy,
+				revision: resolved.activeRevision,
+				runtimeToolName: ctx.toolName,
+				thinkspaceId: turnContext.thinkspaceId,
+			});
+
+			if (builtInDecision.applies) {
+				if (builtInDecision.allowed) {
+					return;
+				}
+
+				return {
+					action: "block",
+					reason: builtInDecision.reason ?? THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON,
+				};
+			}
+
 			const decision = await evaluateMcpRuntimeToolCallPermission({
-				permissionPolicy: createPermissionStorePolicy({ db }),
+				permissionPolicy,
 				revision: resolved.activeRevision,
 				runtimeToolName: ctx.toolName,
 				thinkspaceId: turnContext.thinkspaceId,
