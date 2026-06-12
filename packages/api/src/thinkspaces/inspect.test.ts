@@ -337,6 +337,46 @@ test("owner inspection resolves the same Thinkspace runtime identity used for su
 	]);
 });
 
+test("default runtime adapter initializes the runtime before inspecting the turn", async () => {
+	const runtimeCalls: string[] = [];
+	const env = {
+		THINKSPACE_AGENT: {
+			get: () => ({
+				inspectTurnSubmission: (request: { submissionId: string; thinkspaceId: string }) => {
+					runtimeCalls.push("inspectTurnSubmission");
+					return Promise.resolve(
+						mapThinkspaceTurnInspection({
+							snapshot: createSnapshot(),
+							submissionId: request.submissionId,
+							thinkspaceId: request.thinkspaceId,
+						}),
+					);
+				},
+				setName: (name: string) => {
+					runtimeCalls.push(`setName:${name}`);
+					return Promise.resolve();
+				},
+			}),
+			idFromName: (name: string) =>
+				({
+					toString: () => `durable-object-id:${name}`,
+				}) as DurableObjectId,
+		} as unknown as DurableObjectNamespace,
+	} as Pick<CloudflareEnv, "THINKSPACE_AGENT">;
+
+	const inspection = await inspectOwnedThinkspaceTurn({
+		db,
+		env,
+		getThinkspaceByOwner: () => Promise.resolve({ id: "thinkspace_inspect" }),
+		ownerUserId: "owner_user",
+		submissionId: "submission_1",
+		thinkspaceId: "thinkspace_inspect",
+	});
+
+	assert.equal(inspection?.status, "accepted");
+	assert.deepEqual(runtimeCalls, ["setName:thinkspace_inspect", "inspectTurnSubmission"]);
+});
+
 test("non-owners cannot inspect runtime work for another user's Thinkspace", async () => {
 	let runtimeCallCount = 0;
 	const inspection = await inspectOwnedThinkspaceTurn({
