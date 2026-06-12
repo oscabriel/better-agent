@@ -43,6 +43,12 @@ export {
 	userProviderCredentialsRelations,
 } from "./settings";
 export {
+	type NewThinkspaceSource,
+	thinkspaceSourceRelations,
+	type ThinkspaceSource,
+	thinkspaceSources,
+} from "./sources";
+export {
 	type NewThinkspace,
 	THINKSPACE_STATUS,
 	type Thinkspace,
