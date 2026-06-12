@@ -1,62 +1,69 @@
 {
-	"version": "7",
-	"dialect": "sqlite",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "6",
-			"when": 1780029615327,
-			"tag": "0000_fuzzy_dexter_bennett",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "6",
-			"when": 1780032873037,
-			"tag": "0001_left_thunderbird",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "6",
-			"when": 1781125034998,
-			"tag": "0002_adorable_star_brand",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "6",
-			"when": 1781129074166,
-			"tag": "0003_hard_archangel",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "6",
-			"when": 1781139208245,
-			"tag": "0004_quick_thunderbird",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "6",
-			"when": 1781141072949,
-			"tag": "0005_thick_baron_strucker",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "6",
-			"when": 1781142185393,
-			"tag": "0006_gray_talisman",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "6",
-			"when": 1781217593374,
-			"tag": "0007_zippy_living_lightning",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1780029615327,
+      "tag": "0000_fuzzy_dexter_bennett",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1780032873037,
+      "tag": "0001_left_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781125034998,
+      "tag": "0002_adorable_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781129074166,
+      "tag": "0003_hard_archangel",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781139208245,
+      "tag": "0004_quick_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781141072949,
+      "tag": "0005_thick_baron_strucker",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781142185393,
+      "tag": "0006_gray_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1781217593374,
+      "tag": "0007_zippy_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1781285043540,
+      "tag": "0008_aspiring_spacker_dave",
+      "breakpoints": true
+    }
+  ]
 }
