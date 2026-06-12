@@ -69,6 +69,13 @@ test("the Thinkspace Agent runtime registers MCP tools only through grant-gated 
 test("the Thinkspace Agent runtime rechecks Permission policy before MCP tool execution", () => {
 	assert.match(agentSource, /override async beforeToolCall/u);
 	assert.match(agentSource, /evaluateMcpRuntimeToolCallPermission/u);
-	assert.match(agentSource, /permissionPolicy: createPermissionStorePolicy\(\{ db \}\)/u);
+	assert.match(agentSource, /const permissionPolicy = createPermissionStorePolicy\(\{ db \}\)/u);
 	assert.match(agentSource, /action: "block"/u);
+});
+
+test("the Thinkspace Agent runtime gates built-in tools through the policy guard and call recheck", () => {
+	assert.match(agentSource, /assertThinkspaceRuntimePolicySupportsBuiltInTools/u);
+	assert.match(agentSource, /prepareThinkspaceBuiltInRuntimeTools/u);
+	assert.match(agentSource, /evaluateBuiltInRuntimeToolCallPermission/u);
+	assert.match(agentSource, /createThinkspaceSourceReader/u);
 });
