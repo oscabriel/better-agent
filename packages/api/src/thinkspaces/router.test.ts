@@ -780,15 +780,16 @@ test("owners can still submit and inspect turns through the router with the Thin
 	};
 	const inspection: ThinkspaceTurnInspection = {
 		acceptedAt: 1_717_000_000_000,
-		completedAt: null,
-		message: "Accepted. This Thinkspace Agent turn is waiting for the runtime to start it.",
+		completedAt: 1_717_000_001_000,
+		message: "Completed. Showing the Thinkspace Agent's latest model-only response.",
 		profileRevisionId: OWNED_THINKSPACE_ID,
 		profileVersion: 1,
-		resultText: null,
-		startedAt: null,
-		status: "accepted",
+		resultText: "The Thinkspace goal summary.",
+		startedAt: 1_717_000_000_500,
+		status: "completed",
 		submissionId: "submission_1",
 		thinkspaceId: OWNED_THINKSPACE_ID,
+		toolActivity: ['Read the Source "Q2 pricing notes".', 'Searched the web for "pricing".'],
 	};
 	const env = {
 		BETTER_AUTH_SECRET: "test-secret",
@@ -837,7 +838,11 @@ test("owners can still submit and inspect turns through the router with the Thin
 
 	assert.equal(submitted.status, "accepted");
 	assert.equal(submitted.submissionId, "submission_1");
-	assert.equal(inspected.status, "accepted");
+	assert.equal(inspected.status, "completed");
+	assert.deepEqual(inspected.toolActivity, [
+		'Read the Source "Q2 pricing notes".',
+		'Searched the web for "pricing".',
+	]);
 	assert.ok(runtimeNames.every((name) => name === OWNED_THINKSPACE_ID));
 });
 

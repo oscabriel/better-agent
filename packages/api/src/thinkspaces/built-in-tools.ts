@@ -19,6 +19,25 @@ export type BuiltInToolId = (typeof BUILT_IN_TOOL_IDS)[number];
 export const isBuiltInToolId = (value: string): value is BuiltInToolId =>
 	BUILT_IN_TOOL_IDS.includes(value as BuiltInToolId);
 
+/**
+ * The success result format of the source_read built-in tool. The runtime
+ * tool emits it and turn inspection parses the Source name back out of it,
+ * so the format/parse pair lives here to keep the two sides from drifting.
+ */
+export const formatBuiltInSourceReadResult = (document: {
+	content: string;
+	id: string;
+	name: string;
+}): string => `Source ${document.id}: "${document.name}"\n\n${document.content}`;
+
+const SOURCE_READ_RESULT_FIRST_LINE = /^Source [^:\n]+: "(?<sourceName>.+)"$/u;
+
+export const parseBuiltInSourceReadResultName = (output: string): string | null => {
+	const firstLine = output.split("\n", 1)[0] ?? "";
+
+	return SOURCE_READ_RESULT_FIRST_LINE.exec(firstLine)?.groups?.sourceName ?? null;
+};
+
 export type BuiltInToolPermissionKind =
 	| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ
 	| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ;
