@@ -29,14 +29,14 @@ const REVISION: ActiveAgentProfileRevision = {
 	version: 2,
 };
 
-test("assembly activates only enabled tools the Permission policy judges potent", async () => {
+test("assembly with no grants activates nothing: built-ins are no longer potent on enablement alone", async () => {
 	const verdicts = await createEnablementOnlyPermissionPolicy().evaluateToolPotency({
 		enablements: REVISION.toolEnablements,
 		thinkspaceId: REVISION.thinkspaceId,
 	});
 	const assembly = assembleThinkspaceTurn({ revision: REVISION, toolPotencies: verdicts });
 
-	assert.deepEqual(assembly.activeTools, ["web_search"]);
+	assert.deepEqual(assembly.activeTools, []);
 	assert.equal(assembly.maxSteps, THINKSPACE_RUNTIME_MAX_STEPS);
 	assert.equal(assembly.profileRevisionId, "rev_2");
 	assert.equal(assembly.profileVersion, 2);
