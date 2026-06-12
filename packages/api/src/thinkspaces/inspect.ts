@@ -5,6 +5,8 @@ import type { CloudflareEnv } from "@better-agent/env/types";
 import type { BuiltInMcpServer } from "../mcp/catalog";
 import { listBuiltInMcpServers } from "../mcp/catalog";
 import { parseCloudflareAgentsMcpToolName } from "../mcp/tool-identity";
+import { isBuiltInToolId, parseBuiltInSourceReadResultName } from "./built-in-tools";
+import type { BuiltInToolId } from "./built-in-tools";
 import { getThinkspace } from "./repository";
 import { resolveThinkspaceAgentRuntime, THINKSPACE_AGENT_BINDING_NAME } from "./runtime";
 import { THINKSPACE_TURN_SOURCE, ThinkspaceTurnValidationError } from "./turns";
@@ -170,6 +172,10 @@ export const extractThinkspaceTurnProductSafeFailureMessage = (error?: string): 
 	return message || GENERIC_FAILED_TURN_MESSAGE;
 };
 
+/** Bounds a product-surface string with a trailing ellipsis when it overflows. */
+const boundForRendering = (text: string, maxLength: number): string =>
+	text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+
 export const extractThinkspaceTurnResultText = (
 	messages: readonly ThinkspaceRuntimeMessage[],
 ): string | null => {
@@ -189,20 +195,13 @@ export const extractThinkspaceTurnResultText = (
 		return null;
 	}
 
-	if (resultText.length > THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH) {
-		return `${resultText.slice(0, THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH - 1)}…`;
-	}
-
-	return resultText;
+	return boundForRendering(resultText, THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH);
 };
 
 const TOOL_PART_TYPE_PREFIX = "tool-";
 const DYNAMIC_TOOL_PART_TYPE = "dynamic-tool";
 const INCOMPLETE_TOOL_CALL_SUFFIX = " (did not complete)";
 const GENERIC_TOOL_ACTIVITY_MESSAGE = "Used another tool for this turn.";
-
-/** Matches the first line of a successful source_read result: `Source <id>: "<name>"`. */
-const SOURCE_READ_RESULT_FIRST_LINE = /^Source [^:\n]+: "(?<sourceName>.+)"$/u;
 
 const runtimeToolNameFromMessagePart = (part: ThinkspaceRuntimeMessagePart): string | null => {
 	if (part.type === DYNAMIC_TOOL_PART_TYPE) {
@@ -241,15 +240,11 @@ const describeWebFetchActivity = (part: ThinkspaceRuntimeMessagePart): string =>
 };
 
 const describeSourceReadActivity = (part: ThinkspaceRuntimeMessagePart): string => {
-	if (typeof part.output === "string") {
-		const firstLine = part.output.split("\n", 1)[0] ?? "";
-		const named = SOURCE_READ_RESULT_FIRST_LINE.exec(firstLine);
+	const sourceName =
+		typeof part.output === "string" ? parseBuiltInSourceReadResultName(part.output) : null;
 
-		const sourceName = named?.groups?.sourceName;
-
-		if (sourceName) {
-			return `Read the Source "${sourceName}".`;
-		}
+	if (sourceName) {
+		return `Read the Source "${sourceName}".`;
 	}
 
 	const sourceId = toolInputField(part.input, "sourceId");
@@ -276,6 +271,26 @@ const describeMcpToolActivity = (
 	return `Used the ${serverName} external information source: ${identity.toolName}.`;
 };
 
+const describeBuiltInToolActivity = (
+	toolId: BuiltInToolId,
+	part: ThinkspaceRuntimeMessagePart,
+): string => {
+	switch (toolId) {
+		case "web_search": {
+			return describeWebSearchActivity(part);
+		}
+		case "web_fetch": {
+			return describeWebFetchActivity(part);
+		}
+		case "source_read": {
+			return describeSourceReadActivity(part);
+		}
+		default: {
+			return GENERIC_TOOL_ACTIVITY_MESSAGE;
+		}
+	}
+};
+
 const describeToolActivity = (
 	part: ThinkspaceRuntimeMessagePart,
 	builtInMcpServers: readonly BuiltInMcpServer[],
@@ -286,27 +301,14 @@ const describeToolActivity = (
 		return null;
 	}
 
-	if (runtimeToolName === "web_search") {
-		return describeWebSearchActivity(part);
-	}
-
-	if (runtimeToolName === "web_fetch") {
-		return describeWebFetchActivity(part);
-	}
-
-	if (runtimeToolName === "source_read") {
-		return describeSourceReadActivity(part);
+	if (isBuiltInToolId(runtimeToolName)) {
+		return describeBuiltInToolActivity(runtimeToolName, part);
 	}
 
 	return (
 		describeMcpToolActivity(runtimeToolName, builtInMcpServers) ?? GENERIC_TOOL_ACTIVITY_MESSAGE
 	);
 };
-
-const boundToolActivityEntry = (entry: string): string =>
-	entry.length > THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH
-		? `${entry.slice(0, THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH - 1)}…`
-		: entry;
 
 /**
  * Renders the latest assistant message's tool calls as a bounded list of
@@ -338,9 +340,15 @@ export const extractThinkspaceTurnToolActivity = (
 			continue;
 		}
 
+		// Bound the description with the suffix's length reserved so a long
+		// entry never silently sheds its did-not-complete marker.
 		const suffix = part.state === "output-error" ? INCOMPLETE_TOOL_CALL_SUFFIX : "";
+		const bounded = boundForRendering(
+			description,
+			THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH - suffix.length,
+		);
 
-		activity.push(boundToolActivityEntry(`${description}${suffix}`));
+		activity.push(`${bounded}${suffix}`);
 	}
 
 	return activity;
