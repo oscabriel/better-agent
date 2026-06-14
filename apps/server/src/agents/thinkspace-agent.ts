@@ -42,6 +42,13 @@ import {
 	THINKSPACE_RUNTIME_POLICY,
 } from "@better-agent/api/thinkspaces/runtime-policy";
 import {
+	createThinkspaceTurnAttribution,
+	decodeSittingForwardContext,
+	matchesSittingForwardContext,
+	SITTING_FORWARD_CONTEXT_HEADER,
+	SITTING_TURN_ATTRIBUTION_STORAGE_KEY,
+} from "@better-agent/api/thinkspaces/sittings";
+import {
 	bindThinkspaceTurnRuntimeContext,
 	matchesThinkspaceTurnRuntimeContext,
 } from "@better-agent/api/thinkspaces/turn-context";
@@ -97,16 +104,45 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	override workspaceBash = THINKSPACE_RUNTIME_POLICY.workspaceBash;
 
 	/**
-	 * HTTP/WebSocket entry to this runtime stays closed. Project Think serves
-	 * unauthenticated routes (for example `/get-messages`) when a request
-	 * reaches the Durable Object, so the only supported entry points are the
-	 * owner-gated worker RPCs (`acceptTurnSubmission`, `inspectTurnSubmission`).
+	 * HTTP/WebSocket entry stays fail-closed by default. Project Think serves
+	 * unauthenticated routes (for example `/get-messages`) when a request reaches
+	 * the Durable Object, so this override admits exactly one thing: a **Sitting**
+	 * the worker has already authenticated and stamped with a forward context
+	 * matching this runtime's bound (owner, Thinkspace). Project Think's chat
+	 * protocol then provides streaming, multi-tab broadcast, stream resumption,
+	 * cancellation, and the recovering indicator. Owner-gated RPCs
+	 * (`acceptTurnSubmission`, `inspectTurnSubmission`) remain the path for
+	 * programmatic turns. Everything else — direct hits, absent or mismatched
+	 * context — stays 404, with no signal about whether the Thinkspace exists.
 	 */
-	// eslint-disable-next-line class-methods-use-this -- must stay an instance override to shadow the Agent HTTP entry point
-	override fetch(_request: Request): Promise<Response> {
-		return Promise.resolve(
-			new Response("This Thinkspace Agent runtime is not directly accessible.", { status: 404 }),
+	override async fetch(request: Request): Promise<Response> {
+		const forwardContext = decodeSittingForwardContext(
+			request.headers.get(SITTING_FORWARD_CONTEXT_HEADER),
 		);
+
+		if (!forwardContext) {
+			return ThinkspaceAgent.runtimeClosedResponse();
+		}
+
+		const existingContext =
+			await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY);
+
+		if (existingContext && !matchesSittingForwardContext(forwardContext, existingContext)) {
+			return ThinkspaceAgent.runtimeClosedResponse();
+		}
+
+		await this.ctx.storage.put<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY, {
+			ownerUserId: forwardContext.ownerUserId,
+			thinkspaceId: forwardContext.thinkspaceId,
+		});
+
+		return super.fetch(request);
+	}
+
+	private static runtimeClosedResponse(): Response {
+		return new Response("This Thinkspace Agent runtime is not directly accessible.", {
+			status: 404,
+		});
 	}
 
 	override async onStart(): Promise<void> {
@@ -205,6 +241,17 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		const db = createDb(this.env.DB);
 		const permissionPolicy = createPermissionStorePolicy({ db });
 		const resolved = await this.resolveTurnModel(db, turnContext);
+
+		// Attribution is recorded at turn resolution time from the active revision.
+		// Submitted turns also carry it in their submission metadata; Sitting turns
+		// do not pass through the ledger, so this preserves the activation-history
+		// guarantee (every turn is attributable to the revision it ran under)
+		// regardless of entry path, for the future Audit Trail.
+		await this.ctx.storage.put(
+			SITTING_TURN_ATTRIBUTION_STORAGE_KEY,
+			createThinkspaceTurnAttribution(resolved.activeRevision),
+		);
+
 		const toolPotencies = await ThinkspaceAgent.evaluateToolPotencies(
 			permissionPolicy,
 			turnContext,
