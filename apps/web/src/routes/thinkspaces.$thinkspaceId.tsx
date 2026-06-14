@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tansta
 import { createFileRoute, getRouteApi, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { SittingSection } from "@/components/sitting-section";
 import { getUser } from "@/functions/get-user";
 
 const routeApi = getRouteApi("/thinkspaces/$thinkspaceId");
@@ -1310,6 +1311,15 @@ const RouteComponent = () => {
 					</div>
 				</div>
 			</section>
+
+			<Separator />
+
+			<SittingSection
+				isArchived={isArchived}
+				isDraft={isDraft}
+				modelReady={modelReadiness.status === "ready"}
+				thinkspaceId={thinkspaceId}
+			/>
 
 			<Separator />
 
