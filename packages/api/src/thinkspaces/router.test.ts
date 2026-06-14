@@ -308,6 +308,15 @@ test("creating a Thinkspace persists a draft Agent Profile revision seeded from 
 		modelId: "google:gemini-catalog-only",
 		reasoningLevel: "high",
 	});
+	// The draft requests Permission to use the saved credential for the model's
+	// provider, so activation grants it and the model becomes usable.
+	assert.deepEqual(created.agentProfileRevision.requestedPermissions, [
+		{
+			kind: "model_provider_credential",
+			providerId: "google",
+			reason: "Use your saved provider credential to run this Thinkspace Agent's model.",
+		},
+	]);
 	assert.equal(inserted[0]?.status, "draft");
 	assert.equal("initialInstructions" in (inserted[0] ?? {}), false);
 	assert.equal("selectedSkillIds" in (inserted[0] ?? {}), false);
@@ -468,10 +477,12 @@ test("enabling built-in tools writes built_in enablements and deduped Permission
 	]);
 
 	// Both web tools share one web reading request; Source reading gets its own.
+	// The model provider credential request is always present so the model stays
+	// usable across tool edits.
 	const requests = JSON.parse(String(saved[0]?.requestedPermissions)) as { kind: string }[];
 	assert.deepEqual(
 		requests.map((request) => request.kind).toSorted((left, right) => left.localeCompare(right)),
-		["built_in_source_read", "built_in_web_read"],
+		["built_in_source_read", "built_in_web_read", "model_provider_credential"],
 	);
 });
 
