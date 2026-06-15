@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tansta
 import { createFileRoute, getRouteApi, Link, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { SittingSection } from "@/components/sitting-section";
 import { getUser } from "@/functions/get-user";
 
 const routeApi = getRouteApi("/thinkspaces/$thinkspaceId");
@@ -122,6 +123,17 @@ const toEnabledToolSelection = (enablement: { toolId: string }): EnabledToolSele
 
 const toProductToolId = (selection: EnabledToolSelection): string =>
 	selection.toolName ? `${selection.serverId}:${selection.toolName}` : selection.serverId;
+
+/**
+ * The revision the owner edits and activates. A pending draft (post-activation
+ * tool changes) takes precedence over the active revision so toggles stay
+ * visible and can be re-activated; before the first activation it is the initial
+ * draft.
+ */
+const resolveEditableRevision = (
+	profileRevision: AgentProfileRevisionView | null,
+	pendingDraftRevision: AgentProfileRevisionView | null,
+): AgentProfileRevisionView | null => pendingDraftRevision ?? profileRevision;
 
 const formatToolSource = (source: string): string => {
 	if (source === "built_in") {
@@ -378,78 +390,89 @@ const TurnInspectionPanel = ({
 const AgentProfileSection = ({
 	activationError,
 	isActivating,
-	isDraft,
 	onActivate,
+	pendingDraftRevision,
 	profileRevision,
 }: {
 	activationError?: Error | null;
 	isActivating: boolean;
-	isDraft: boolean;
 	onActivate: () => void;
+	pendingDraftRevision: AgentProfileRevisionView | null;
 	profileRevision: AgentProfileRevisionView | null;
-}) => (
-	<section aria-labelledby="agent-profile-heading" className="grid gap-4">
-		<div className="grid gap-1">
-			<h2 className="text-lg font-semibold tracking-tight" id="agent-profile-heading">
-				Agent Profile
-			</h2>
-			<p className="text-muted-foreground text-sm">
-				Identity, instructions, and model behavior are versioned together. Drafts take effect only
-				when activated.
-			</p>
-		</div>
-		{profileRevision ? (
-			<div className="grid gap-4 border border-border p-4">
-				<div className="flex items-start justify-between gap-4">
-					<div className="grid gap-1">
-						<p className="text-sm font-medium">{profileRevision.identity.displayName}</p>
-						<p className="text-muted-foreground text-xs">
-							Revision {profileRevision.version} · {profileRevision.status}
-						</p>
-					</div>
-					<Badge variant={profileRevision.status === "active" ? "default" : "outline"}>
-						{profileRevision.status}
-					</Badge>
-				</div>
-				<div className="grid gap-1 border-border border-t pt-4">
-					<p className="text-muted-foreground text-xs font-medium">Instructions</p>
-					<p className="whitespace-pre-wrap text-sm leading-relaxed">
-						{profileRevision.identity.instructions || "No instructions yet."}
-					</p>
-				</div>
-				<div className="grid gap-1 border-border border-t pt-4">
-					<p className="text-muted-foreground text-xs font-medium">Model behavior</p>
-					<p className="break-all text-sm">{profileRevision.modelBehavior.modelId}</p>
-					<p className="text-muted-foreground text-xs">
-						Reasoning level: {profileRevision.modelBehavior.reasoningLevel}
-					</p>
-				</div>
-				{isDraft && profileRevision.status === "draft" ? (
-					<div className="grid gap-2 border-border border-t pt-4">
-						<p className="text-muted-foreground text-sm">
-							Activation makes this revision the Thinkspace Agent&apos;s active behavior and moves
-							the Thinkspace out of draft.
-						</p>
-						<div>
-							<Button disabled={isActivating} onClick={onActivate} type="button">
-								{isActivating ? "Activating…" : "Activate Thinkspace"}
-							</Button>
-						</div>
-						{activationError ? (
-							<p className="text-destructive text-sm" role="alert">
-								{activationError.message}
-							</p>
-						) : null}
-					</div>
-				) : null}
+}) => {
+	const isReactivation = Boolean(pendingDraftRevision);
+	// The draft the owner can activate: a pending re-activation on an active
+	// Thinkspace, or the initial draft before the first activation.
+	const activatableDraft =
+		pendingDraftRevision ?? (profileRevision?.status === "draft" ? profileRevision : null);
+	const idleActivateLabel = isReactivation ? "Activate changes" : "Activate Thinkspace";
+	const activateButtonLabel = isActivating ? "Activating…" : idleActivateLabel;
+
+	return (
+		<section aria-labelledby="agent-profile-heading" className="grid gap-4">
+			<div className="grid gap-1">
+				<h2 className="text-lg font-semibold tracking-tight" id="agent-profile-heading">
+					Agent Profile
+				</h2>
+				<p className="text-muted-foreground text-sm">
+					Identity, instructions, and model behavior are versioned together. Drafts take effect only
+					when activated.
+				</p>
 			</div>
-		) : (
-			<p className="border border-border p-4 text-muted-foreground text-sm">
-				No Agent Profile revision has been created for this Thinkspace yet.
-			</p>
-		)}
-	</section>
-);
+			{profileRevision ? (
+				<div className="grid gap-4 border border-border p-4">
+					<div className="flex items-start justify-between gap-4">
+						<div className="grid gap-1">
+							<p className="text-sm font-medium">{profileRevision.identity.displayName}</p>
+							<p className="text-muted-foreground text-xs">
+								Revision {profileRevision.version} · {profileRevision.status}
+							</p>
+						</div>
+						<Badge variant={profileRevision.status === "active" ? "default" : "outline"}>
+							{profileRevision.status}
+						</Badge>
+					</div>
+					<div className="grid gap-1 border-border border-t pt-4">
+						<p className="text-muted-foreground text-xs font-medium">Instructions</p>
+						<p className="whitespace-pre-wrap text-sm leading-relaxed">
+							{profileRevision.identity.instructions || "No instructions yet."}
+						</p>
+					</div>
+					<div className="grid gap-1 border-border border-t pt-4">
+						<p className="text-muted-foreground text-xs font-medium">Model behavior</p>
+						<p className="break-all text-sm">{profileRevision.modelBehavior.modelId}</p>
+						<p className="text-muted-foreground text-xs">
+							Reasoning level: {profileRevision.modelBehavior.reasoningLevel}
+						</p>
+					</div>
+					{activatableDraft ? (
+						<div className="grid gap-2 border-border border-t pt-4">
+							<p className="text-muted-foreground text-sm">
+								{isReactivation
+									? `Revision ${activatableDraft.version} has staged tool and Permission changes. Activate to apply them and re-grant the requested Permissions; the active revision keeps running until you do.`
+									: "Activation makes this revision the Thinkspace Agent's active behavior and moves the Thinkspace out of draft."}
+							</p>
+							<div>
+								<Button disabled={isActivating} onClick={onActivate} type="button">
+									{activateButtonLabel}
+								</Button>
+							</div>
+							{activationError ? (
+								<p className="text-destructive text-sm" role="alert">
+									{activationError.message}
+								</p>
+							) : null}
+						</div>
+					) : null}
+				</div>
+			) : (
+				<p className="border border-border p-4 text-muted-foreground text-sm">
+					No Agent Profile revision has been created for this Thinkspace yet.
+				</p>
+			)}
+		</section>
+	);
+};
 
 const SubmitTurnSection = ({
 	isArchived,
@@ -1142,14 +1165,16 @@ const RouteComponent = () => {
 	const modelReadiness = modelReadinessQuery.data;
 	const runtimePolicy = runtimePolicyQuery.data;
 	const profileRevision = thinkspace.agentProfileRevision;
+	const pendingDraftRevision = thinkspace.pendingDraftRevision as AgentProfileRevisionView | null;
+	const editableRevision = resolveEditableRevision(profileRevision, pendingDraftRevision);
 	const isArchived = thinkspace.status === "archived";
 	const isDraft = thinkspace.status === "draft";
 	const enabledTools =
-		profileRevision?.toolEnablements
+		editableRevision?.toolEnablements
 			.filter((enablement) => enablement.source === "mcp_server")
 			.map(toEnabledToolSelection) ?? [];
 	const enabledBuiltInToolIds =
-		profileRevision?.toolEnablements
+		editableRevision?.toolEnablements
 			.filter((enablement) => enablement.source === "built_in")
 			.map((enablement) => enablement.toolId)
 			.filter(isBuiltInToolId) ?? [];
@@ -1157,7 +1182,7 @@ const RouteComponent = () => {
 	const toolPotencyById = new Map(
 		enabledToolPotencies.map((toolPotency) => [toolPotency.toolId, toolPotency] as const),
 	);
-	const requestedPermissions = profileRevision?.requestedPermissions ?? [];
+	const requestedPermissions = editableRevision?.requestedPermissions ?? [];
 	const grantedPermissions = (thinkspace.grantedPermissions ?? []) as GrantedPermissionView[];
 
 	const toggleCatalogTool = (serverId: string, risk: "read_only" | "mutating" | "unknown") => {
@@ -1187,10 +1212,10 @@ const RouteComponent = () => {
 	};
 
 	const handleActivateAgentProfile = () => {
-		if (
-			!(isDraft && profileRevision?.status === "draft") ||
-			activateAgentProfileMutation.isPending
-		) {
+		const hasActivatableDraft =
+			Boolean(pendingDraftRevision) || profileRevision?.status === "draft";
+
+		if (!hasActivatableDraft || activateAgentProfileMutation.isPending) {
 			return;
 		}
 
@@ -1245,8 +1270,8 @@ const RouteComponent = () => {
 			<AgentProfileSection
 				activationError={activateAgentProfileMutation.error}
 				isActivating={activateAgentProfileMutation.isPending}
-				isDraft={isDraft}
 				onActivate={handleActivateAgentProfile}
+				pendingDraftRevision={pendingDraftRevision}
 				profileRevision={profileRevision}
 			/>
 
@@ -1313,6 +1338,15 @@ const RouteComponent = () => {
 
 			<Separator />
 
+			<SittingSection
+				isArchived={isArchived}
+				isDraft={isDraft}
+				modelReady={modelReadiness.status === "ready"}
+				thinkspaceId={thinkspaceId}
+			/>
+
+			<Separator />
+
 			<SubmitTurnSection
 				isArchived={isArchived}
 				isDraft={isDraft}
@@ -1333,7 +1367,7 @@ const RouteComponent = () => {
 				mcpCatalog={mcpCatalogQuery.data}
 				onToggleBuiltInTool={toggleBuiltInTool}
 				onToggleCatalogTool={toggleCatalogTool}
-				profileRevision={profileRevision}
+				profileRevision={editableRevision}
 				toolPotencyById={toolPotencyById}
 				updateToolSelectionsError={updateToolSelectionsMutation.error}
 				updateToolSelectionsPending={updateToolSelectionsMutation.isPending}
