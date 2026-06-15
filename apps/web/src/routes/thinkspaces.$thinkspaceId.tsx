@@ -1317,7 +1317,7 @@ const RouteComponent = () => {
 						<div className="flex items-center justify-between gap-4">
 							<p className="text-sm font-medium">Runtime safety policy</p>
 							<Badge variant="outline">
-								{runtimePolicy.mode === "read_only" ? "read-only" : runtimePolicy.mode}
+								{runtimePolicy.mode === "governed_writes" ? "governed writes" : runtimePolicy.mode}
 							</Badge>
 						</div>
 						<p className="text-muted-foreground text-sm">{runtimePolicy.message}</p>
