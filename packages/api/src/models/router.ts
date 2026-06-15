@@ -37,6 +37,13 @@ const catalogUnavailableError = () =>
 		message: "The model catalog is temporarily unavailable. Try again shortly.",
 	});
 
+/**
+ * Encryption and storage failures are infrastructure details. The product
+ * surface only learns the credential did not save, never the underlying
+ * storage or crypto error, which could expose schema or runtime internals.
+ */
+const CREDENTIAL_SAVE_FAILED_MESSAGE = "Your credential could not be saved. Try again shortly.";
+
 const isReasoningEffort = (
 	value: string | null | undefined,
 ): value is (typeof REASONING_EFFORTS)[number] =>
@@ -109,9 +116,9 @@ export const modelsRouter = {
 					providerId: input.providerId,
 					redactedCredential: redactCredential(input.credential),
 				};
-			} catch (error) {
+			} catch {
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: error instanceof Error ? error.message : "Credential could not be saved.",
+					message: CREDENTIAL_SAVE_FAILED_MESSAGE,
 				});
 			}
 		}),
