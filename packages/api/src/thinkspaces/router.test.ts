@@ -963,6 +963,148 @@ test("Thinkspace detail includes MCP grants and remains owner-gated", async () =
 	);
 });
 
+test("get surfaces a pending draft alongside the active revision after a post-activation tool edit", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		profileStatus: "active",
+		thinkspaceStatus: "active",
+		toolEnablements: [{ source: "mcp_server", toolId: "cloudflare-docs" }],
+	});
+
+	// Editing tools on an active Thinkspace forks a draft; the active revision
+	// keeps running until the owner re-activates.
+	await call(
+		thinkspacesRouter.updateToolSelections,
+		{
+			builtInToolIds: ["web_search"],
+			selections: [{ risk: "read_only", serverId: "cloudflare-docs" }],
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context: createCallContext({ db }) },
+	);
+
+	const detail = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.equal(detail.agentProfileRevision?.status, "active");
+	assert.equal(detail.agentProfileRevision?.version, 1);
+	assert.equal(detail.pendingDraftRevision?.status, "draft");
+	assert.equal(detail.pendingDraftRevision?.version, 2);
+	assert.deepEqual(detail.pendingDraftRevision?.toolEnablements, [
+		{ source: "built_in", toolId: "web_search" },
+		{ source: "mcp_server", toolId: "cloudflare-docs" },
+	]);
+	// The forked draft re-requests the model credential and the new tool's access
+	// so re-activation can grant them.
+	const pendingKinds = new Set(
+		(detail.pendingDraftRevision?.requestedPermissions ?? []).map((request) => request.kind),
+	);
+	assert.ok(pendingKinds.has("model_provider_credential"));
+	assert.ok(pendingKinds.has("built_in_web_read"));
+});
+
+test("get reports no pending draft while the only revision is the initial draft", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({ db, profileStatus: "draft", thinkspaceStatus: "draft" });
+
+	const detail = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	// The initial draft is the current revision, not a pending re-activation, so
+	// it is surfaced once as agentProfileRevision and never duplicated.
+	assert.equal(detail.agentProfileRevision?.status, "draft");
+	assert.equal(detail.pendingDraftRevision, null);
+});
+
+test("re-activating a pending draft re-grants the model credential idempotently and supersedes the active revision", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		profileStatus: "active",
+		thinkspaceStatus: "active",
+		toolEnablements: [{ source: "mcp_server", toolId: "cloudflare-docs" }],
+	});
+	// The first activation already granted the model provider credential; the
+	// forked draft will request it again.
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: authenticatedSession.user.id,
+		id: "thinkspace_permission_model_google",
+		kind: THINKSPACE_PERMISSION_KINDS.MODEL_PROVIDER_CREDENTIAL,
+		providerId: "google",
+		reason: "Use your saved provider credential to run this Thinkspace Agent's model.",
+		resourceScope: JSON.stringify({ type: "model_provider" }),
+		thinkspaceId: OWNED_THINKSPACE_ID,
+	});
+
+	await call(
+		thinkspacesRouter.updateToolSelections,
+		{
+			builtInToolIds: ["web_search"],
+			selections: [{ risk: "read_only", serverId: "cloudflare-docs" }],
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context: createCallContext({ db }) },
+	);
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.activatedRevision.status, "active");
+	assert.equal(activation.activatedRevision.version, 2);
+
+	// Re-granting the already-held model credential updates the row in place
+	// rather than throwing or duplicating it.
+	const modelGrants = await db
+		.select()
+		.from(thinkspacePermissions)
+		.where(eq(thinkspacePermissions.kind, THINKSPACE_PERMISSION_KINDS.MODEL_PROVIDER_CREDENTIAL));
+	assert.equal(modelGrants.length, 1);
+
+	// The newly requested web reading Permission was granted on re-activation.
+	const webGrants = await db
+		.select()
+		.from(thinkspacePermissions)
+		.where(eq(thinkspacePermissions.kind, THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ));
+	assert.equal(webGrants.length, 1);
+
+	// v1 is superseded, v2 is active, and no draft remains.
+	const detail = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	assert.equal(detail.agentProfileRevision?.version, 2);
+	assert.equal(detail.pendingDraftRevision, null);
+	const revisions = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+	const statusByVersion = new Map(
+		revisions.map((revision) => [revision.version, revision.status] as const),
+	);
+	assert.equal(statusByVersion.get(1), "superseded");
+	assert.equal(statusByVersion.get(2), "active");
+
+	// The tool enabled on the re-activated revision is potent now that its
+	// Permission is granted.
+	assert.ok(
+		detail.enabledToolPotencies.some(
+			(potency) => potency.toolId === "web_search" && potency.potency === "potent",
+		),
+	);
+});
+
 test("Thinkspace detail includes active revision tool potency indicators", async () => {
 	const db = createTestProductDb();
 	await seedRealThinkspaceWithProfile({
