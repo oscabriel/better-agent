@@ -417,11 +417,10 @@ export const thinkspacesRouter = {
 		const activeRevision = await getActiveAgentProfileRevision(context.db, {
 			thinkspaceId: thinkspace.id,
 		});
-		const agentProfileRevision =
-			activeRevision ??
-			(await getDraftAgentProfileRevision(context.db, {
-				thinkspaceId: thinkspace.id,
-			}));
+		const draftRevision = await getDraftAgentProfileRevision(context.db, {
+			thinkspaceId: thinkspace.id,
+		});
+		const agentProfileRevision = activeRevision ?? draftRevision;
 
 		return {
 			...thinkspace,
@@ -432,6 +431,11 @@ export const thinkspacesRouter = {
 			grantedPermissions: await listThinkspacePermissions(context.db, {
 				thinkspaceId: thinkspace.id,
 			}),
+			// A draft that coexists with an active revision is a pending
+			// re-activation: tool and Permission edits the owner has staged but not
+			// yet applied. When there is no active revision the draft is already the
+			// current revision above, so this stays null to avoid surfacing it twice.
+			pendingDraftRevision: activeRevision ? draftRevision : null,
 		};
 	}),
 	inspectTurn: protectedProcedure.input(inspectTurnInput).handler(async ({ context, input }) => {
