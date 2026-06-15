@@ -64,18 +64,24 @@ test("MCP toolIds resolve to their server id at both server and tool scope", () 
 	assert.equal(mcpServerIdFromToolId("cloudflare-docs:search_docs"), "cloudflare-docs");
 });
 
+const BUILT_IN_GRANT_PROVIDER_ID = {
+	[THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE]: "memory",
+	[THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ]: "sources",
+	[THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ]: "web",
+} as const;
+
+type BuiltInGrantKind = keyof typeof BUILT_IN_GRANT_PROVIDER_ID;
+
 const grantBuiltInPermission = async (
 	db: ProductDb,
-	kind:
-		| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ
-		| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ,
+	kind: BuiltInGrantKind,
 	thinkspaceId = THINKSPACE_ID,
 ) => {
 	await db.insert(thinkspacePermissions).values({
 		grantedByUserId: OWNER_USER_ID,
 		id: `thinkspace_permission_${kind}_${thinkspaceId}`,
 		kind,
-		providerId: kind === THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ ? "web" : "sources",
+		providerId: BUILT_IN_GRANT_PROVIDER_ID[kind],
 		thinkspaceId,
 	});
 };
@@ -128,16 +134,60 @@ test("unknown built-in tool ids stay inert even with every built-in grant presen
 	const db = await createSeededDb();
 	await grantBuiltInPermission(db, THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ);
 	await grantBuiltInPermission(db, THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ);
+	await grantBuiltInPermission(db, THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE);
 
 	const verdicts = await evaluate(db, [
 		{ source: "built_in", toolId: "workspace_bash" },
-		{ source: "built_in", toolId: "memory_write" },
+		{ source: "built_in", toolId: "workspace_mutate" },
 	]);
 
 	assert.deepEqual(verdicts, [
 		{ potency: "inert", toolId: "workspace_bash" },
-		{ potency: "inert", toolId: "memory_write" },
+		{ potency: "inert", toolId: "workspace_mutate" },
 	]);
+});
+
+test("memory_write is inert with no stored grant: enabling the held tool alone confers nothing", async () => {
+	const db = await createSeededDb();
+
+	const verdicts = await evaluate(db, [{ source: "built_in", toolId: "memory_write" }]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "memory_write" }]);
+});
+
+test("a granted Memory writing Permission makes memory_write potent but never the read tools", async () => {
+	const db = await createSeededDb();
+	await grantBuiltInPermission(db, THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE);
+
+	const verdicts = await evaluate(db, [
+		{ source: "built_in", toolId: "memory_write" },
+		...ALL_BUILT_IN_ENABLEMENTS,
+	]);
+
+	assert.deepEqual(verdicts, [
+		{ potency: "potent", toolId: "memory_write" },
+		{ potency: "inert", toolId: "web_search" },
+		{ potency: "inert", toolId: "web_fetch" },
+		{ potency: "inert", toolId: "source_read" },
+	]);
+});
+
+test("a revoked Memory writing grant makes the still-enabled memory_write inert on the next evaluation", async () => {
+	const db = await createSeededDb();
+	await grantBuiltInPermission(db, THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE);
+
+	const enablements: ToolEnablement[] = [{ source: "built_in", toolId: "memory_write" }];
+	const granted = await evaluate(db, enablements);
+	assert.deepEqual(granted, [{ potency: "potent", toolId: "memory_write" }]);
+
+	const revokedGrant = await revokeThinkspacePermission(db, {
+		permissionId: `thinkspace_permission_${THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE}_${THINKSPACE_ID}`,
+		thinkspaceId: THINKSPACE_ID,
+	});
+	assert.ok(revokedGrant);
+
+	const revoked = await evaluate(db, enablements);
+	assert.deepEqual(revoked, [{ potency: "inert", toolId: "memory_write" }]);
 });
 
 test("built-in grants are Thinkspace-scoped: another Thinkspace's grant never leaks", async () => {

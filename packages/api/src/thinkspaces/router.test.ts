@@ -621,6 +621,96 @@ test("revoking a built-in Permission flips the tool inert on the next read witho
 	assert.deepEqual(revisionsAfter, revisionsBefore);
 });
 
+test("enabling the held Memory writing tool writes a built_in enablement and its Permission request", async () => {
+	const { db, saved } = createDbForAgentProfileDraftUpdate(
+		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),
+	);
+	const context = createCallContext({ db });
+
+	const updated = await call(
+		thinkspacesRouter.updateToolSelections,
+		{
+			builtInToolIds: ["memory_write"],
+			selections: [],
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context },
+	);
+
+	assert.ok(updated);
+	assert.deepEqual(JSON.parse(String(saved[0]?.toolEnablements)), [
+		{ source: "built_in", toolId: "memory_write" },
+	]);
+
+	const requests = JSON.parse(String(saved[0]?.requestedPermissions)) as { kind: string }[];
+	assert.deepEqual(
+		requests.map((request) => request.kind).toSorted((left, right) => left.localeCompare(right)),
+		["built_in_memory_write", "model_provider_credential"],
+	);
+});
+
+test("granting then revoking Memory writing flips memory_write potent then inert without touching revisions", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [
+			{
+				kind: "built_in_memory_write",
+				reason: "Propose durable Product Memory, held for Approval.",
+			},
+		],
+		toolEnablements: [{ source: "built_in", toolId: "memory_write" }],
+	});
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ grantedPermissionIndexes: [0], thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.grantedPermissions.length, 1);
+	const [memoryGrant] = activation.grantedPermissions;
+	assert.equal(memoryGrant?.kind, "built_in_memory_write");
+	assert.equal(memoryGrant?.providerId, "memory");
+	assert.equal(memoryGrant?.resourceScope, JSON.stringify({ type: "memory_write" }));
+
+	const granted = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	assert.deepEqual(granted.enabledToolPotencies, [
+		{ potency: "potent", source: "built_in", toolId: "memory_write" },
+	]);
+
+	const revisionsBefore = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+
+	await call(
+		thinkspacesRouter.revokePermission,
+		{ permissionId: String(memoryGrant?.id), thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	const revoked = await call(
+		thinkspacesRouter.get,
+		{ thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+	const revisionsAfter = await db
+		.select()
+		.from(thinkspaceAgentProfiles)
+		.where(eq(thinkspaceAgentProfiles.thinkspaceId, OWNED_THINKSPACE_ID));
+
+	assert.deepEqual(revoked.enabledToolPotencies, [
+		{ potency: "inert", source: "built_in", toolId: "memory_write" },
+	]);
+	assert.deepEqual(revisionsAfter, revisionsBefore);
+});
+
 test("Agent Profile activation rejects archived Thinkspaces before writes", async () => {
 	const { db, patches } = createDbForAgentProfileActivation(
 		ownedThinkspaceRow({ status: "archived" }),

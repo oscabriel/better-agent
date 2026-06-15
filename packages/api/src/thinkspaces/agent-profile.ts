@@ -128,14 +128,16 @@ export interface McpToolAccessPermissionRequest {
 export const BUILT_IN_TOOL_PERMISSION_REQUEST_KINDS = [
 	"built_in_source_read",
 	"built_in_web_read",
+	"built_in_memory_write",
 ] as const;
 export type BuiltInToolPermissionRequestKind =
 	(typeof BUILT_IN_TOOL_PERMISSION_REQUEST_KINDS)[number];
 
 /**
- * A request for one of the built-in read tool Permission kinds: web reading
- * (search and fetch together) or Source reading. The kind itself names the
- * governed resource, so no extra scope payload is carried.
+ * A request for one of the built-in tool Permission kinds: web reading
+ * (search and fetch together), Source reading, or held Memory writing. The
+ * kind itself names the governed resource, so no extra scope payload is
+ * carried.
  */
 export interface BuiltInToolAccessPermissionRequest {
 	kind: BuiltInToolPermissionRequestKind;

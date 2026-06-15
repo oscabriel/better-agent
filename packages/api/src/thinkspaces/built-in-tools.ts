@@ -1,5 +1,5 @@
 /**
- * The built-in read tool catalog.
+ * The built-in tool catalog.
  *
  * Built-ins are a first-class tool source in the existing enablement scheme:
  * an Agent Profile revision makes one present with a stable tool id, and a
@@ -7,12 +7,22 @@
  * search and web fetch share one Permission kind (web reading); Source
  * reading has its own, so the user can let the agent read their material
  * without letting it touch the public web, and vice versa (PRD #73).
+ *
+ * `memory_write` is the first non-read built-in: a held tool that proposes a
+ * durable Product Memory for the owner's Approval, governed by its own
+ * Permission kind (PRD #92). It rides the identical enable → request → grant →
+ * potency path; the held execution itself arrives in a later slice.
  */
 import { THINKSPACE_PERMISSION_KINDS } from "@better-agent/db/schema/permissions";
 
 import type { BuiltInToolAccessPermissionRequest } from "./agent-profile";
 
-export const BUILT_IN_TOOL_IDS = ["web_search", "web_fetch", "source_read"] as const;
+export const BUILT_IN_TOOL_IDS = [
+	"web_search",
+	"web_fetch",
+	"source_read",
+	"memory_write",
+] as const;
 
 export type BuiltInToolId = (typeof BUILT_IN_TOOL_IDS)[number];
 
@@ -39,6 +49,7 @@ export const parseBuiltInSourceReadResultName = (output: string): string | null 
 };
 
 export type BuiltInToolPermissionKind =
+	| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE
 	| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ
 	| typeof THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ;
 
@@ -55,10 +66,16 @@ export const builtInToolPermissionKind = (toolId: string): BuiltInToolPermission
 		return THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ;
 	}
 
+	if (toolId === "memory_write") {
+		return THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE;
+	}
+
 	return null;
 };
 
 const BUILT_IN_PERMISSION_REASONS: Record<BuiltInToolPermissionKind, string> = {
+	[THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE]:
+		"Allow this Thinkspace Agent to propose durable Product Memory, held for your Approval.",
 	[THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ]:
 		"Allow this Thinkspace Agent to read this Thinkspace's Sources.",
 	[THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ]:
