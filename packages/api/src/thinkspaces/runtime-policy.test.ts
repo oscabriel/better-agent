@@ -10,6 +10,8 @@ import {
 	isThinkspaceRuntimeCapabilityEnabled,
 	THINKSPACE_RUNTIME_CAPABILITY_IDS,
 	THINKSPACE_RUNTIME_DISABLED_CAPABILITY_IDS,
+	THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS,
+	THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID,
 	THINKSPACE_RUNTIME_POLICY,
 } from "./runtime-policy";
 
@@ -21,7 +23,7 @@ test("disables workspace Bash against the runtime default", () => {
 	);
 });
 
-test("enables only built-in read tools and disables every mutation-shaped capability", () => {
+test("enables built-in read tools plus held internal writes and disables every other mutation-shaped capability", () => {
 	const expectedCapabilityIds = [
 		"builtin_read_tools",
 		"workspace_bash",
@@ -32,21 +34,22 @@ test("enables only built-in read tools and disables every mutation-shaped capabi
 		"memory_writes",
 		"artifact_publishing",
 	];
+	const expectedEnabledCapabilityIds = ["builtin_read_tools", "memory_writes"];
 	const expectedDisabledCapabilityIds = expectedCapabilityIds.filter(
-		(id) => id !== "builtin_read_tools",
+		(id) => !expectedEnabledCapabilityIds.includes(id),
 	);
 
 	assert.deepEqual([...THINKSPACE_RUNTIME_CAPABILITY_IDS], expectedCapabilityIds);
+	assert.deepEqual([...THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS], expectedEnabledCapabilityIds);
 	assert.deepEqual([...THINKSPACE_RUNTIME_DISABLED_CAPABILITY_IDS], expectedDisabledCapabilityIds);
 	assert.equal(THINKSPACE_RUNTIME_POLICY.capabilities.length, expectedCapabilityIds.length);
 
-	assert.equal(
-		isThinkspaceRuntimeCapabilityEnabled(THINKSPACE_RUNTIME_POLICY, "builtin_read_tools"),
-		true,
-	);
+	// The held internal write is the only mutation-shaped capability newly
+	// enabled over the read-only policy (PRD #92, #93).
+	assert.equal(THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID, "memory_writes");
 
 	for (const capability of THINKSPACE_RUNTIME_POLICY.capabilities) {
-		const expectedEnabled = capability.id === "builtin_read_tools";
+		const expectedEnabled = expectedEnabledCapabilityIds.includes(capability.id);
 
 		assert.equal(
 			capability.enabled,
@@ -60,9 +63,10 @@ test("enables only built-in read tools and disables every mutation-shaped capabi
 	}
 });
 
-test("declares a read-only runtime mode with bounded step counts", () => {
-	assert.equal(THINKSPACE_RUNTIME_POLICY.mode, "read_only");
-	assert.equal(THINKSPACE_RUNTIME_POLICY.policyId, "safe_reads_v2");
+test("declares the governed-writes runtime mode with bounded step counts", () => {
+	assert.equal(THINKSPACE_RUNTIME_POLICY.mode, "governed_writes");
+	assert.equal(THINKSPACE_RUNTIME_POLICY.policyId, "governed_tools_v3");
+	assert.equal(THINKSPACE_RUNTIME_POLICY.workspaceBash, false);
 	assert.equal(THINKSPACE_RUNTIME_POLICY.maxSteps, 1);
 });
 
@@ -116,7 +120,7 @@ test("reports the runtime policy only after Thinkspace ownership is confirmed", 
 	});
 
 	assert.equal(ownerPolicy?.thinkspaceId, "thinkspace_owned");
-	assert.equal(ownerPolicy?.policyId, "safe_reads_v2");
+	assert.equal(ownerPolicy?.policyId, "governed_tools_v3");
 	assert.equal(ownerPolicy?.workspaceBash, false);
 	assert.equal(nonOwnerPolicy, null);
 	assert.deepEqual(requestedOwnershipChecks, [
