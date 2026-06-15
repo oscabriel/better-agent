@@ -5,6 +5,13 @@ import { timestampMsNow } from "./common";
 import { thinkspaces } from "./thinkspaces";
 
 export const THINKSPACE_PERMISSION_KINDS = {
+	/**
+	 * Governs the held built-in Memory-proposing tool for one Thinkspace.
+	 * Distinct from the read kinds: it allows the agent to *propose* a durable
+	 * Product Memory, which is held for the owner's Approval before it takes
+	 * effect (PRD #92).
+	 */
+	BUILT_IN_MEMORY_WRITE: "built_in_memory_write",
 	/** Governs the built-in Source reading tool for one Thinkspace. */
 	BUILT_IN_SOURCE_READ: "built_in_source_read",
 	/** Governs built-in web reading — search and fetch together. */

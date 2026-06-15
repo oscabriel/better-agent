@@ -10,11 +10,12 @@
  *
  * Decision rule (fails closed): built-in enablements are potent only with a
  * granted Permission of their governing kind — web reading for web search
- * and fetch, Source reading for the Source read tool (PRD #73 superseded the
- * earlier enablement-alone rule for built-ins). MCP-source enablements are
- * potent only with a matching granted MCP tool access Permission. Connected
- * Account and Local Node sources, and built-in tool ids the catalog does not
- * know, are unconditionally inert.
+ * and fetch, Source reading for the Source read tool, Memory writing for the
+ * held Memory-proposing tool (PRD #73 superseded the earlier enablement-alone
+ * rule for built-ins; PRD #92 added the held Memory write). MCP-source
+ * enablements are potent only with a matching granted MCP tool access
+ * Permission. Connected Account and Local Node sources, and built-in tool ids
+ * the catalog does not know, are unconditionally inert.
  */
 import type { ProductDb } from "@better-agent/db";
 import {
@@ -115,6 +116,7 @@ export const createMemoryPermissionPolicy = (
 });
 
 const BUILT_IN_GRANT_KINDS: readonly BuiltInToolPermissionKind[] = [
+	THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE,
 	THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ,
 	THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ,
 ];
