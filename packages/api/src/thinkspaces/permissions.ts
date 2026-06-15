@@ -48,14 +48,17 @@ const MODEL_PROVIDER_SCOPE = JSON.stringify({ type: "model_provider" });
 /**
  * Grant rows live on the (thinkspaceId, kind, providerId) unique index, so
  * each built-in kind gets a stable resource identity: the web for web
- * reading, this Thinkspace's Sources for Source reading.
+ * reading, this Thinkspace's Sources for Source reading, this Thinkspace's
+ * Memory for held Memory writing.
  */
 const BUILT_IN_GRANT_PROVIDER_IDS = {
+	built_in_memory_write: "memory",
 	built_in_source_read: "sources",
 	built_in_web_read: "web",
 } as const satisfies Record<BuiltInToolAccessPermissionRequest["kind"], string>;
 
 const BUILT_IN_GRANT_SCOPES = {
+	built_in_memory_write: JSON.stringify({ type: "memory_write" }),
 	built_in_source_read: JSON.stringify({ type: "source_read" }),
 	built_in_web_read: JSON.stringify({ type: "web_read" }),
 } as const satisfies Record<BuiltInToolAccessPermissionRequest["kind"], string>;
@@ -63,6 +66,7 @@ const BUILT_IN_GRANT_SCOPES = {
 const isBuiltInToolPermissionRequest = (
 	permission: RequestedPermission,
 ): permission is BuiltInToolAccessPermissionRequest =>
+	permission.kind === THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE ||
 	permission.kind === THINKSPACE_PERMISSION_KINDS.BUILT_IN_SOURCE_READ ||
 	permission.kind === THINKSPACE_PERMISSION_KINDS.BUILT_IN_WEB_READ;
 

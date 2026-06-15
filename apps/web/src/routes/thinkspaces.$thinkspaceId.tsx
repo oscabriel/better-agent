@@ -34,7 +34,7 @@ interface EnabledToolSelection {
 
 type McpToolAccessScopeView = { type: "server" } | { toolName: string; type: "tool" };
 
-type BuiltInToolId = "web_search" | "web_fetch" | "source_read";
+type BuiltInToolId = "web_search" | "web_fetch" | "source_read" | "memory_write";
 
 interface BuiltInToolView {
 	description: string;
@@ -59,6 +59,12 @@ const BUILT_IN_TOOLS: readonly BuiltInToolView[] = [
 		id: "source_read",
 		name: "Source reading",
 	},
+	{
+		description:
+			"Propose a durable Product Memory, held for your Approval before it takes effect. Potent only with the Memory writing Permission.",
+		id: "memory_write",
+		name: "Memory writing",
+	},
 ];
 
 const isBuiltInToolId = (value: string): value is BuiltInToolId =>
@@ -68,6 +74,7 @@ interface PermissionRequestView {
 	actions?: string[];
 	approvalRequired?: boolean;
 	kind?:
+		| "built_in_memory_write"
 		| "built_in_source_read"
 		| "built_in_web_read"
 		| "mcp_tool_access"
@@ -199,6 +206,10 @@ const getPermissionRequestTitle = (permission: PermissionRequestView, index: num
 		return "Source reading (built-in)";
 	}
 
+	if (permission.kind === "built_in_memory_write") {
+		return "Memory writing (built-in)";
+	}
+
 	if (permission.kind === "model_provider_credential") {
 		return `Model credential: ${permission.providerId}`;
 	}
@@ -230,6 +241,10 @@ const getGrantedPermissionTitle = (permission: GrantedPermissionView): string =>
 
 	if (permission.kind === "built_in_source_read") {
 		return "Source reading (built-in)";
+	}
+
+	if (permission.kind === "built_in_memory_write") {
+		return "Memory writing (built-in)";
 	}
 
 	if (permission.kind === "mcp_tool_access") {
