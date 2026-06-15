@@ -8,9 +8,10 @@ import test from "node:test";
  * of loading the modules in a Node test runtime.
  *
  * They encode the runtime-access decision from the Thinkspace Agent runtime
- * PRD: no raw Project Think route is exposed to browsers; the only supported
- * entry points are the owner-gated oRPC procedures that talk to the Durable
- * Object by Thinkspace id.
+ * PRD, as narrowed by the Sittings slice: browser traffic reaches a runtime
+ * only through the authenticated, owner-gated `/api/sittings/*` route; raw
+ * Project Think route helpers stay banned, and the runtime stays fail-closed
+ * to everything that is not a matching, worker-stamped Sitting forward.
  */
 const sourceRoot = import.meta.url.includes("/dist/src/")
 	? new URL("../../src/", import.meta.url)
@@ -42,14 +43,36 @@ test("the worker only exposes known app-owned route prefixes", () => {
 		"/api/auth/*",
 		"/api/rpc/*",
 		"/api/openapi/*",
+		"/api/sittings/*",
 		"/",
 		"/api/health",
 	]);
 });
 
+test("the worker authenticates and owner-gates the Sitting route before forwarding", () => {
+	// Session check, then ownership check, then forward — the same gate the
+	// owner-gated turn procedures use. A non-owner or unauthenticated caller gets
+	// the same 404 as a missing Thinkspace, so ownership is the only signal.
+	assert.match(workerSource, /"\/api\/sittings\/\*"/u);
+	assert.match(workerSource, /\.api\.getSession\(/u);
+	assert.match(workerSource, /getOwnedThinkspaceAgentRuntimeReadiness\(/u);
+	assert.match(workerSource, /return c\.notFound\(\)/u);
+	// The worker strips any client-supplied forward header, then stamps its own.
+	assert.match(workerSource, /forwardHeaders\.delete\(SITTING_FORWARD_CONTEXT_HEADER\)/u);
+	assert.match(workerSource, /encodeSittingForwardContext\(/u);
+	// Resolution is by Thinkspace id via the agents helper, never a raw router.
+	assert.match(workerSource, /getAgentByName\(/u);
+});
+
 test("the Thinkspace Agent runtime keeps direct HTTP access fail-closed", () => {
-	assert.match(agentSource, /override fetch\(/u);
+	// The override still defaults to 404; it admits only a worker-stamped Sitting
+	// forward whose (owner, Thinkspace) matches the runtime's bound context, then
+	// hands off to Project Think's chat protocol via super.fetch.
+	assert.match(agentSource, /override async fetch\(/u);
 	assert.match(agentSource, /status: 404/u);
+	assert.match(agentSource, /decodeSittingForwardContext\(/u);
+	assert.match(agentSource, /matchesSittingForwardContext\(/u);
+	assert.match(agentSource, /return super\.fetch\(request\)/u);
 });
 
 test("the Thinkspace Agent runtime gets tool verdicts from the store-backed Permission policy", () => {

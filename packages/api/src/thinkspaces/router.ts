@@ -2,7 +2,7 @@ import type { ProductDb } from "@better-agent/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { DEFAULT_MODEL_ID } from "../models/catalog";
+import { DEFAULT_MODEL_ID, parseModelId } from "../models/catalog";
 import { ModelCatalogError, validateCatalogModelId } from "../models/model-catalog";
 import {
 	getOwnedThinkspaceModelReadiness,
@@ -147,10 +147,26 @@ const toToolEnablements = (
 	];
 };
 
+/**
+ * Every Agent Profile revision needs its model to run, so the draft always
+ * requests Permission to use the owner's saved credential for that model's
+ * provider. The owner grants it at activation (the default grants all requests),
+ * which is what makes model resolution potent — without this grant the runtime
+ * fails closed with `permission_required`. Built-in and MCP tool requests are
+ * added on top from the user's selections.
+ */
+const createModelProviderCredentialPermissionRequest = (modelId: string): RequestedPermission => ({
+	kind: "model_provider_credential",
+	providerId: parseModelId(modelId).providerId,
+	reason: "Use your saved provider credential to run this Thinkspace Agent's model.",
+});
+
 const toRequestedPermissions = (
+	modelId: string,
 	builtInToolIds: readonly BuiltInToolId[],
 	selections: z.infer<typeof toolSelectionSchema>[],
 ): RequestedPermission[] => [
+	createModelProviderCredentialPermissionRequest(modelId),
 	...createBuiltInToolPermissionRequests(builtInToolIds),
 	...selections.map((selection) => createMcpToolAccessPermissionRequest(selection)),
 ];
@@ -378,6 +394,7 @@ export const thinkspacesRouter = {
 				id: createAgentProfileRevisionId(),
 				identity,
 				modelBehavior,
+				requestedPermissions: toRequestedPermissions(modelBehavior.modelId, [], []),
 				thinkspaceId: record.id,
 			});
 			const created = await createThinkspaceWithAgentProfileDraft(context.db, { draft, record });
@@ -400,11 +417,10 @@ export const thinkspacesRouter = {
 		const activeRevision = await getActiveAgentProfileRevision(context.db, {
 			thinkspaceId: thinkspace.id,
 		});
-		const agentProfileRevision =
-			activeRevision ??
-			(await getDraftAgentProfileRevision(context.db, {
-				thinkspaceId: thinkspace.id,
-			}));
+		const draftRevision = await getDraftAgentProfileRevision(context.db, {
+			thinkspaceId: thinkspace.id,
+		});
+		const agentProfileRevision = activeRevision ?? draftRevision;
 
 		return {
 			...thinkspace,
@@ -415,6 +431,11 @@ export const thinkspacesRouter = {
 			grantedPermissions: await listThinkspacePermissions(context.db, {
 				thinkspaceId: thinkspace.id,
 			}),
+			// A draft that coexists with an active revision is a pending
+			// re-activation: tool and Permission edits the owner has staged but not
+			// yet applied. When there is no active revision the draft is already the
+			// current revision above, so this stays null to avoid surfacing it twice.
+			pendingDraftRevision: activeRevision ? draftRevision : null,
 		};
 	}),
 	inspectTurn: protectedProcedure.input(inspectTurnInput).handler(async ({ context, input }) => {
@@ -605,7 +626,11 @@ export const thinkspacesRouter = {
 				const updatedDraft = await saveAgentProfileDraft(context.db, {
 					draft: {
 						...draft,
-						requestedPermissions: toRequestedPermissions(builtInToolIds, input.selections),
+						requestedPermissions: toRequestedPermissions(
+							draft.modelBehavior.modelId,
+							builtInToolIds,
+							input.selections,
+						),
 						toolEnablements: toToolEnablements(builtInToolIds, input.selections),
 						updatedAt: new Date(),
 					},

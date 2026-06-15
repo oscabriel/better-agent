@@ -589,6 +589,81 @@ probe is present (`worker-routes.test.ts:28-41` pins the exact mounted route
 list), so the suite blocks an accidental commit. Revert with
 `git checkout -- apps/server/src/index.ts` when done.
 
+## Sittings (issue #80)
+
+A Sitting is the live owner↔Thinkspace Agent session. Browser traffic reaches a
+runtime only through one authenticated worker route, `GET /api/sittings/:thinkspaceId`
+(`apps/server/src/index.ts`), which verifies the Better Auth session and
+Thinkspace ownership, strips any client-supplied forward header, stamps its own
+`(owner, Thinkspace)` context, and forwards to the runtime by Thinkspace id. The
+runtime's `fetch` override (`apps/server/src/agents/thinkspace-agent.ts`) admits a
+request only when that stamped context matches the bound turn context, then hands
+off to Project Think's WebSocket chat protocol. Governance is unchanged: every
+Sitting turn runs the same `beforeTurn` assembly and `beforeToolCall` recheck as a
+submitted turn. Node tests cover the route shape, forward-context contract, and
+fail-closed default (`apps/server/src/worker-routes.test.ts`,
+`packages/api/src/thinkspaces/sittings.test.ts`); only workerd + a browser can
+prove streaming, resumption, recovery, and multi-tab broadcast.
+
+Prereqs: an **active** Thinkspace (TS-A) owned by the owner cookie, with a ready
+model credential (reuse the Thinkspace from the runtime checks above). Open the
+web UI at `/thinkspaces/<TS-A>` and scroll to the **Sitting** section.
+
+1. **Open and stream.** Send a message in the Sitting composer. Expect a
+   token-by-token streamed reply (not a single block) and, when the model
+   provides it, an italic reasoning block above the answer. The transcript opens
+   onto any prior turns (including turns submitted while away).
+2. **Stream resumption (client reconnect).** While a reply is streaming, refresh
+   the page. Expect the in-flight reply to replay and continue to completion — no
+   lost tokens, no frozen UI. (Driven by `resume: true` in `useAgentChat`.)
+3. **Cancel.** Start a long reply, click **Stop** mid-stream. Expect the stream
+   to halt promptly; the partial turn remains in the transcript on the next load.
+4. **Close-tab durability.** Send a message, then close the tab before it
+   completes. Reopen `/thinkspaces/<TS-A>`; expect the completed turn present in
+   the transcript.
+5. **Recovering indicator.** While a turn is in flight, redeploy/restart the API
+   Worker (or trigger a DO eviction). Expect a "Recovering the agent's turn…"
+   badge (the `isRecovering` / `CF_AGENT_CHAT_RECOVERING` path) rather than a
+   silent freeze, then continuation.
+6. **Multi-tab broadcast.** Open `/thinkspaces/<TS-A>` in two tabs. Send from one;
+   expect the same live stream to appear in both.
+7. **Governance parity.** In the same Sitting, exercise a tool the Thinkspace has
+   enabled-and-granted (e.g. web reading) and confirm it works; revoke its
+   Permission, then in a new Sitting turn confirm the tool is inert (blocked) —
+   identical to the submitted-turn behavior verified in the Permission checks
+   above. Tool activity should reflect only the enabled ∩ potent set.
+
+Negative checks (ownership is the only signal — every failure is a 404):
+
+```sh
+# Unauthenticated upgrade attempt → 404 (no existence disclosure)
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
+  "$SERVER/api/sittings/<TS-A>"            # expect 404
+
+# Authenticated NON-owner (intruder cookie) on the owner's Thinkspace → 404
+curl -s -o /dev/null -w '%{http_code}\n' -b /tmp/ba-intruder.txt \
+  -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
+  "$SERVER/api/sittings/<TS-A>"            # expect 404, same as a missing Thinkspace
+
+# Guessed/unknown Thinkspace id with owner cookie → 404
+curl -s -o /dev/null -w '%{http_code}\n' -b /tmp/ba-owner.txt \
+  "$SERVER/api/sittings/thinkspace_does_not_exist"   # expect 404
+```
+
+Expected: all three return `404`. The authenticated-owner upgrade (exercised via
+the browser in checks 1–6) is the only path that reaches the runtime.
+
+If checks 1–6 fail at the connection itself (handshake never completes), the
+likely cause is the worker→DO forward not routing inside Project Think's chat
+protocol. Verify the worker forwards the upgrade request unmodified except for
+the stamped forward header, and that the runtime override calls
+`super.fetch(request)` after the context match. The `agents` `getAgentByName`
+helper is the SDK's documented path for `basePath` manual routing; the client
+sets `basePath: api/sittings/<id>` so the connection URL matches the route.
+
 ## Recording results
 
 Record pass/fail per section in the issue or PR that motivated the smoke run,
