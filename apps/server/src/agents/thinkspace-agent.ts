@@ -22,6 +22,25 @@ import {
 	THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON,
 } from "@better-agent/api/thinkspaces/built-in-runtime-tools";
 import { createFetchWebReader } from "@better-agent/api/thinkspaces/web-reader";
+import {
+	extractPendingMemoryApprovals,
+	extractResolvedMemoryApprovals,
+	flipMemoryApprovalInTranscript,
+	summarizeMemoryProposal,
+} from "@better-agent/api/thinkspaces/approvals";
+import {
+	getThinkspaceApproval,
+	listPendingThinkspaceApprovals,
+	resolveThinkspaceApproval,
+	upsertPendingThinkspaceApproval,
+} from "@better-agent/api/thinkspaces/approvals-repository";
+import { validateThinkspaceApprovalId } from "@better-agent/api/thinkspaces/approval-decisions";
+import type {
+	ThinkspaceMemoryApprovalDecisionRequest,
+	ThinkspaceMemoryApprovalDecisionResult,
+} from "@better-agent/api/thinkspaces/approval-decisions";
+import { createThinkspaceMemoryWriter } from "@better-agent/api/thinkspaces/memory-writer";
+import { THINKSPACE_APPROVAL_ACTION_KIND } from "@better-agent/db/schema/approvals";
 import { createThinkspaceSourceReader } from "@better-agent/api/sources/reader";
 import {
 	createThinkspaceMcpDegradationNotice,
@@ -48,6 +67,7 @@ import {
 	SITTING_FORWARD_CONTEXT_HEADER,
 	SITTING_TURN_ATTRIBUTION_STORAGE_KEY,
 } from "@better-agent/api/thinkspaces/sittings";
+import type { ThinkspaceTurnAttribution } from "@better-agent/api/thinkspaces/sittings";
 import {
 	bindThinkspaceTurnRuntimeContext,
 	matchesThinkspaceTurnRuntimeContext,
@@ -218,6 +238,97 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		});
 	}
 
+	/**
+	 * Decides one pending Memory Approval out-of-band: the same apply-and-continue
+	 * path an inline Sitting approval drives, invoked from the control plane. The
+	 * decision flips the parked tool part to `approval-responded` in place and
+	 * resumes the turn — on approval the held tool's `execute` finally runs and
+	 * writes the Memory; on rejection it never runs and nothing persists. The
+	 * runtime is authoritative: a forged or mismatched context, an Approval that
+	 * is unknown, already decided, or no longer parked, all resolve to
+	 * `not_found` so the control plane can render the sealed 404.
+	 */
+	async decideMemoryApproval(
+		request: ThinkspaceMemoryApprovalDecisionRequest,
+	): Promise<ThinkspaceMemoryApprovalDecisionResult> {
+		const approvalId = validateThinkspaceApprovalId(request.approvalId);
+		const notFound: ThinkspaceMemoryApprovalDecisionResult = {
+			approvalId,
+			decision: request.decision,
+			status: "not_found",
+			thinkspaceId: request.thinkspaceId,
+		};
+
+		const turnContext =
+			await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY);
+
+		if (
+			!turnContext ||
+			turnContext.thinkspaceId !== request.thinkspaceId ||
+			turnContext.ownerUserId !== request.ownerUserId
+		) {
+			return notFound;
+		}
+
+		const db = createDb(this.env.DB);
+		const approval = await getThinkspaceApproval(db, {
+			approvalId,
+			thinkspaceId: request.thinkspaceId,
+		});
+
+		if (
+			!approval ||
+			approval.status !== "pending" ||
+			approval.actionKind !== THINKSPACE_APPROVAL_ACTION_KIND.MEMORY_WRITE
+		) {
+			return notFound;
+		}
+
+		const messages = await this.getMessages();
+		const flip = flipMemoryApprovalInTranscript({
+			decision: request.decision,
+			messages,
+			reason: request.reason,
+			toolCallId: approval.toolCallId,
+		});
+
+		if (!flip.flipped) {
+			return notFound;
+		}
+
+		// Persist the single flipped message in place (never append — that would
+		// duplicate the transcript), then resolve the index row before resuming.
+		// The decision is final once the transcript records it; resuming only
+		// fires its consequence, which the held tool's idempotent write absorbs.
+		for (const [index, message] of messages.entries()) {
+			const flippedMessage = flip.messages[index];
+
+			if (flippedMessage && message !== flippedMessage) {
+				await this.updateMessageInHistory(flippedMessage);
+			}
+		}
+
+		const resolved = await resolveThinkspaceApproval(db, {
+			approvalId,
+			resolvedAt: new Date(),
+			status: request.decision,
+			thinkspaceId: request.thinkspaceId,
+		});
+
+		if (!resolved) {
+			return notFound;
+		}
+
+		await this.continueLastTurn();
+
+		return {
+			approvalId,
+			decision: request.decision,
+			status: "applied",
+			thinkspaceId: request.thinkspaceId,
+		};
+	}
+
 	override getModel(): LanguageModel {
 		return this.turnModelPlaceholder;
 	}
@@ -246,11 +357,11 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		// Submitted turns also carry it in their submission metadata; Sitting turns
 		// do not pass through the ledger, so this preserves the activation-history
 		// guarantee (every turn is attributable to the revision it ran under)
-		// regardless of entry path, for the future Audit Trail.
-		await this.ctx.storage.put(
-			SITTING_TURN_ATTRIBUTION_STORAGE_KEY,
-			createThinkspaceTurnAttribution(resolved.activeRevision),
-		);
+		// regardless of entry path, for the future Audit Trail. The same
+		// attribution is stamped onto any Memory a held proposal writes and onto
+		// the pending Approval a held proposal raises.
+		const attribution = createThinkspaceTurnAttribution(resolved.activeRevision);
+		await this.ctx.storage.put(SITTING_TURN_ATTRIBUTION_STORAGE_KEY, attribution);
 
 		const toolPotencies = await ThinkspaceAgent.evaluateToolPotencies(
 			permissionPolicy,
@@ -268,6 +379,11 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 
 		const builtInPreparation = await prepareThinkspaceBuiltInRuntimeTools({
 			activeProductToolIds: assembly.activeTools,
+			memoryWriter: createThinkspaceMemoryWriter({
+				attribution,
+				db,
+				thinkspaceId: turnContext.thinkspaceId,
+			}),
 			sourceReader: createThinkspaceSourceReader({
 				db,
 				env: this.env,
@@ -377,6 +493,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	override async onChatResponse(result: ChatResponseResult): Promise<void> {
 		try {
 			await this.cleanupTurnMcpServers();
+			await this.reconcilePendingApprovals();
 		} finally {
 			await super.onChatResponse(result);
 		}
@@ -401,6 +518,77 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		this.turnMcpServerIds.add(result.id);
 
 		return this.mcp.getAITools({ serverId: result.id, state: "ready" });
+	}
+
+	/**
+	 * Mirrors the parked-turn transcript into the D1 Approval index after every
+	 * turn: a held proposal still awaiting a decision is upserted as a pending
+	 * Approval (idempotent on its tool call id), and any held proposal the
+	 * transcript already shows as decided is resolved out of the queue (covering
+	 * a decision applied through another surface). Best-effort: the transcript in
+	 * the Durable Object stays authoritative, so an indexing failure never breaks
+	 * the turn.
+	 */
+	private async reconcilePendingApprovals(): Promise<void> {
+		try {
+			const turnContext =
+				await this.ctx.storage.get<ThinkspaceTurnRuntimeContext>(TURN_CONTEXT_STORAGE_KEY);
+
+			if (!turnContext) {
+				return;
+			}
+
+			const attribution = await this.ctx.storage.get<ThinkspaceTurnAttribution>(
+				SITTING_TURN_ATTRIBUTION_STORAGE_KEY,
+			);
+			const messages = await this.getMessages();
+			const db = createDb(this.env.DB);
+
+			for (const pending of extractPendingMemoryApprovals(messages)) {
+				await upsertPendingThinkspaceApproval(db, {
+					record: {
+						actionKind: THINKSPACE_APPROVAL_ACTION_KIND.MEMORY_WRITE,
+						approvalRequestId: pending.approvalRequestId,
+						id: `approval_${crypto.randomUUID()}`,
+						ownerUserId: turnContext.ownerUserId,
+						profileRevisionId: attribution?.profileRevisionId ?? null,
+						profileVersion: attribution?.profileVersion ?? null,
+						proposedContent: pending.content,
+						proposedSummary: summarizeMemoryProposal(pending.content),
+						submissionId: null,
+						thinkspaceId: turnContext.thinkspaceId,
+						toolCallId: pending.toolCallId,
+					},
+				});
+			}
+
+			const resolvedProposals = extractResolvedMemoryApprovals(messages);
+
+			if (resolvedProposals.length === 0) {
+				return;
+			}
+
+			const pendingRows = await listPendingThinkspaceApprovals(db, {
+				thinkspaceId: turnContext.thinkspaceId,
+			});
+			const rowByToolCall = new Map(pendingRows.map((row) => [row.toolCallId, row]));
+			const resolvedAt = new Date();
+
+			for (const resolution of resolvedProposals) {
+				const row = rowByToolCall.get(resolution.toolCallId);
+
+				if (row) {
+					await resolveThinkspaceApproval(db, {
+						approvalId: row.id,
+						resolvedAt,
+						status: resolution.status,
+						thinkspaceId: turnContext.thinkspaceId,
+					});
+				}
+			}
+		} catch {
+			// Best-effort index reconciliation; the transcript stays authoritative.
+		}
 	}
 
 	private async cleanupTurnMcpServers(): Promise<void> {

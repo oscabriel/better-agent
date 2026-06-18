@@ -15,7 +15,23 @@ export {
 	thinkspaceAgentProfileRelations,
 	thinkspaceAgentProfiles,
 } from "./agent-profiles";
+export {
+	THINKSPACE_APPROVAL_ACTION_KIND,
+	THINKSPACE_APPROVAL_STATUS,
+	type ThinkspaceApproval,
+	type ThinkspaceApprovalActionKind,
+	thinkspaceApprovalRelations,
+	thinkspaceApprovals,
+	type ThinkspaceApprovalStatus,
+	type NewThinkspaceApproval,
+} from "./approvals";
 export { timestampMsNow } from "./common";
+export {
+	type NewThinkspaceMemory,
+	thinkspaceMemoryRelations,
+	type ThinkspaceMemory,
+	thinkspaceMemories,
+} from "./memories";
 export {
 	type NewThinkspacePermission,
 	THINKSPACE_PERMISSION_KINDS,

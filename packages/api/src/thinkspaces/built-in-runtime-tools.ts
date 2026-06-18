@@ -18,11 +18,17 @@ import type { ActiveAgentProfileRevision } from "./agent-profile";
 import { formatBuiltInSourceReadResult, isBuiltInToolId } from "./built-in-tools";
 import type { BuiltInToolId } from "./built-in-tools";
 import { markThinkspaceTurnProductSafeError } from "./inspect";
+import type { ThinkspaceMemoryWriter } from "./memory-writer";
 import type { ThinkspacePermissionPolicy } from "./permission-policy";
 import { isThinkspaceRuntimeCapabilityEnabled, THINKSPACE_RUNTIME_POLICY } from "./runtime-policy";
-import type { ThinkspaceRuntimePolicy } from "./runtime-policy";
+import type { ThinkspaceRuntimeCapabilityId, ThinkspaceRuntimePolicy } from "./runtime-policy";
 import { ThinkspaceWebReadError } from "./web-reader";
 import type { ThinkspaceWebReader } from "./web-reader";
+
+export const THINKSPACE_MEMORY_CONTENT_MAX_LENGTH = 4000;
+
+const MEMORY_WRITE_ACCEPTED_MESSAGE =
+	"Recorded a durable Product Memory for this Thinkspace. It is now part of what this Thinkspace remembers.";
 
 export const THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON =
 	"This built-in tool is not currently available for this Thinkspace Agent turn.";
@@ -51,6 +57,7 @@ const toProductSafeToolFailure = (error: unknown): string => {
 
 export interface PrepareThinkspaceBuiltInRuntimeToolsInput {
 	activeProductToolIds: readonly string[];
+	memoryWriter: ThinkspaceMemoryWriter;
 	sourceReader: ThinkspaceSourceReader;
 	webReader: ThinkspaceWebReader;
 }
@@ -135,8 +142,48 @@ const createSourceReadTool = (sourceReader: ThinkspaceSourceReader) =>
 		}),
 	});
 
+/**
+ * The held Memory-proposing tool. `needsApproval` is constant so the hold can
+ * never be ambiguous (fail closed: undeterminable held status is treated as
+ * held). The AI SDK does not run `execute` until the owner approves, so the
+ * write below happens only on an approved continuation; a rejection never
+ * reaches it and nothing persists.
+ */
+const createMemoryWriteTool = (memoryWriter: ThinkspaceMemoryWriter) =>
+	tool({
+		description:
+			"Propose a durable Product Memory for this Thinkspace — a fact about the user's Goal or context worth remembering across turns. Held for the owner's Approval: calling it records nothing until the owner approves the proposal.",
+		execute: async ({ content }, { toolCallId }) => {
+			try {
+				await memoryWriter.write({ content, toolCallId });
+
+				return MEMORY_WRITE_ACCEPTED_MESSAGE;
+			} catch (error) {
+				return toProductSafeToolFailure(error);
+			}
+		},
+		inputSchema: z.object({
+			content: z
+				.string()
+				.min(1)
+				.max(THINKSPACE_MEMORY_CONTENT_MAX_LENGTH)
+				.describe("The Product Memory to remember, written as a concise standalone statement."),
+		}),
+		needsApproval: true,
+	});
+
 const activeBuiltInToolIds = (activeProductToolIds: readonly string[]): BuiltInToolId[] =>
 	activeProductToolIds.filter(isBuiltInToolId);
+
+/**
+ * Which runtime capability class governs each built-in tool: the read tools
+ * ride `builtin_read_tools`; the held Memory-proposing tool rides the
+ * `memory_writes` held-internal-write class. The fail-closed assembly check
+ * uses this so a tool can never go active under a policy that has its governing
+ * capability disabled.
+ */
+const builtInToolRuntimeCapabilityId = (toolId: BuiltInToolId): ThinkspaceRuntimeCapabilityId =>
+	toolId === "memory_write" ? "memory_writes" : "builtin_read_tools";
 
 /**
  * Builds the built-in half of the turn's toolset from the active set. The
@@ -146,6 +193,7 @@ const activeBuiltInToolIds = (activeProductToolIds: readonly string[]): BuiltInT
  */
 export const prepareThinkspaceBuiltInRuntimeTools = async ({
 	activeProductToolIds,
+	memoryWriter,
 	sourceReader,
 	webReader,
 }: PrepareThinkspaceBuiltInRuntimeToolsInput): Promise<ThinkspaceBuiltInRuntimePreparation> => {
@@ -160,6 +208,10 @@ export const prepareThinkspaceBuiltInRuntimeTools = async ({
 
 		if (toolId === "web_fetch") {
 			tools.web_fetch = createWebFetchTool(webReader);
+		}
+
+		if (toolId === "memory_write") {
+			tools.memory_write = createMemoryWriteTool(memoryWriter);
 		}
 
 		if (toolId === "source_read") {
@@ -181,10 +233,12 @@ export const prepareThinkspaceBuiltInRuntimeTools = async ({
 };
 
 /**
- * The zero-blast-radius guarantee must survive bugs (PRD #73): if assembly
- * produced an active built-in tool while the runtime policy has the
- * capability disabled, or workspace bash is not forced off, the turn fails
- * product-safely before any inference happens.
+ * The zero-blast-radius guarantee must survive bugs (PRD #73, #92): if assembly
+ * produced an active built-in tool while the runtime policy has that tool's
+ * governing capability disabled, or workspace bash is not forced off, the turn
+ * fails product-safely before any inference happens. Each active built-in is
+ * checked against its own capability class, so the held Memory-proposing tool
+ * can never assemble under a policy that has held internal writes disabled.
  */
 export const assertThinkspaceRuntimePolicySupportsBuiltInTools = ({
 	activeProductToolIds,
@@ -197,11 +251,10 @@ export const assertThinkspaceRuntimePolicySupportsBuiltInTools = ({
 		throw new Error(markThinkspaceTurnProductSafeError(POLICY_ASSEMBLY_MISMATCH_MESSAGE));
 	}
 
-	if (
-		activeBuiltInToolIds(activeProductToolIds).length > 0 &&
-		!isThinkspaceRuntimeCapabilityEnabled(policy, "builtin_read_tools")
-	) {
-		throw new Error(markThinkspaceTurnProductSafeError(POLICY_ASSEMBLY_MISMATCH_MESSAGE));
+	for (const toolId of activeBuiltInToolIds(activeProductToolIds)) {
+		if (!isThinkspaceRuntimeCapabilityEnabled(policy, builtInToolRuntimeCapabilityId(toolId))) {
+			throw new Error(markThinkspaceTurnProductSafeError(POLICY_ASSEMBLY_MISMATCH_MESSAGE));
+		}
 	}
 };
 

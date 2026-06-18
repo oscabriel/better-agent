@@ -1,5 +1,6 @@
 import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 
+import { approvalsRouter } from "../approvals/router";
 import { mcpRouter } from "../mcp/router";
 import { modelsRouter } from "../models/router";
 import { profileRouter } from "../profile/router";
@@ -8,6 +9,7 @@ import { sourcesRouter } from "../sources/router";
 import { thinkspacesRouter } from "../thinkspaces/router";
 
 export const appRouter = {
+	approvals: approvalsRouter,
 	healthCheck: publicProcedure.handler(() => "OK"),
 	mcp: mcpRouter,
 	models: modelsRouter,
