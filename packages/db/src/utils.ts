@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 
 import dotenv from "dotenv";
@@ -8,22 +8,22 @@ export type DrizzleD1Mode = "local" | "remote" | undefined;
 
 const currentModuleUrl = import.meta.url;
 const sourceDirectory = fileURLToPath(new URL(".", currentModuleUrl));
-const packageDirectory = resolve(sourceDirectory, "..");
-const repoRoot = resolve(packageDirectory, "../..");
+const packageDirectory = path.resolve(sourceDirectory, "..");
+const repoRoot = path.resolve(packageDirectory, "../..");
 
 const envFilePaths = [
-	resolve(packageDirectory, ".env"),
-	resolve(repoRoot, "apps/server/.env"),
-	resolve(repoRoot, "packages/infra/.env"),
+	path.resolve(packageDirectory, ".env"),
+	path.resolve(repoRoot, "apps/server/.env"),
+	path.resolve(repoRoot, "packages/infra/.env"),
 ];
 
+// Drizzle Studio is a read-only viewer of the local D1 that Alchemy manages,
+// so only search Alchemy's miniflare persistence. Direct-wrangler state dirs
+// are intentionally excluded — they would represent a different, non-Alchemy
+// local manager and reintroduce the "newest-mtime wins" ambiguity.
 const localD1SearchDirectories = [
-	resolve(repoRoot, ".alchemy/miniflare/v3/d1/miniflare-D1DatabaseObject"),
-	resolve(repoRoot, ".wrangler/state/v3/d1/miniflare-D1DatabaseObject"),
-	resolve(repoRoot, "packages/infra/.alchemy/miniflare/v3/d1/miniflare-D1DatabaseObject"),
-	resolve(repoRoot, "packages/infra/.wrangler/state/v3/d1/miniflare-D1DatabaseObject"),
-	resolve(repoRoot, "apps/server/.wrangler/state/v3/d1/miniflare-D1DatabaseObject"),
-	resolve(repoRoot, "apps/web/.wrangler/state/v3/d1/miniflare-D1DatabaseObject"),
+	path.resolve(repoRoot, ".alchemy/miniflare/v3/d1/miniflare-D1DatabaseObject"),
+	path.resolve(repoRoot, "packages/infra/.alchemy/miniflare/v3/d1/miniflare-D1DatabaseObject"),
 ];
 
 interface LocalD1Candidate {
@@ -41,7 +41,7 @@ const normalizeLocalDatabaseUrl = (url: string) => {
 		return url;
 	}
 
-	return pathToFileURL(resolve(url)).href;
+	return pathToFileURL(path.resolve(url)).href;
 };
 
 const isLocalD1SqliteFile = (fileName: string) =>
@@ -55,7 +55,7 @@ const findLocalD1Candidates = (directory: string, maxDepth = 2): LocalD1Candidat
 	const candidates: LocalD1Candidate[] = [];
 
 	for (const entry of readdirSync(directory, { withFileTypes: true })) {
-		const entryPath = resolve(directory, entry.name);
+		const entryPath = path.resolve(directory, entry.name);
 
 		if (entry.isDirectory()) {
 			candidates.push(...findLocalD1Candidates(entryPath, maxDepth - 1));
@@ -101,8 +101,8 @@ const requiredEnv = (name: string): string => {
 };
 
 export const loadDrizzleEnv = () => {
-	for (const path of envFilePaths) {
-		dotenv.config({ path });
+	for (const envFilePath of envFilePaths) {
+		dotenv.config({ path: envFilePath });
 	}
 };
 
@@ -140,7 +140,7 @@ export const resolveLocalD1DatabaseUrl = (): string => {
 			"Missing local D1 database URL and could not auto-discover an Alchemy/Wrangler local D1 .sqlite file.",
 			"Set D1_LOCAL_DATABASE_URL=file:/path/to/.sqlite, or start local dev once so Miniflare creates a local D1 database.",
 			"Searched:",
-			...localD1SearchDirectories.map((path) => `- ${path}`),
+			...localD1SearchDirectories.map((searchDir) => `- ${searchDir}`),
 		].join("\n"),
 	);
 };

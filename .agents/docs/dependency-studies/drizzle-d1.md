@@ -2,11 +2,22 @@
 
 Date: 2026-05-27
 
+> **Status update (2026-06-18):** The local migration workflow has since been
+> settled — **Alchemy owns local D1 and applies the `migrationsDir` migrations
+> to the miniflare database** (`packages/infra/alchemy.run.ts`), and **Drizzle
+> Studio is a read-only viewer** (`db:studio:local`, launched alongside
+> `alchemy dev` via the turbo `dev` task). The local drizzle-kit writers
+> (`db:migrate:local`, `db:push:local`, and the `db:push` alias) were removed;
+> `packages/db` now exposes `db:generate` plus the remote writers
+> `db:migrate:remote` / `db:push:remote` and `db:studio:local` /
+> `db:studio:remote`. Passages below that present `db:push` or a local
+> drizzle-kit migrate as the current state are superseded by this note.
+
 ## Executive summary
 
 - Keep Drizzle, but treat **Better Agent `packages/db` as the new source of truth** and port only selected Better Chat D1 infrastructure. The current Better Agent package already has the right seam (`@better-agent/db`) and initializes D1 with schema metadata (`createDb = drizzle(env.DB, { schema })`) so relational queries can work later [better-agent/packages/db/src/index.ts:1-6](../../better-agent/packages/db/src/index.ts).
 - Align versions before schema work: local repos use `drizzle-orm@^0.45.1` and `drizzle-kit@^0.31.8` [better-agent/packages/db/package.json:20-27](../../better-agent/packages/db/package.json), while npm latest is `drizzle-orm@0.45.2` and `drizzle-kit@0.31.10` as of this study. This is probably a patch bump, but run migration generation before/after the bump and review SQL diff.
-- Use **Drizzle Kit generated migrations**, not production `push`, for D1. Current Better Agent exposes `db:push` and `db:generate` only [better-agent/packages/db/package.json:12-15](../../better-agent/packages/db/package.json); add/require a migration workflow before touching shared D1.
+- Use **Drizzle Kit generated migrations**, not production `push`, for D1. At study time Better Agent exposed only `db:push` and `db:generate` [better-agent/packages/db/package.json:12-15](../../better-agent/packages/db/package.json); a deliberate migration workflow was needed before touching shared D1. This has since been adopted — local D1 is migrated by Alchemy and the local `push` scripts were removed (see the status update above).
 - Better Agent's `drizzle.config.ts` is incomplete for current Kit `d1-http`: it sets `driver: "d1-http"` but no `dbCredentials` [better-agent/packages/db/drizzle.config.ts:8-13](../../better-agent/packages/db/drizzle.config.ts). Drizzle Kit source validates non-empty `accountId`, `databaseId`, and `token` for `d1-http` (`drizzle-kit/src/cli/validations/sqlite.ts:11-17,27-32`).
 - Prefer one timestamp convention across D1 schemas: **`integer(..., { mode: "timestamp_ms" })` plus explicit SQL defaults in milliseconds**. Better Agent already mostly does this for auth [better-agent/packages/db/src/schema/auth.ts:4-16](../../better-agent/packages/db/src/schema/auth.ts), but several `updatedAt` columns are `notNull()` with only runtime `$onUpdate`, meaning generated SQL has no DB default.
 - Do **not** port Better Chat's per-user conversation Durable Object schema. It is explicitly chat-shaped (`conversations`, `messages`) [apps/server/src/db/do/schema/chat.ts:3-29](../apps/server/src/db/do/schema/chat.ts) and the salvage map marks it as non-salvageable [docs/salvage-map-better-chat.md:93-101](../docs/salvage-map-better-chat.md). Future DO SQLite should be per-Thinkspace Agent, not per user.
