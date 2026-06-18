@@ -12,6 +12,7 @@ import {
 	evaluateBuiltInRuntimeToolCallPermission,
 	prepareThinkspaceBuiltInRuntimeTools,
 } from "./built-in-runtime-tools";
+import type { ThinkspaceMemoryWriteInput, ThinkspaceMemoryWriter } from "./memory-writer";
 import { createMemoryPermissionPolicy } from "./permission-policy";
 import { THINKSPACE_RUNTIME_POLICY } from "./runtime-policy";
 import { ThinkspaceWebReadError } from "./web-reader";
@@ -39,9 +40,35 @@ const stubSourceReader = (
 	...overrides,
 });
 
+const stubMemoryWriter = (
+	overrides: Partial<ThinkspaceMemoryWriter> = {},
+): ThinkspaceMemoryWriter => ({
+	write: () => Promise.resolve(),
+	...overrides,
+});
+
+const recordingMemoryWriter = (): {
+	writer: ThinkspaceMemoryWriter;
+	writes: ThinkspaceMemoryWriteInput[];
+} => {
+	const writes: ThinkspaceMemoryWriteInput[] = [];
+
+	return {
+		writer: {
+			write: (input) => {
+				writes.push(input);
+
+				return Promise.resolve();
+			},
+		},
+		writes,
+	};
+};
+
 test("only active built-in tools are constructed; unknown and MCP ids construct nothing", async () => {
 	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
 		activeProductToolIds: ["web_search", "cloudflare-docs:search_docs", "workspace_bash"],
+		memoryWriter: stubMemoryWriter(),
 		sourceReader: stubSourceReader(),
 		webReader: stubWebReader(),
 	});
@@ -54,6 +81,7 @@ test("only active built-in tools are constructed; unknown and MCP ids construct 
 test("an empty active set keeps the toolset empty with no manifest", async () => {
 	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
 		activeProductToolIds: [],
+		memoryWriter: stubMemoryWriter(),
 		sourceReader: stubSourceReader(),
 		webReader: stubWebReader(),
 	});
@@ -66,6 +94,7 @@ test("an empty active set keeps the toolset empty with no manifest", async () =>
 test("source_read returns the Source content and a product-safe not-found for forged ids", async () => {
 	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
 		activeProductToolIds: ["source_read"],
+		memoryWriter: stubMemoryWriter(),
 		sourceReader: stubSourceReader({
 			listManifest: () =>
 				Promise.resolve([
@@ -102,6 +131,7 @@ test("source_read returns the Source content and a product-safe not-found for fo
 test("the Source manifest is injected when source_read is active and reflects the Thinkspace's Sources", async () => {
 	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
 		activeProductToolIds: ["source_read", "web_search"],
+		memoryWriter: stubMemoryWriter(),
 		sourceReader: stubSourceReader({
 			listManifest: () =>
 				Promise.resolve([
@@ -130,6 +160,7 @@ test("a Thinkspace with no Sources gets an explicit empty manifest", () => {
 test("a manifest listing failure degrades into a product-safe notice instead of failing the turn", async () => {
 	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
 		activeProductToolIds: ["source_read"],
+		memoryWriter: stubMemoryWriter(),
 		sourceReader: stubSourceReader({
 			listManifest: () => Promise.reject(new Error("D1_ERROR: no such table")),
 		}),
@@ -145,6 +176,7 @@ test("a manifest listing failure degrades into a product-safe notice instead of 
 test("web and Source tool failures resolve to product-safe messages without transport detail", async () => {
 	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
 		activeProductToolIds: ["web_search", "web_fetch", "source_read"],
+		memoryWriter: stubMemoryWriter(),
 		sourceReader: stubSourceReader({
 			read: () => Promise.reject(new SourceContentStorageError()),
 		}),
@@ -171,10 +203,77 @@ test("web and Source tool failures resolve to product-safe messages without tran
 	assert.doesNotMatch(sourceFailure, /R2|bucket|binding/iu);
 });
 
+test("memory_write is constructed when active, declares its hold, and writes only through the writer on an approved execute", async () => {
+	const { writer, writes } = recordingMemoryWriter();
+	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
+		activeProductToolIds: ["memory_write"],
+		memoryWriter: writer,
+		sourceReader: stubSourceReader(),
+		webReader: stubWebReader(),
+	});
+
+	assert.deepEqual(preparation.activeToolNames, ["memory_write"]);
+	// The hold is constant so it can never be ambiguous: the runtime always
+	// parks this tool for the owner rather than executing it inline.
+	assert.equal((preparation.tools.memory_write as Tool).needsApproval, true);
+
+	// execute only ever runs on an approved continuation; when it does, the
+	// proposed Memory flows through the writer keyed by the held tool call.
+	const result = await executeTool(preparation.tools.memory_write, {
+		content: "The user prefers Vendor A for its pricing.",
+	});
+	assert.match(result, /Recorded a durable Product Memory/u);
+	assert.deepEqual(writes, [
+		{ content: "The user prefers Vendor A for its pricing.", toolCallId: "tool_call_1" },
+	]);
+});
+
+test("a memory_write storage failure resolves to a product-safe message without transport detail", async () => {
+	const preparation = await prepareThinkspaceBuiltInRuntimeTools({
+		activeProductToolIds: ["memory_write"],
+		memoryWriter: stubMemoryWriter({
+			write: () => Promise.reject(new Error("D1_ERROR: database is locked")),
+		}),
+		sourceReader: stubSourceReader(),
+		webReader: stubWebReader(),
+	});
+
+	const failure = await executeTool(preparation.tools.memory_write, { content: "Anything." });
+	assert.match(failure, /failed unexpectedly/u);
+	assert.doesNotMatch(failure, /D1_ERROR/u);
+});
+
 test("the policy guard passes for the shipped policy and active built-ins", () => {
 	assert.doesNotThrow(() =>
 		assertThinkspaceRuntimePolicySupportsBuiltInTools({
-			activeProductToolIds: ["web_search", "source_read"],
+			activeProductToolIds: ["web_search", "source_read", "memory_write"],
+		}),
+	);
+});
+
+test("the policy guard gates memory_write on the held-write capability, not the read capability", () => {
+	// A policy with held internal writes disabled but reads enabled must reject
+	// an assembled memory_write while still admitting the read tools.
+	const noHeldWritesPolicy = {
+		...THINKSPACE_RUNTIME_POLICY,
+		capabilities: THINKSPACE_RUNTIME_POLICY.capabilities.map((capability) =>
+			capability.id === "memory_writes" ? { ...capability, enabled: false } : capability,
+		),
+	};
+
+	assert.throws(
+		() =>
+			assertThinkspaceRuntimePolicySupportsBuiltInTools({
+				activeProductToolIds: ["memory_write"],
+				policy: noHeldWritesPolicy,
+			}),
+		/thinkspace-turn-product-safe:.*runtime safety policy/u,
+	);
+
+	assert.doesNotThrow(() =>
+		assertThinkspaceRuntimePolicySupportsBuiltInTools({
+			activeProductToolIds: ["web_search"],
+			policy: noHeldWritesPolicy,
 		}),
 	);
 });

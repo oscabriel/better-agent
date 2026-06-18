@@ -35,6 +35,7 @@ import {
 	saveAgentProfileDraft,
 } from "./agent-profile-repository";
 import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } from "./inspect";
+import { listThinkspaceMemories } from "./memories-repository";
 import {
 	listThinkspacePermissions,
 	prepareThinkspacePermissionGrants,
@@ -469,6 +470,27 @@ export const thinkspacesRouter = {
 		async ({ context }) =>
 			await listThinkspaces(context.db, { ownerUserId: context.session.user.id }),
 	),
+	listMemories: protectedProcedure.input(thinkspaceIdInput).handler(async ({ context, input }) => {
+		const thinkspace = await getThinkspace(context.db, {
+			ownerUserId: context.session.user.id,
+			thinkspaceId: input.thinkspaceId,
+		});
+
+		if (!thinkspace) {
+			throw toNotFound();
+		}
+
+		const memories = await listThinkspaceMemories(context.db, { thinkspaceId: thinkspace.id });
+
+		return memories.map((memory) => ({
+			content: memory.content,
+			createdAt: memory.createdAt,
+			id: memory.id,
+			profileRevisionId: memory.profileRevisionId,
+			profileVersion: memory.profileVersion,
+			thinkspaceId: memory.thinkspaceId,
+		}));
+	}),
 	modelReadiness: protectedProcedure
 		.input(thinkspaceIdInput)
 		.handler(async ({ context, input }) => {
