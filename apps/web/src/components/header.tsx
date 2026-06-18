@@ -5,6 +5,7 @@ import UserMenu from "./user-menu";
 export default function Header() {
 	const links = [
 		{ label: "Thinkspaces", to: "/thinkspaces" },
+		{ label: "Review Queue", to: "/review-queue" },
 		{ label: "Settings", to: "/settings" },
 	] as const;
 

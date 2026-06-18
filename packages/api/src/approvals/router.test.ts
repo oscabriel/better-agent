@@ -201,3 +201,122 @@ test("a resolved Approval row is invisible to a non-owner's queue read", async (
 	assert.equal(stored.length, 1);
 	assert.equal(stored[0]?.ownerUserId, authenticatedSession.user.id);
 });
+
+test("the Review Queue lists the owner's pending Approvals most-recent first, in product language", async () => {
+	const db = createTestProductDb();
+	await seedOwnedThinkspace(db);
+	await db.insert(thinkspaceApprovals).values([
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_old",
+			createdAt: new Date(1000),
+			id: "approval_old",
+			ownerUserId: authenticatedSession.user.id,
+			proposedContent: "The user prefers Vendor A.",
+			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor A."',
+			thinkspaceId: OWNED_THINKSPACE_ID,
+			toolCallId: "tool_old",
+		},
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_new",
+			createdAt: new Date(2000),
+			id: "approval_new",
+			ownerUserId: authenticatedSession.user.id,
+			proposedContent: "The user prefers Vendor B.",
+			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor B."',
+			thinkspaceId: OWNED_THINKSPACE_ID,
+			toolCallId: "tool_new",
+		},
+	]);
+
+	const queue = await call(approvalsRouter.list, undefined, {
+		context: createCallContext({ db }),
+	});
+
+	assert.deepEqual(queue, [
+		{
+			actionKind: "memory_write",
+			approvalId: "approval_new",
+			proposedAt: new Date(2000),
+			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor B."',
+			thinkspaceGoal: "Decide between vendors",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{
+			actionKind: "memory_write",
+			approvalId: "approval_old",
+			proposedAt: new Date(1000),
+			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor A."',
+			thinkspaceGoal: "Decide between vendors",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+	]);
+});
+
+test("a decided Approval has left the Review Queue", async () => {
+	const db = createTestProductDb();
+	await seedOwnedThinkspace(db);
+	await db.insert(thinkspaceApprovals).values([
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_pending",
+			id: "approval_pending",
+			ownerUserId: authenticatedSession.user.id,
+			proposedContent: "Still awaiting a decision.",
+			proposedSummary: "Still awaiting a decision.",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+			toolCallId: "tool_pending",
+		},
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_done",
+			id: "approval_done",
+			ownerUserId: authenticatedSession.user.id,
+			proposedContent: "Already decided.",
+			proposedSummary: "Already decided.",
+			status: "approved",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+			toolCallId: "tool_done",
+		},
+	]);
+
+	const queue = await call(approvalsRouter.list, undefined, {
+		context: createCallContext({ db }),
+	});
+
+	assert.deepEqual(
+		queue.map((item) => item.approvalId),
+		["approval_pending"],
+	);
+});
+
+test("an Approval is invisible from another owner's Review Queue", async () => {
+	const db = createTestProductDb();
+	await seedOwnedThinkspace(db);
+	await db.insert(thinkspaceApprovals).values({
+		actionKind: "memory_write",
+		approvalRequestId: "req_1",
+		id: "approval_1",
+		ownerUserId: authenticatedSession.user.id,
+		proposedContent: "The user prefers Vendor A.",
+		proposedSummary: "Proposed a durable Product Memory.",
+		thinkspaceId: OWNED_THINKSPACE_ID,
+		toolCallId: "tool_call_1",
+	});
+
+	const queue = await call(approvalsRouter.list, undefined, {
+		context: createCallContext({ db, session: nonOwnerSession }),
+	});
+
+	assert.deepEqual(queue, []);
+});
+
+test("an unauthenticated Review Queue read is rejected before any storage access", async () => {
+	await assert.rejects(
+		call(approvalsRouter.list, undefined, {
+			context: createCallContext({ db: untouchableDb, session: null }),
+		}),
+		expectCode("UNAUTHORIZED"),
+	);
+});

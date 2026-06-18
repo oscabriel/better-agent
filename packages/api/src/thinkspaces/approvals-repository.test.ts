@@ -3,12 +3,14 @@ import test from "node:test";
 
 import type { ProductDb } from "@better-agent/db";
 import { user } from "@better-agent/db/schema/auth";
+import { thinkspaceApprovals } from "@better-agent/db/schema/approvals";
 import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 
 import { createTestProductDb } from "../testing/product-db";
 import {
 	getThinkspaceApproval,
 	listPendingThinkspaceApprovals,
+	listPendingThinkspaceApprovalsByOwner,
 	resolveThinkspaceApproval,
 	upsertPendingThinkspaceApproval,
 } from "./approvals-repository";
@@ -110,6 +112,105 @@ test("resolving moves an Approval out of the queue and is a no-op the second tim
 		thinkspaceId: THINKSPACE_ID,
 	});
 	assert.equal(stored?.status, "approved");
+});
+
+test("the owner's Review Queue lists every pending Approval across their Thinkspaces, most-recent first, each named by its Thinkspace", async () => {
+	const db = createTestProductDb();
+	await seed(db);
+
+	await db.insert(thinkspaceApprovals).values([
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_old",
+			createdAt: new Date(1000),
+			id: "approval_old",
+			ownerUserId: OWNER_ID,
+			proposedContent: "Older proposal.",
+			proposedSummary: "Older proposal.",
+			thinkspaceId: THINKSPACE_ID,
+			toolCallId: "tool_old",
+		},
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_new",
+			createdAt: new Date(2000),
+			id: "approval_new",
+			ownerUserId: OWNER_ID,
+			proposedContent: "Newer proposal.",
+			proposedSummary: "Newer proposal.",
+			thinkspaceId: OTHER_THINKSPACE_ID,
+			toolCallId: "tool_new",
+		},
+	]);
+
+	const queue = await listPendingThinkspaceApprovalsByOwner(db, { ownerUserId: OWNER_ID });
+
+	assert.deepEqual(
+		queue.map((item) => item.approval.id),
+		["approval_new", "approval_old"],
+	);
+	assert.equal(queue[0]?.thinkspaceGoal, "Other");
+	assert.equal(queue[1]?.thinkspaceGoal, "Decide vendors");
+});
+
+test("a resolved Approval and another owner's pending Approval never appear in the queue", async () => {
+	const db = createTestProductDb();
+	await seed(db);
+	await db.insert(user).values({ email: "other@example.com", id: "other_owner", name: "Other" });
+	await db.insert(thinkspaces).values({
+		goal: "Someone else's",
+		id: "thinkspace_other_owner",
+		ownerUserId: "other_owner",
+		status: "active",
+	});
+	await db.insert(thinkspaceApprovals).values([
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_pending",
+			id: "approval_pending",
+			ownerUserId: OWNER_ID,
+			proposedContent: "Still pending.",
+			proposedSummary: "Still pending.",
+			thinkspaceId: THINKSPACE_ID,
+			toolCallId: "tool_pending",
+		},
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_resolved",
+			id: "approval_resolved",
+			ownerUserId: OWNER_ID,
+			proposedContent: "Already decided.",
+			proposedSummary: "Already decided.",
+			status: "approved",
+			thinkspaceId: THINKSPACE_ID,
+			toolCallId: "tool_resolved",
+		},
+		{
+			actionKind: "memory_write",
+			approvalRequestId: "req_foreign",
+			id: "approval_foreign",
+			ownerUserId: "other_owner",
+			proposedContent: "Not yours.",
+			proposedSummary: "Not yours.",
+			thinkspaceId: "thinkspace_other_owner",
+			toolCallId: "tool_foreign",
+		},
+	]);
+
+	const queue = await listPendingThinkspaceApprovalsByOwner(db, { ownerUserId: OWNER_ID });
+	assert.deepEqual(
+		queue.map((item) => item.approval.id),
+		["approval_pending"],
+	);
+
+	// Owner-scoping is mutual: the other owner sees only their own pending Approval.
+	const foreignQueue = await listPendingThinkspaceApprovalsByOwner(db, {
+		ownerUserId: "other_owner",
+	});
+	assert.deepEqual(
+		foreignQueue.map((item) => item.approval.id),
+		["approval_foreign"],
+	);
 });
 
 test("an approved Memory is written once and is visible; the same held call never double-writes", async () => {
