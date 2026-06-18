@@ -28,13 +28,15 @@ const unavailableCatalog: ModelCatalog = {
 const createCallContext = ({
 	db,
 	catalog = modelCatalog,
+	env = {},
 }: {
 	catalog?: ModelCatalog;
 	db: ProductDb;
+	env?: Record<string, unknown>;
 }): Context =>
 	({
 		db,
-		env: {},
+		env,
 		executionCtx: undefined,
 		headers: new Headers(),
 		modelCatalog: catalog,
@@ -70,6 +72,19 @@ const expectCode =
 	(code: string) =>
 	(error: unknown): boolean =>
 		error instanceof ORPCError && error.code === code;
+
+const SENSITIVE_STORAGE_ERROR =
+	"SQLITE_ERROR: no such table: user_provider_credentials at /var/app/db/internal.ts:42";
+
+/** A db whose credential upsert rejects with an infrastructure-revealing error. */
+const createDbThatFailsCredentialSave = (): ProductDb =>
+	({
+		insert: () => ({
+			values: () => ({
+				onConflictDoUpdate: () => Promise.reject(new Error(SENSITIVE_STORAGE_ERROR)),
+			}),
+		}),
+	}) as unknown as ProductDb;
 
 test("reads saved model defaults with fallback values", async () => {
 	const { db } = createDbForDefaults([{ defaultModel: "openai:gpt-4.1", reasoningEffort: "high" }]);
@@ -121,4 +136,23 @@ test("default update fails safely when the model catalog is unavailable", async 
 		expectCode("SERVICE_UNAVAILABLE"),
 	);
 	assert.equal(inserted.length, 0);
+});
+
+test("saving a credential never leaks storage internals to the client", async () => {
+	const db = createDbThatFailsCredentialSave();
+
+	await assert.rejects(
+		call(
+			modelsRouter.saveCredential,
+			{ credential: "sk-secret-credential-value", providerId: "openai" },
+			{ context: createCallContext({ db, env: { BETTER_AUTH_SECRET: "test-secret" } }) },
+		),
+		(error: unknown): boolean => {
+			assert.ok(error instanceof ORPCError);
+			assert.equal(error.code, "INTERNAL_SERVER_ERROR");
+			// The raw storage error must not reach the product surface.
+			assert.doesNotMatch(error.message, /SQLITE_ERROR|user_provider_credentials|internal\.ts/u);
+			return true;
+		},
+	);
 });

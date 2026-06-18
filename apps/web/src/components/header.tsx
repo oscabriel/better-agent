@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@better-agent/ui/components/theme-toggle";
 import { Link } from "@tanstack/react-router";
 
 import UserMenu from "./user-menu";
@@ -5,6 +6,7 @@ import UserMenu from "./user-menu";
 export default function Header() {
 	const links = [
 		{ label: "Thinkspaces", to: "/thinkspaces" },
+		{ label: "Review Queue", to: "/review-queue" },
 		{ label: "Settings", to: "/settings" },
 	] as const;
 
@@ -28,7 +30,10 @@ export default function Header() {
 						))}
 					</nav>
 				</div>
-				<UserMenu />
+				<div className="flex items-center gap-2">
+					<ThemeToggle />
+					<UserMenu />
+				</div>
 			</div>
 		</header>
 	);

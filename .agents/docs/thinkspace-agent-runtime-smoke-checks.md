@@ -429,6 +429,111 @@ branches above have a passing row against the target deployment.
 | 2026-06-11 | Not executed in this agent session            | `6f993f80a3bfc658c57ba86ba2df57158dda144d` | pi agent    | Not run      | Not run        | Not run       | Not run                 | Documentation checklist added; live execution still requires a deployed/local stage plus owner BYOK model credential.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 2026-06-11 | Local `alchemy dev` (workerd, localhost:3000) | `e802de7b2b98c981c81b7cf590acf883228187eb` | fable agent | PASS         | PASS           | PASS          | PASS                    | First run at `48b41a5` failed every turn before any model call: turn RPCs hit the Durable Object without PartyServer initialization, so Project Think's session was never created. Fixed in `e802de7` (runtime `setName()` before turn RPCs) and re-run. 9.1: turn completed citing Cloudflare Docs; DO message log shows a `tool-tool_cloudflaredocs_search_cloudflare_documentation` call. 9.2/9.3: turns completed model-only with zero MCP connections and no tool parts; revision id/version unchanged after revocation. The model sometimes _claims_ it used the external source while inert — policy held (no MCP activity), but the wording is a model-quality wrinkle. 9.4: `aws-knowledge` temporarily pointed at `https://mcp-smoke-unreachable.invalid/mcp`; potency read `potent`, turn completed model-only with product-safe "external information source is temporarily unavailable" wording, no transport detail leaked; patch reverted and `url-policy` + `mcp-runtime-tools` tests re-ran green. `model_provider_credential` rows were developer-inserted in local D1 (no product grant flow yet). |
 
+## 10. Built-in reads round-trip: Sources, web, and inspection
+
+Expectation: the built-in read tools (`web_search`, `web_fetch`, `source_read`)
+become potent only when the active Agent Profile revision enables them **and**
+the Thinkspace owns a grant of the governing Permission kind
+(`built_in_web_read` for the web pair, `built_in_source_read` for Source
+reading) — enablement alone confers nothing. A granted turn can read the
+Thinkspace's uploaded Sources (sealed to the bound Thinkspace) and the public
+web (credential-free, GET-only), the Source manifest is injected so the agent
+discovers material unprompted, and the Turn status panel's tool activity lists
+the reads in product language — Sources by name, searches by query, fetches by
+URL — never raw runtime payloads. Revocation makes the next turn inert without
+changing the Agent Profile revision.
+
+Reuse the environment setup, model-readiness workaround
+(`model_provider_credential` row developer-inserted into local D1, section 9),
+and DO-storage observability notes from section 9. Built-in tool calls appear
+in the runtime's message log as `tool-web_search`, `tool-web_fetch`, and
+`tool-source_read` parts; record only product-safe summaries.
+
+### 10.1 Upload, enable, grant: the tool loop reads a Source and the web
+
+- [ ] Create **TS-READS-GRANTED** and confirm model readiness is ready, as in
+      section 3.
+- [ ] Upload a small text Source with distinctive content (UI: Sources →
+      Upload, or curl):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/sources/upload" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-READS-GRANTED>","name":"Q2 pricing notes","contentType":"text/markdown","content":"# Q2 pricing notes\nThe internal launch codename is BLUE-HERON."}'
+      ```
+
+- [ ] Enable all three built-in tools on the draft Agent Profile (UI: Tools →
+      Built-in tools, or curl):
+
+      ```sh
+      curl -s -b /tmp/ba-owner.txt "$SERVER/api/openapi/thinkspaces/updateToolSelections" \
+        -H 'content-type: application/json' \
+        -d '{"thinkspaceId":"<TS-READS-GRANTED>","selections":[],"builtInToolIds":["web_search","web_fetch","source_read"]}'
+      ```
+
+- [ ] Activate the draft granting every requested Permission (UI: Activate
+      Thinkspace, or curl with all requested indexes).
+- [ ] `thinkspaces/get` shows: - `grantedPermissions[]` contains a `built_in_web_read` row
+      (`providerId: "web"`) and a `built_in_source_read` row
+      (`providerId: "sources"`). - `enabledToolPotencies[]` reports all three built-in tools as
+      `potency: "potent"`.
+- [ ] Submit a turn that needs both reads, for example:
+
+      > Read my uploaded pricing notes Source and tell me the launch codename
+      > it contains, then search the web for one public fact about Cloudflare
+      > Durable Objects and cite the page you fetched.
+
+- [ ] Inspect progresses to `completed`; the result reflects the Source
+      content (the codename) and the web read.
+- [ ] The Turn status panel's **Tool activity** lists the reads in product
+      language — the Source by its name (`Read the Source "Q2 pricing
+notes".`), the search by its query, the fetch by its URL — with no raw
+      tool payloads, bucket names, or transport detail.
+- [ ] DO-storage observability shows the corresponding `tool-source_read` /
+      `tool-web_search` / `tool-web_fetch` message parts. Record only a
+      product-safe summary.
+
+### 10.2 Enablement without grant: the built-ins stay inert
+
+- [ ] Create **TS-READS-INERT**, upload a Source, and enable the three
+      built-in tools as above.
+- [ ] Activate while declining the requested Permissions
+      (`"grantedPermissionIndexes":[]`).
+- [ ] `thinkspaces/get` shows no `built_in_web_read` or
+      `built_in_source_read` grant and reports the built-in tools as
+      `potency: "inert"`.
+- [ ] Submit the same reads-requiring turn. Inspect reaches a terminal state;
+      the result is model-only or explains the limitation, the Tool activity
+      list shows no Source or web reads, and DO-storage observability shows
+      no built-in tool parts.
+
+### 10.3 Revocation: the next turn is inert with no Profile change
+
+- [ ] On TS-READS-GRANTED, record the active Agent Profile revision
+      id/version, then revoke the `built_in_source_read` grant (UI:
+      Permissions → Revoke, or `thinkspaces/revokePermission` with the grant
+      id).
+- [ ] The next `thinkspaces/get` shows the grant removed, `source_read` as
+      `potency: "inert"`, the web pair still `potent`, and the revision
+      id/version unchanged.
+- [ ] Submit a Source-requiring turn. The result does not contain the Source
+      content, Tool activity shows no Source read (web reads may still
+      appear), and DO-storage observability shows no `tool-source_read` part
+      with Source content.
+- [ ] Cross-Thinkspace seal: from TS-READS-INERT (or any other Thinkspace
+      with `source_read` granted), submit a turn asking it to read the
+      TS-READS-GRANTED Source by its id. The read resolves as not found
+      inside the turn; no content crosses Thinkspaces.
+
+### 10.4 Result record
+
+Add one row per smoke execution. The issue is not complete until all required
+branches above have a passing row against the target deployment.
+
+| Date       | Stage / URL                        | Commit SHA | Operator    | Granted reads + inspection | No-grant inert | Revoked inert | Cross-Thinkspace seal | Notes                                                                                                                |
+| ---------- | ---------------------------------- | ---------- | ----------- | -------------------------- | -------------- | ------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-12 | Not executed in this agent session | (issue #89 branch) | fable agent | Not run | Not run | Not run | Not run | Documentation checklist added with the inspection-rendering slice; live execution still requires a deployed/local stage plus owner BYOK model credential. |
+
 ## Appendix: temporary local DO probe (optional deep checks)
 
 The two optional deep checks exercise the DO boundary directly, which no
@@ -483,6 +588,81 @@ Safety net: `bun test apps/server/src/worker-routes.test.ts` fails while the
 probe is present (`worker-routes.test.ts:28-41` pins the exact mounted route
 list), so the suite blocks an accidental commit. Revert with
 `git checkout -- apps/server/src/index.ts` when done.
+
+## Sittings (issue #80)
+
+A Sitting is the live owner↔Thinkspace Agent session. Browser traffic reaches a
+runtime only through one authenticated worker route, `GET /api/sittings/:thinkspaceId`
+(`apps/server/src/index.ts`), which verifies the Better Auth session and
+Thinkspace ownership, strips any client-supplied forward header, stamps its own
+`(owner, Thinkspace)` context, and forwards to the runtime by Thinkspace id. The
+runtime's `fetch` override (`apps/server/src/agents/thinkspace-agent.ts`) admits a
+request only when that stamped context matches the bound turn context, then hands
+off to Project Think's WebSocket chat protocol. Governance is unchanged: every
+Sitting turn runs the same `beforeTurn` assembly and `beforeToolCall` recheck as a
+submitted turn. Node tests cover the route shape, forward-context contract, and
+fail-closed default (`apps/server/src/worker-routes.test.ts`,
+`packages/api/src/thinkspaces/sittings.test.ts`); only workerd + a browser can
+prove streaming, resumption, recovery, and multi-tab broadcast.
+
+Prereqs: an **active** Thinkspace (TS-A) owned by the owner cookie, with a ready
+model credential (reuse the Thinkspace from the runtime checks above). Open the
+web UI at `/thinkspaces/<TS-A>` and scroll to the **Sitting** section.
+
+1. **Open and stream.** Send a message in the Sitting composer. Expect a
+   token-by-token streamed reply (not a single block) and, when the model
+   provides it, an italic reasoning block above the answer. The transcript opens
+   onto any prior turns (including turns submitted while away).
+2. **Stream resumption (client reconnect).** While a reply is streaming, refresh
+   the page. Expect the in-flight reply to replay and continue to completion — no
+   lost tokens, no frozen UI. (Driven by `resume: true` in `useAgentChat`.)
+3. **Cancel.** Start a long reply, click **Stop** mid-stream. Expect the stream
+   to halt promptly; the partial turn remains in the transcript on the next load.
+4. **Close-tab durability.** Send a message, then close the tab before it
+   completes. Reopen `/thinkspaces/<TS-A>`; expect the completed turn present in
+   the transcript.
+5. **Recovering indicator.** While a turn is in flight, redeploy/restart the API
+   Worker (or trigger a DO eviction). Expect a "Recovering the agent's turn…"
+   badge (the `isRecovering` / `CF_AGENT_CHAT_RECOVERING` path) rather than a
+   silent freeze, then continuation.
+6. **Multi-tab broadcast.** Open `/thinkspaces/<TS-A>` in two tabs. Send from one;
+   expect the same live stream to appear in both.
+7. **Governance parity.** In the same Sitting, exercise a tool the Thinkspace has
+   enabled-and-granted (e.g. web reading) and confirm it works; revoke its
+   Permission, then in a new Sitting turn confirm the tool is inert (blocked) —
+   identical to the submitted-turn behavior verified in the Permission checks
+   above. Tool activity should reflect only the enabled ∩ potent set.
+
+Negative checks (ownership is the only signal — every failure is a 404):
+
+```sh
+# Unauthenticated upgrade attempt → 404 (no existence disclosure)
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
+  "$SERVER/api/sittings/<TS-A>"            # expect 404
+
+# Authenticated NON-owner (intruder cookie) on the owner's Thinkspace → 404
+curl -s -o /dev/null -w '%{http_code}\n' -b /tmp/ba-intruder.txt \
+  -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
+  -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
+  "$SERVER/api/sittings/<TS-A>"            # expect 404, same as a missing Thinkspace
+
+# Guessed/unknown Thinkspace id with owner cookie → 404
+curl -s -o /dev/null -w '%{http_code}\n' -b /tmp/ba-owner.txt \
+  "$SERVER/api/sittings/thinkspace_does_not_exist"   # expect 404
+```
+
+Expected: all three return `404`. The authenticated-owner upgrade (exercised via
+the browser in checks 1–6) is the only path that reaches the runtime.
+
+If checks 1–6 fail at the connection itself (handshake never completes), the
+likely cause is the worker→DO forward not routing inside Project Think's chat
+protocol. Verify the worker forwards the upgrade request unmodified except for
+the stamped forward header, and that the runtime override calls
+`super.fetch(request)` after the context match. The `agents` `getAgentByName`
+helper is the SDK's documented path for `basePath` manual routing; the client
+sets `basePath: api/sittings/<id>` so the connection URL matches the route.
 
 ## Recording results
 

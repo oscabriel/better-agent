@@ -125,7 +125,27 @@ export interface McpToolAccessPermissionRequest {
 	serverId: string;
 }
 
+export const BUILT_IN_TOOL_PERMISSION_REQUEST_KINDS = [
+	"built_in_source_read",
+	"built_in_web_read",
+	"built_in_memory_write",
+] as const;
+export type BuiltInToolPermissionRequestKind =
+	(typeof BUILT_IN_TOOL_PERMISSION_REQUEST_KINDS)[number];
+
+/**
+ * A request for one of the built-in tool Permission kinds: web reading
+ * (search and fetch together), Source reading, or held Memory writing. The
+ * kind itself names the governed resource, so no extra scope payload is
+ * carried.
+ */
+export interface BuiltInToolAccessPermissionRequest {
+	kind: BuiltInToolPermissionRequestKind;
+	reason: string;
+}
+
 export type RequestedPermission =
+	| BuiltInToolAccessPermissionRequest
 	| ModelProviderCredentialPermissionRequest
 	| McpToolAccessPermissionRequest;
 
@@ -345,12 +365,20 @@ const isMcpToolAccessPermissionRequest = (
 	isMcpToolAccessScope(value.scope) &&
 	typeof value.reason === "string";
 
+const isBuiltInToolAccessPermissionRequest = (
+	value: unknown,
+): value is BuiltInToolAccessPermissionRequest =>
+	isRecord(value) &&
+	BUILT_IN_TOOL_PERMISSION_REQUEST_KINDS.includes(value.kind as BuiltInToolPermissionRequestKind) &&
+	typeof value.reason === "string";
+
 const isRequestedPermission = (value: unknown): value is RequestedPermission =>
 	(isRecord(value) &&
 		value.kind === "model_provider_credential" &&
 		MODEL_PROVIDER_IDS.includes(value.providerId as ModelProviderId) &&
 		typeof value.reason === "string") ||
-	isMcpToolAccessPermissionRequest(value);
+	isMcpToolAccessPermissionRequest(value) ||
+	isBuiltInToolAccessPermissionRequest(value);
 
 const parseJsonArray = <T>(
 	label: string,

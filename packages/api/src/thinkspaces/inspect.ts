@@ -2,12 +2,19 @@ import type { ProductDb } from "@better-agent/db";
 import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
 import type { CloudflareEnv } from "@better-agent/env/types";
 
+import type { BuiltInMcpServer } from "../mcp/catalog";
+import { listBuiltInMcpServers } from "../mcp/catalog";
+import { parseCloudflareAgentsMcpToolName } from "../mcp/tool-identity";
+import { isBuiltInToolId, parseBuiltInSourceReadResultName } from "./built-in-tools";
+import type { BuiltInToolId } from "./built-in-tools";
 import { getThinkspace } from "./repository";
 import { resolveThinkspaceAgentRuntime, THINKSPACE_AGENT_BINDING_NAME } from "./runtime";
 import { THINKSPACE_TURN_SOURCE, ThinkspaceTurnValidationError } from "./turns";
 
 export const THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH = 128;
 export const THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH = 8000;
+export const THINKSPACE_TURN_TOOL_ACTIVITY_MAX_ENTRIES = 32;
+export const THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH = 300;
 
 /**
  * Marker prefix for failure messages the Thinkspace Agent runtime throws on
@@ -57,7 +64,11 @@ export interface ThinkspaceRuntimeSubmissionSnapshot {
 }
 
 export interface ThinkspaceRuntimeMessagePart {
+	input?: unknown;
+	output?: unknown;
+	state?: string;
 	text?: string;
+	toolName?: string;
 	type: string;
 }
 
@@ -84,6 +95,7 @@ export interface ThinkspaceTurnInspection {
 	status: ThinkspaceTurnInspectionStatus;
 	submissionId: string;
 	thinkspaceId: string;
+	toolActivity: readonly string[];
 }
 
 export interface ThinkspaceTurnInspectionRequest {
@@ -160,6 +172,10 @@ export const extractThinkspaceTurnProductSafeFailureMessage = (error?: string): 
 	return message || GENERIC_FAILED_TURN_MESSAGE;
 };
 
+/** Bounds a product-surface string with a trailing ellipsis when it overflows. */
+const boundForRendering = (text: string, maxLength: number): string =>
+	text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+
 export const extractThinkspaceTurnResultText = (
 	messages: readonly ThinkspaceRuntimeMessage[],
 ): string | null => {
@@ -179,11 +195,163 @@ export const extractThinkspaceTurnResultText = (
 		return null;
 	}
 
-	if (resultText.length > THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH) {
-		return `${resultText.slice(0, THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH - 1)}…`;
+	return boundForRendering(resultText, THINKSPACE_TURN_RESULT_TEXT_MAX_LENGTH);
+};
+
+const TOOL_PART_TYPE_PREFIX = "tool-";
+const DYNAMIC_TOOL_PART_TYPE = "dynamic-tool";
+const INCOMPLETE_TOOL_CALL_SUFFIX = " (did not complete)";
+const GENERIC_TOOL_ACTIVITY_MESSAGE = "Used another tool for this turn.";
+
+const runtimeToolNameFromMessagePart = (part: ThinkspaceRuntimeMessagePart): string | null => {
+	if (part.type === DYNAMIC_TOOL_PART_TYPE) {
+		return typeof part.toolName === "string" && part.toolName ? part.toolName : null;
 	}
 
-	return resultText;
+	if (part.type.startsWith(TOOL_PART_TYPE_PREFIX)) {
+		const toolName = part.type.slice(TOOL_PART_TYPE_PREFIX.length);
+
+		return toolName || null;
+	}
+
+	return null;
+};
+
+const toolInputField = (input: unknown, field: string): string | null => {
+	if (typeof input !== "object" || input === null) {
+		return null;
+	}
+
+	const value = (input as Record<string, unknown>)[field];
+
+	return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const describeWebSearchActivity = (part: ThinkspaceRuntimeMessagePart): string => {
+	const query = toolInputField(part.input, "query");
+
+	return query ? `Searched the web for "${query}".` : "Searched the web.";
+};
+
+const describeWebFetchActivity = (part: ThinkspaceRuntimeMessagePart): string => {
+	const url = toolInputField(part.input, "url");
+
+	return url ? `Fetched the web page ${url}.` : "Fetched a web page.";
+};
+
+const describeSourceReadActivity = (part: ThinkspaceRuntimeMessagePart): string => {
+	const sourceName =
+		typeof part.output === "string" ? parseBuiltInSourceReadResultName(part.output) : null;
+
+	if (sourceName) {
+		return `Read the Source "${sourceName}".`;
+	}
+
+	const sourceId = toolInputField(part.input, "sourceId");
+
+	return sourceId ? `Tried to read Source ${sourceId}.` : "Tried to read a Source.";
+};
+
+const describeMcpToolActivity = (
+	runtimeToolName: string,
+	builtInMcpServers: readonly BuiltInMcpServer[],
+): string | null => {
+	const identity = parseCloudflareAgentsMcpToolName(
+		runtimeToolName,
+		builtInMcpServers.map((server) => server.id),
+	);
+
+	if (!identity) {
+		return null;
+	}
+
+	const server = builtInMcpServers.find((candidate) => candidate.id === identity.serverId);
+	const serverName = server?.name ?? identity.serverId;
+
+	return `Used the ${serverName} external information source: ${identity.toolName}.`;
+};
+
+const describeBuiltInToolActivity = (
+	toolId: BuiltInToolId,
+	part: ThinkspaceRuntimeMessagePart,
+): string => {
+	switch (toolId) {
+		case "web_search": {
+			return describeWebSearchActivity(part);
+		}
+		case "web_fetch": {
+			return describeWebFetchActivity(part);
+		}
+		case "source_read": {
+			return describeSourceReadActivity(part);
+		}
+		default: {
+			return GENERIC_TOOL_ACTIVITY_MESSAGE;
+		}
+	}
+};
+
+const describeToolActivity = (
+	part: ThinkspaceRuntimeMessagePart,
+	builtInMcpServers: readonly BuiltInMcpServer[],
+): string | null => {
+	const runtimeToolName = runtimeToolNameFromMessagePart(part);
+
+	if (!runtimeToolName) {
+		return null;
+	}
+
+	if (isBuiltInToolId(runtimeToolName)) {
+		return describeBuiltInToolActivity(runtimeToolName, part);
+	}
+
+	return (
+		describeMcpToolActivity(runtimeToolName, builtInMcpServers) ?? GENERIC_TOOL_ACTIVITY_MESSAGE
+	);
+};
+
+/**
+ * Renders the latest assistant message's tool calls as a bounded list of
+ * product-language lines — Sources read by name, searches by query, fetches
+ * by URL, external information sources by their catalog name. Raw runtime
+ * payloads and tool outputs never pass through; tools outside the known
+ * catalogs render generically.
+ */
+export const extractThinkspaceTurnToolActivity = (
+	messages: readonly ThinkspaceRuntimeMessage[],
+	builtInMcpServers: readonly BuiltInMcpServer[] = listBuiltInMcpServers(),
+): string[] => {
+	const lastAssistantMessage = messages.findLast((message) => message.role === "assistant");
+
+	if (!lastAssistantMessage) {
+		return [];
+	}
+
+	const activity: string[] = [];
+
+	for (const part of lastAssistantMessage.parts) {
+		if (activity.length >= THINKSPACE_TURN_TOOL_ACTIVITY_MAX_ENTRIES) {
+			break;
+		}
+
+		const description = describeToolActivity(part, builtInMcpServers);
+
+		if (!description) {
+			continue;
+		}
+
+		// Bound the description with the suffix's length reserved so a long
+		// entry never silently sheds its did-not-complete marker.
+		const suffix = part.state === "output-error" ? INCOMPLETE_TOOL_CALL_SUFFIX : "";
+		const bounded = boundForRendering(
+			description,
+			THINKSPACE_TURN_TOOL_ACTIVITY_ENTRY_MAX_LENGTH - suffix.length,
+		);
+
+		activity.push(`${bounded}${suffix}`);
+	}
+
+	return activity;
 };
 
 const createUnknownTurnInspection = (
@@ -200,6 +368,7 @@ const createUnknownTurnInspection = (
 	status: "unknown",
 	submissionId,
 	thinkspaceId,
+	toolActivity: [],
 });
 
 const createFailureMessage = (snapshot: ThinkspaceRuntimeSubmissionSnapshot): string => {
@@ -219,11 +388,13 @@ export const mapThinkspaceTurnInspection = ({
 	snapshot,
 	submissionId,
 	thinkspaceId,
+	toolActivity = [],
 }: {
 	resultText?: string | null;
 	snapshot: ThinkspaceRuntimeSubmissionSnapshot | null;
 	submissionId: string;
 	thinkspaceId: string;
+	toolActivity?: readonly string[];
 }): ThinkspaceTurnInspection => {
 	if (
 		!snapshot ||
@@ -248,6 +419,7 @@ export const mapThinkspaceTurnInspection = ({
 		startedAt: snapshot.startedAt ?? null,
 		submissionId: snapshot.submissionId,
 		thinkspaceId,
+		toolActivity: [] as readonly string[],
 	};
 
 	if (snapshot.status === "pending") {
@@ -264,6 +436,7 @@ export const mapThinkspaceTurnInspection = ({
 			message: resultText ? COMPLETED_TURN_MESSAGE : COMPLETED_WITHOUT_TEXT_MESSAGE,
 			resultText,
 			status: "completed",
+			toolActivity,
 		};
 	}
 

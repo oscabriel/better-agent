@@ -39,10 +39,25 @@ export interface AssembleThinkspaceTurnInput {
 	toolPotencies: ToolPotencyVerdict[];
 }
 
+/**
+ * A grounding clause appended to every turn's system prompt. The agent acts
+ * only through the tools assembled for the turn (enabled ∩ potent), so when a
+ * capability is off no tool is present — and a weaker model will otherwise
+ * narrate a plausible success it never performed (e.g. "Memory recorded"). This
+ * forbids that: the agent must not report an action it has no tool for, and a
+ * durable Memory exists only once the held `memory_write` tool runs on an
+ * owner-approved continuation.
+ */
+export const THINKSPACE_AGENT_GROUNDING_CLAUSE =
+	"You act only through the tools made available to you on this turn. Never claim to have recorded a Memory, read a Source, searched the web, or taken any other action unless you actually called the tool for it on this turn. Recording a durable Memory happens only by calling the memory_write tool, which is held for the owner's Approval; if that tool is not available to you, you cannot record Memories — say so plainly instead of describing it as done.";
+
 export const buildThinkspaceAgentSystemPrompt = (revision: ActiveAgentProfileRevision): string => {
 	const header = `You are ${revision.identity.displayName}, a Thinkspace Agent for Better Agent.`;
+	const sections = revision.identity.instructions
+		? [header, revision.identity.instructions, THINKSPACE_AGENT_GROUNDING_CLAUSE]
+		: [header, THINKSPACE_AGENT_GROUNDING_CLAUSE];
 
-	return revision.identity.instructions ? `${header}\n\n${revision.identity.instructions}` : header;
+	return sections.join("\n\n");
 };
 
 /**

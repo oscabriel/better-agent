@@ -9,10 +9,13 @@ import {
 	getOwnedThinkspaceRuntimePolicy,
 	isThinkspaceRuntimeCapabilityEnabled,
 	THINKSPACE_RUNTIME_CAPABILITY_IDS,
+	THINKSPACE_RUNTIME_DISABLED_CAPABILITY_IDS,
+	THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS,
+	THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID,
 	THINKSPACE_RUNTIME_POLICY,
 } from "./runtime-policy";
 
-test("disables workspace Bash for the first Thinkspace Agent runtime", () => {
+test("disables workspace Bash against the runtime default", () => {
 	assert.equal(THINKSPACE_RUNTIME_POLICY.workspaceBash, false);
 	assert.equal(
 		isThinkspaceRuntimeCapabilityEnabled(THINKSPACE_RUNTIME_POLICY, "workspace_bash"),
@@ -20,8 +23,9 @@ test("disables workspace Bash for the first Thinkspace Agent runtime", () => {
 	);
 });
 
-test("disables every unsafe capability in the no-tools baseline", () => {
+test("enables built-in read tools plus held internal writes and disables every other mutation-shaped capability", () => {
 	const expectedCapabilityIds = [
+		"builtin_read_tools",
 		"workspace_bash",
 		"workspace_mutations",
 		"mcp_tools",
@@ -30,22 +34,39 @@ test("disables every unsafe capability in the no-tools baseline", () => {
 		"memory_writes",
 		"artifact_publishing",
 	];
+	const expectedEnabledCapabilityIds = ["builtin_read_tools", "memory_writes"];
+	const expectedDisabledCapabilityIds = expectedCapabilityIds.filter(
+		(id) => !expectedEnabledCapabilityIds.includes(id),
+	);
 
 	assert.deepEqual([...THINKSPACE_RUNTIME_CAPABILITY_IDS], expectedCapabilityIds);
+	assert.deepEqual([...THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS], expectedEnabledCapabilityIds);
+	assert.deepEqual([...THINKSPACE_RUNTIME_DISABLED_CAPABILITY_IDS], expectedDisabledCapabilityIds);
 	assert.equal(THINKSPACE_RUNTIME_POLICY.capabilities.length, expectedCapabilityIds.length);
 
+	// The held internal write is the only mutation-shaped capability newly
+	// enabled over the read-only policy (PRD #92, #93).
+	assert.equal(THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID, "memory_writes");
+
 	for (const capability of THINKSPACE_RUNTIME_POLICY.capabilities) {
-		assert.equal(capability.enabled, false, `${capability.id} must be disabled`);
+		const expectedEnabled = expectedEnabledCapabilityIds.includes(capability.id);
+
+		assert.equal(
+			capability.enabled,
+			expectedEnabled,
+			`${capability.id} must be ${expectedEnabled ? "enabled" : "disabled"}`,
+		);
 		assert.equal(
 			isThinkspaceRuntimeCapabilityEnabled(THINKSPACE_RUNTIME_POLICY, capability.id),
-			false,
+			expectedEnabled,
 		);
 	}
 });
 
-test("declares a model-only runtime mode with a bounded step count", () => {
-	assert.equal(THINKSPACE_RUNTIME_POLICY.mode, "model_only");
-	assert.equal(THINKSPACE_RUNTIME_POLICY.policyId, "no_tools_v1");
+test("declares the governed-writes runtime mode with bounded step counts", () => {
+	assert.equal(THINKSPACE_RUNTIME_POLICY.mode, "governed_writes");
+	assert.equal(THINKSPACE_RUNTIME_POLICY.policyId, "governed_tools_v3");
+	assert.equal(THINKSPACE_RUNTIME_POLICY.workspaceBash, false);
 	assert.equal(THINKSPACE_RUNTIME_POLICY.maxSteps, 1);
 });
 
@@ -67,7 +88,7 @@ test("raises the per-turn step bound only when runtime tools are active", () => 
 	});
 
 	assert.deepEqual(turnConfig.activeTools, ["tool_cloudflaredocs_search_docs"]);
-	assert.equal(turnConfig.maxSteps, 2);
+	assert.equal(turnConfig.maxSteps, 8);
 });
 
 test("reports the runtime policy only after Thinkspace ownership is confirmed", async () => {
@@ -99,7 +120,7 @@ test("reports the runtime policy only after Thinkspace ownership is confirmed", 
 	});
 
 	assert.equal(ownerPolicy?.thinkspaceId, "thinkspace_owned");
-	assert.equal(ownerPolicy?.policyId, "no_tools_v1");
+	assert.equal(ownerPolicy?.policyId, "governed_tools_v3");
 	assert.equal(ownerPolicy?.workspaceBash, false);
 	assert.equal(nonOwnerPolicy, null);
 	assert.deepEqual(requestedOwnershipChecks, [

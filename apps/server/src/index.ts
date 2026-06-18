@@ -1,4 +1,10 @@
 import { appRouter, createContext } from "@better-agent/api";
+import { getOwnedThinkspaceAgentRuntimeReadiness } from "@better-agent/api/thinkspaces/runtime";
+import {
+	encodeSittingForwardContext,
+	parseSittingThinkspaceId,
+	SITTING_FORWARD_CONTEXT_HEADER,
+} from "@better-agent/api/thinkspaces/sittings";
 import { createAuth } from "@better-agent/auth";
 import { createDb } from "@better-agent/db";
 import { env } from "@better-agent/env/server";
@@ -8,6 +14,7 @@ import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { getAgentByName } from "agents";
 import { Hono } from "hono";
 import type { ErrorHandler } from "hono";
 import { cors } from "hono/cors";
@@ -95,6 +102,58 @@ app.use("/api/openapi/*", async (c, next) => {
 	}
 
 	return c.newResponse(result.response.body, result.response);
+});
+
+/**
+ * The one authenticated seam by which browser traffic reaches a Thinkspace
+ * Agent runtime: a Sitting. The worker verifies the Better Auth session and
+ * Thinkspace ownership (the same gate the owner-gated turn procedures use), then
+ * strips any client-supplied forward header and stamps its own authenticated
+ * (owner, Thinkspace) context before handing the request to the runtime resolved
+ * by Thinkspace id. Project Think's chat protocol takes it from there. Every
+ * other outcome — bad path, unauthenticated, non-owner, missing Thinkspace —
+ * returns the same 404, so ownership stays the only signal.
+ */
+app.use("/api/sittings/*", async (c) => {
+	const thinkspaceId = parseSittingThinkspaceId(new URL(c.req.url).pathname);
+
+	if (!thinkspaceId) {
+		return c.notFound();
+	}
+
+	const db = createDb(c.env.DB);
+	const session = await createAuth({ db, env: c.env }).api.getSession({
+		headers: c.req.raw.headers,
+	});
+
+	if (!session?.user) {
+		return c.notFound();
+	}
+
+	const readiness = await getOwnedThinkspaceAgentRuntimeReadiness({
+		db,
+		env: c.env,
+		ownerUserId: session.user.id,
+		thinkspaceId,
+	});
+
+	if (!readiness) {
+		return c.notFound();
+	}
+
+	const forwardHeaders = new Headers(c.req.raw.headers);
+	forwardHeaders.delete(SITTING_FORWARD_CONTEXT_HEADER);
+	forwardHeaders.set(
+		SITTING_FORWARD_CONTEXT_HEADER,
+		encodeSittingForwardContext({ ownerUserId: session.user.id, thinkspaceId }),
+	);
+
+	const runtime = await getAgentByName(
+		c.env.THINKSPACE_AGENT as unknown as Parameters<typeof getAgentByName>[0],
+		readiness.runtimeName,
+	);
+
+	return runtime.fetch(new Request(c.req.raw, { headers: forwardHeaders }));
 });
 
 app.onError(errorHandler);

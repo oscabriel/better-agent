@@ -75,6 +75,10 @@ _Avoid_: Agent host, local runtime, full machine access, laptop
 The user-facing history of meaningful actions and changes within a Thinkspace.
 _Avoid_: Logs, telemetry, debugging output, transcript
 
+**Sitting**:
+A live, streamed, back-and-forth session in which a Thinkspace owner works directly with one Thinkspace Agent, on top of the agent's full durable history — reading what it produced while they were away, pushing back, and iterating toward a decision. A Sitting is the primary surface where the user's Attention is applied; it changes who may reach the runtime, never what the agent may do.
+_Avoid_: session, chat, thread, conversation
+
 **Attention**:
 The user's finite, serial judgement capacity — the scarce resource Better Agent is architected around and cannot parallelize or clone.
 _Avoid_: Time, availability, focus mode, bandwidth-as-a-metric, agent slots
@@ -121,8 +125,8 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 - A **Review Queue** batches items that require the user's judgement, including pending **Approvals**, drafts, **Memory** to accept, and **Goal** assessments.
 - **Backpressure** paces **Thinkspace Agent** production to the user's review rate; an **Approval** is a holdpoint that enters the **Review Queue** rather than auto-executing.
 - A **Thinkspace** externalizes context into **Memory**, **Sources**, **Artifacts**, and the **Audit Trail** so the user does not reload it from memory on every return.
-- A **Sitting** is held with one **Thinkspace** at a time; the user enters it deliberately, holds their **Attention** there, and leaves with conclusions, redirections, or an **Artifact** ready to take off-app.
-- The **Review Queue** tells the user which **Thinkspace** is ripe for a **Sitting**; the deep surface is the **Thinkspace** itself, not the queue.
+- A **Sitting** is one owner working live with one **Thinkspace Agent** over its full durable history; the user enters it deliberately, holds their **Attention** there, and leaves with conclusions, redirections, or an **Artifact** ready to take off-app. Every Sitting turn is governed identically to a submitted turn and is attributed to the **Agent Profile** revision it ran under.
+- A **Sitting**, not the **Review Queue**, is the primary surface for applying **Attention**; the **Review Queue** stays the cross-Thinkspace doorbell that tells the user which **Thinkspace** is ripe for a **Sitting** — the deep surface is the **Thinkspace** itself, not the queue.
 - Work a **Thinkspace Agent** produces between **Sittings** (from submissions and **Routines**) accumulates under **Backpressure** for the next **Sitting**; an **Approval** granted during a **Sitting** can execute live, while one raised between **Sittings** holds until the user returns.
 
 ## Example dialogue
@@ -207,4 +211,5 @@ _Avoid_: Rate limit, throttle, queue depth, hard pause
 - "busy" vs "productive" blurred in early messaging; resolved: agent count and live activity are not the value; shipped, understood outcomes gated by the user's judgement are.
 - "tool enablement" and "Permission" were easy to collapse; resolved: enablement is an Agent Profile scoping decision that makes a tool present, while a **Permission** is the Thinkspace-owned security boundary that makes protected tools potent.
 - "agent config", "profile", and "settings" blurred during runtime planning; resolved: **Agent Profile** is the user-facing descriptor of a Thinkspace Agent's identity and behavior. It owns only the pieces with no other home (name, instructions, model behavior) and references the rest — tools, **Skills**, and **Permissions** keep their own ownership and governance.
-- "Review Queue as the primary surface" and "streaming last" over-rotated early docs toward a batch dashboard; resolved: the **Sitting** — the deliberate live working session with one **Thinkspace** — is the primary judgement surface, and the **Review Queue** is the ripeness signal that routes Attention to it. The product rejects *concurrent* interactivity, not interactivity. ("Sitting" also avoids "session", which collides with both Project Think's runtime Session and the auth session.)
+- "Review Queue as the primary surface" and "streaming last" over-rotated early docs toward a batch dashboard; resolved: the **Sitting** — the deliberate live working session with one **Thinkspace** — is the primary judgement surface, and the **Review Queue** is the ripeness signal that routes Attention to it. The product rejects *concurrent* interactivity, not interactivity.
+- "session", "chat", and "thread" all described the live deliberate working session, but "session" collides with both Project Think's runtime Session and the Better Auth session; resolved: **Sitting** is the canonical term for the live owner↔Thinkspace Agent session surface, while "session" stays an implementation term in the runtime substrate. Authenticated live surfaces move from "last" to "now" in the unlock sequence: the Sitting, not the Review Queue, is the primary judgement surface.

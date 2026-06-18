@@ -2,7 +2,7 @@ import type { ProductDb } from "@better-agent/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { DEFAULT_MODEL_ID } from "../models/catalog";
+import { DEFAULT_MODEL_ID, parseModelId } from "../models/catalog";
 import { ModelCatalogError, validateCatalogModelId } from "../models/model-catalog";
 import {
 	getOwnedThinkspaceModelReadiness,
@@ -35,6 +35,7 @@ import {
 	saveAgentProfileDraft,
 } from "./agent-profile-repository";
 import { inspectOwnedThinkspaceTurn, THINKSPACE_TURN_SUBMISSION_ID_MAX_LENGTH } from "./inspect";
+import { listThinkspaceMemories } from "./memories-repository";
 import {
 	listThinkspacePermissions,
 	prepareThinkspacePermissionGrants,
@@ -42,6 +43,8 @@ import {
 	saveThinkspacePermissionGrants,
 	ThinkspacePermissionGrantError,
 } from "./permissions";
+import { BUILT_IN_TOOL_IDS, createBuiltInToolPermissionRequests } from "./built-in-tools";
+import type { BuiltInToolId } from "./built-in-tools";
 import { createMcpToolAccessPermissionRequest, serializeThinkspaceToolSelections } from "./policy";
 import {
 	createThinkspaceArchivePatch,
@@ -93,6 +96,7 @@ const toolSelectionSchema = z.object({
 });
 
 const updateToolSelectionsInput = z.object({
+	builtInToolIds: z.array(z.enum(BUILT_IN_TOOL_IDS)).optional(),
 	selections: z.array(toolSelectionSchema),
 	thinkspaceId: z.string().min(1),
 });
@@ -111,21 +115,62 @@ const submitTurnInput = z.object({
 const createThinkspaceId = (): string => `thinkspace_${crypto.randomUUID()}`;
 const createAgentProfileRevisionId = (): string => `agent_profile_revision_${crypto.randomUUID()}`;
 
-const toToolEnablements = (selections: z.infer<typeof toolSelectionSchema>[]): ToolEnablement[] => {
+/** Deduped, in stable catalog order, however the caller ordered them. */
+const normalizeBuiltInToolIds = (toolIds: readonly BuiltInToolId[]): BuiltInToolId[] => {
+	const requested = new Set(toolIds);
+
+	return BUILT_IN_TOOL_IDS.filter((toolId) => requested.has(toolId));
+};
+
+const toToolEnablements = (
+	builtInToolIds: readonly BuiltInToolId[],
+	selections: z.infer<typeof toolSelectionSchema>[],
+): ToolEnablement[] => {
 	const normalized = JSON.parse(serializeThinkspaceToolSelections(selections)) as z.infer<
 		typeof toolSelectionSchema
 	>[];
 
-	return normalized.map((selection) => ({
-		source: "mcp_server",
-		toolId: selection.toolName ? `${selection.serverId}:${selection.toolName}` : selection.serverId,
-	}));
+	return [
+		...builtInToolIds.map(
+			(toolId): ToolEnablement => ({
+				source: "built_in",
+				toolId,
+			}),
+		),
+		...normalized.map(
+			(selection): ToolEnablement => ({
+				source: "mcp_server",
+				toolId: selection.toolName
+					? `${selection.serverId}:${selection.toolName}`
+					: selection.serverId,
+			}),
+		),
+	];
 };
 
+/**
+ * Every Agent Profile revision needs its model to run, so the draft always
+ * requests Permission to use the owner's saved credential for that model's
+ * provider. The owner grants it at activation (the default grants all requests),
+ * which is what makes model resolution potent — without this grant the runtime
+ * fails closed with `permission_required`. Built-in and MCP tool requests are
+ * added on top from the user's selections.
+ */
+const createModelProviderCredentialPermissionRequest = (modelId: string): RequestedPermission => ({
+	kind: "model_provider_credential",
+	providerId: parseModelId(modelId).providerId,
+	reason: "Use your saved provider credential to run this Thinkspace Agent's model.",
+});
+
 const toRequestedPermissions = (
+	modelId: string,
+	builtInToolIds: readonly BuiltInToolId[],
 	selections: z.infer<typeof toolSelectionSchema>[],
-): RequestedPermission[] =>
-	selections.map((selection) => createMcpToolAccessPermissionRequest(selection));
+): RequestedPermission[] => [
+	createModelProviderCredentialPermissionRequest(modelId),
+	...createBuiltInToolPermissionRequests(builtInToolIds),
+	...selections.map((selection) => createMcpToolAccessPermissionRequest(selection)),
+];
 
 export interface EnabledToolPotencyInspection {
 	potency: ToolPotency;
@@ -350,6 +395,7 @@ export const thinkspacesRouter = {
 				id: createAgentProfileRevisionId(),
 				identity,
 				modelBehavior,
+				requestedPermissions: toRequestedPermissions(modelBehavior.modelId, [], []),
 				thinkspaceId: record.id,
 			});
 			const created = await createThinkspaceWithAgentProfileDraft(context.db, { draft, record });
@@ -372,11 +418,10 @@ export const thinkspacesRouter = {
 		const activeRevision = await getActiveAgentProfileRevision(context.db, {
 			thinkspaceId: thinkspace.id,
 		});
-		const agentProfileRevision =
-			activeRevision ??
-			(await getDraftAgentProfileRevision(context.db, {
-				thinkspaceId: thinkspace.id,
-			}));
+		const draftRevision = await getDraftAgentProfileRevision(context.db, {
+			thinkspaceId: thinkspace.id,
+		});
+		const agentProfileRevision = activeRevision ?? draftRevision;
 
 		return {
 			...thinkspace,
@@ -387,6 +432,11 @@ export const thinkspacesRouter = {
 			grantedPermissions: await listThinkspacePermissions(context.db, {
 				thinkspaceId: thinkspace.id,
 			}),
+			// A draft that coexists with an active revision is a pending
+			// re-activation: tool and Permission edits the owner has staged but not
+			// yet applied. When there is no active revision the draft is already the
+			// current revision above, so this stays null to avoid surfacing it twice.
+			pendingDraftRevision: activeRevision ? draftRevision : null,
 		};
 	}),
 	inspectTurn: protectedProcedure.input(inspectTurnInput).handler(async ({ context, input }) => {
@@ -420,6 +470,27 @@ export const thinkspacesRouter = {
 		async ({ context }) =>
 			await listThinkspaces(context.db, { ownerUserId: context.session.user.id }),
 	),
+	listMemories: protectedProcedure.input(thinkspaceIdInput).handler(async ({ context, input }) => {
+		const thinkspace = await getThinkspace(context.db, {
+			ownerUserId: context.session.user.id,
+			thinkspaceId: input.thinkspaceId,
+		});
+
+		if (!thinkspace) {
+			throw toNotFound();
+		}
+
+		const memories = await listThinkspaceMemories(context.db, { thinkspaceId: thinkspace.id });
+
+		return memories.map((memory) => ({
+			content: memory.content,
+			createdAt: memory.createdAt,
+			id: memory.id,
+			profileRevisionId: memory.profileRevisionId,
+			profileVersion: memory.profileVersion,
+			thinkspaceId: memory.thinkspaceId,
+		}));
+	}),
 	modelReadiness: protectedProcedure
 		.input(thinkspaceIdInput)
 		.handler(async ({ context, input }) => {
@@ -573,11 +644,16 @@ export const thinkspacesRouter = {
 					);
 				}
 
+				const builtInToolIds = normalizeBuiltInToolIds(input.builtInToolIds ?? []);
 				const updatedDraft = await saveAgentProfileDraft(context.db, {
 					draft: {
 						...draft,
-						requestedPermissions: toRequestedPermissions(input.selections),
-						toolEnablements: toToolEnablements(input.selections),
+						requestedPermissions: toRequestedPermissions(
+							draft.modelBehavior.modelId,
+							builtInToolIds,
+							input.selections,
+						),
+						toolEnablements: toToolEnablements(builtInToolIds, input.selections),
 						updatedAt: new Date(),
 					},
 				});

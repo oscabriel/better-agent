@@ -3,12 +3,13 @@ import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
 
 import { getThinkspace } from "./repository";
 
-export const THINKSPACE_RUNTIME_POLICY_ID = "no_tools_v1" as const;
-export const THINKSPACE_RUNTIME_POLICY_MODE = "model_only" as const;
+export const THINKSPACE_RUNTIME_POLICY_ID = "governed_tools_v3" as const;
+export const THINKSPACE_RUNTIME_POLICY_MODE = "governed_writes" as const;
 export const THINKSPACE_RUNTIME_MAX_STEPS = 1 as const;
-export const THINKSPACE_RUNTIME_TOOL_MAX_STEPS = 2 as const;
+export const THINKSPACE_RUNTIME_TOOL_MAX_STEPS = 8 as const;
 
 export const THINKSPACE_RUNTIME_CAPABILITY_IDS = [
+	"builtin_read_tools",
 	"workspace_bash",
 	"workspace_mutations",
 	"mcp_tools",
@@ -20,8 +21,39 @@ export const THINKSPACE_RUNTIME_CAPABILITY_IDS = [
 
 export type ThinkspaceRuntimeCapabilityId = (typeof THINKSPACE_RUNTIME_CAPABILITY_IDS)[number];
 
+/**
+ * The held-internal-write capability class — the single mutation-shaped
+ * capability `governed_tools_v3` newly enables over `safe_reads_v2` (PRD #92,
+ * #93). The agent may propose a durable Product Memory, but the proposal is
+ * held for the owner's Approval before it takes effect; the capability being
+ * enabled never lets a write execute on its own.
+ */
+export const THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID = "memory_writes" as const;
+
+/**
+ * `governed_tools_v3` keeps built-in read tools enabled and adds exactly one
+ * capability class — held internal writes — over the read-only `safe_reads_v2`.
+ * Every other mutation-shaped capability stays disabled (PRD #92, #93).
+ */
+export const THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS = [
+	"builtin_read_tools",
+	THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID,
+] as const;
+
+const ENABLED_CAPABILITY_ID_SET: ReadonlySet<ThinkspaceRuntimeCapabilityId> = new Set(
+	THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS,
+);
+
+const isCapabilityEnabledByPolicy = (id: ThinkspaceRuntimeCapabilityId): boolean =>
+	ENABLED_CAPABILITY_ID_SET.has(id);
+
+/** Every capability outside the enabled set stays disabled (PRD #92, #93). */
+export const THINKSPACE_RUNTIME_DISABLED_CAPABILITY_IDS = THINKSPACE_RUNTIME_CAPABILITY_IDS.filter(
+	(id) => !isCapabilityEnabledByPolicy(id),
+);
+
 export interface ThinkspaceRuntimeCapability {
-	enabled: false;
+	enabled: boolean;
 	id: ThinkspaceRuntimeCapabilityId;
 	label: string;
 }
@@ -58,6 +90,7 @@ type GetThinkspaceByOwner = (
 
 const CAPABILITY_LABELS: Record<ThinkspaceRuntimeCapabilityId, string> = {
 	artifact_publishing: "Artifact publishing",
+	builtin_read_tools: "Built-in read-only tools",
 	connected_account_tools: "Connected Account tools",
 	external_mutations: "External mutation tools",
 	mcp_tools: "MCP tools",
@@ -68,13 +101,13 @@ const CAPABILITY_LABELS: Record<ThinkspaceRuntimeCapabilityId, string> = {
 
 export const THINKSPACE_RUNTIME_POLICY: ThinkspaceRuntimePolicy = {
 	capabilities: THINKSPACE_RUNTIME_CAPABILITY_IDS.map((id) => ({
-		enabled: false,
+		enabled: isCapabilityEnabledByPolicy(id),
 		id,
 		label: CAPABILITY_LABELS[id],
 	})),
 	maxSteps: THINKSPACE_RUNTIME_MAX_STEPS,
 	message:
-		"This Thinkspace Agent runs model-only. No tools are enabled in this slice; future tool use requires Thinkspace-scoped Permission policy.",
+		"This Thinkspace Agent can read freely and may propose a durable Product Memory, but every write is held for your Approval before it takes effect: built-in read-only tools and held Memory writes are the only enabled capabilities, and each still requires enablement on the active Agent Profile revision plus a potent Permission verdict.",
 	mode: THINKSPACE_RUNTIME_POLICY_MODE,
 	policyId: THINKSPACE_RUNTIME_POLICY_ID,
 	workspaceBash: false,

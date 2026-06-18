@@ -76,6 +76,22 @@ test("model-provider credential requests still convert into credential grants", 
 	assert.equal(grant?.resourceScope, JSON.stringify({ type: "model_provider" }));
 });
 
+test("held Memory writing requests convert into a Memory writing grant with a stable scope", () => {
+	const grant = toThinkspacePermissionGrant({
+		grantedByUserId: OWNER_USER_ID,
+		permission: {
+			kind: THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE,
+			reason:
+				"Allow this Thinkspace Agent to propose durable Product Memory, held for your Approval.",
+		},
+		thinkspaceId: THINKSPACE_ID,
+	});
+
+	assert.equal(grant?.kind, THINKSPACE_PERMISSION_KINDS.BUILT_IN_MEMORY_WRITE);
+	assert.equal(grant?.providerId, "memory");
+	assert.equal(grant?.resourceScope, JSON.stringify({ type: "memory_write" }));
+});
+
 test("grantable MCP requests convert into MCP tool access grants with explicit scope", () => {
 	const grant = toThinkspacePermissionGrant(grantInput(), {
 		builtInMcpServers: [readOnlyAuthFreeServer],
