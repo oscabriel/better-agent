@@ -14,13 +14,19 @@ export interface CreateAuthOptions {
 	env: AuthBindings;
 }
 
-export const createAuth = ({ db, env }: CreateAuthOptions) =>
-	betterAuth({
+export const createAuth = ({ db, env }: CreateAuthOptions) => {
+	// In local dev BETTER_AUTH_URL is plain http (e.g. http://localhost:3000), where
+	// browsers refuse to persist `secure` / `sameSite: "none"` cookies — so the session
+	// silently disappears and protected requests start 401ing. Only harden the cookie
+	// when we're actually served over https (the deployed, cross-origin setup).
+	const isSecureOrigin = env.BETTER_AUTH_URL.startsWith("https://");
+
+	return betterAuth({
 		advanced: {
 			defaultCookieAttributes: {
 				httpOnly: true,
-				sameSite: "none",
-				secure: true,
+				sameSite: isSecureOrigin ? "none" : "lax",
+				secure: isSecureOrigin,
 			},
 		},
 		basePath: "/api/auth",
@@ -35,3 +41,4 @@ export const createAuth = ({ db, env }: CreateAuthOptions) =>
 		secret: env.BETTER_AUTH_SECRET,
 		trustedOrigins: [env.CORS_ORIGIN],
 	});
+};
