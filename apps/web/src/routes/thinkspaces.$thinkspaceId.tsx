@@ -1,11 +1,56 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@better-agent/ui/components/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@better-agent/ui/components/dropdown-menu";
 import { Input } from "@better-agent/ui/components/input";
 import { Label } from "@better-agent/ui/components/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@better-agent/ui/components/select";
 import { Separator } from "@better-agent/ui/components/separator";
+import {
+	Tabs,
+	TabsIndicator,
+	TabsList,
+	TabsPanel,
+	TabsTab,
+} from "@better-agent/ui/components/tabs";
 import { Textarea } from "@better-agent/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, redirect } from "@tanstack/react-router";
+import {
+	ActivityIcon,
+	ArchiveIcon,
+	ChevronRightIcon,
+	CircleDashedIcon,
+	CircleDotIcon,
+	ClockIcon,
+	CpuIcon,
+	FileTextIcon,
+	KeyRoundIcon,
+	MessagesSquareIcon,
+	MoreHorizontalIcon,
+	TargetIcon,
+	UserRoundIcon,
+	WrenchIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { SittingSection } from "@/components/sitting-section";
@@ -24,6 +69,39 @@ const formatDateTime = (value: Date | number | string | null): string => {
 	}
 
 	return dateFormatter.format(new Date(value));
+};
+
+// Compact date for metadata pills — pills carry the fact, not the full timestamp.
+const metaDateFormatter = new Intl.DateTimeFormat("en", { dateStyle: "medium" });
+
+const formatMetaDate = (value: Date | number | string): string =>
+	metaDateFormatter.format(new Date(value));
+
+// Active reads affirmative (sage); a draft is neutral; archived is attention.
+const getStatusBadgeVariant = (status: string): "destructive" | "outline" | "sage" => {
+	if (status === "archived") {
+		return "destructive";
+	}
+
+	if (status === "draft") {
+		return "outline";
+	}
+
+	return "sage";
+};
+
+// Status pills lead with a glyph so the state reads at a glance, matching the
+// metadata-pill pattern (DESIGN.md §7 Document Page).
+const renderStatusBadgeIcon = (status: string) => {
+	if (status === "archived") {
+		return <ArchiveIcon aria-hidden />;
+	}
+
+	if (status === "draft") {
+		return <CircleDashedIcon aria-hidden />;
+	}
+
+	return <CircleDotIcon aria-hidden />;
 };
 
 interface EnabledToolSelection {
@@ -329,7 +407,7 @@ const TurnInspectionPanel = ({
 	const inspection = inspectionQuery.data;
 
 	return (
-		<div className="grid gap-3 border border-border p-4">
+		<div className="grid gap-3 rounded-lg p-4 ring-1 ring-foreground/10">
 			<div className="grid gap-1">
 				<p className="text-sm font-medium">Turn status</p>
 				<p className="text-muted-foreground text-xs">
@@ -377,7 +455,7 @@ const TurnInspectionPanel = ({
 					</div>
 					<p className="text-muted-foreground text-sm">{inspection.message}</p>
 					{inspection.resultText ? (
-						<p className="whitespace-pre-wrap border border-border p-3 text-sm leading-relaxed">
+						<p className="whitespace-pre-wrap rounded-md p-3 ring-1 ring-foreground/10 text-sm leading-relaxed">
 							{inspection.resultText}
 						</p>
 					) : null}
@@ -435,7 +513,7 @@ const AgentProfileSection = ({
 				</p>
 			</div>
 			{profileRevision ? (
-				<div className="grid gap-4 border border-border p-4">
+				<div className="grid gap-4 rounded-lg p-4 ring-1 ring-foreground/10">
 					<div className="flex items-start justify-between gap-4">
 						<div className="grid gap-1">
 							<p className="text-sm font-medium">{profileRevision.identity.displayName}</p>
@@ -481,7 +559,7 @@ const AgentProfileSection = ({
 					) : null}
 				</div>
 			) : (
-				<p className="border border-border p-4 text-muted-foreground text-sm">
+				<p className="rounded-lg p-4 ring-1 ring-foreground/10 text-muted-foreground text-sm">
 					No Agent Profile revision has been created for this Thinkspace yet.
 				</p>
 			)}
@@ -528,7 +606,7 @@ const SubmitTurnSection = ({
 				</p>
 			</div>
 			<form
-				className="grid gap-3 border border-border p-4"
+				className="grid gap-3 rounded-lg p-4 ring-1 ring-foreground/10"
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (submitDisabled) {
@@ -676,7 +754,7 @@ const SourcesSection = ({
 				</p>
 			</div>
 			<form
-				className="grid gap-3 border border-border p-4"
+				className="grid gap-3 rounded-lg p-4 ring-1 ring-foreground/10"
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (uploadDisabled) {
@@ -705,21 +783,23 @@ const SourcesSection = ({
 					</div>
 					<div className="grid gap-2">
 						<Label htmlFor="source-content-type">Format</Label>
-						<select
-							className="border-input bg-transparent flex h-9 w-full min-w-0 border px-3 py-1 text-sm shadow-xs outline-none disabled:cursor-not-allowed disabled:opacity-50"
+						<Select
 							disabled={isArchived}
-							id="source-content-type"
-							onChange={(event) =>
-								setSourceContentType(event.target.value as SourceContentTypeOption)
-							}
+							items={SOURCE_CONTENT_TYPE_OPTIONS}
+							onValueChange={(value) => setSourceContentType(value as SourceContentTypeOption)}
 							value={sourceContentType}
 						>
-							{SOURCE_CONTENT_TYPE_OPTIONS.map((option) => (
-								<option key={option.value} value={option.value}>
-									{option.label}
-								</option>
-							))}
-						</select>
+							<SelectTrigger className="w-full" id="source-content-type">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{SOURCE_CONTENT_TYPE_OPTIONS.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 				</div>
 				<div className="grid gap-2">
@@ -756,11 +836,11 @@ const SourcesSection = ({
 				</div>
 			</form>
 			{sources.length === 0 ? (
-				<p className="border border-border p-4 text-muted-foreground text-sm">
+				<p className="rounded-lg p-4 ring-1 ring-foreground/10 text-muted-foreground text-sm">
 					No Sources uploaded to this Thinkspace yet.
 				</p>
 			) : (
-				<div className="border border-border">
+				<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 					{sources.map((source, index) => (
 						<div
 							key={source.id}
@@ -813,7 +893,7 @@ const SourcesSection = ({
 										<p className="text-muted-foreground text-xs">Loading content…</p>
 									) : null}
 									{sourceContentQuery.data && sourceContentQuery.data.id === source.id ? (
-										<p className="max-h-80 overflow-y-auto whitespace-pre-wrap border border-border p-3 text-sm leading-relaxed">
+										<p className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md p-3 ring-1 ring-foreground/10 text-sm leading-relaxed">
 											{sourceContentQuery.data.content}
 										</p>
 									) : null}
@@ -877,7 +957,7 @@ const ToolsSection = ({
 		</div>
 		<div className="grid gap-2">
 			<p className="text-sm font-medium">Built-in tools</p>
-			<div className="border border-border">
+			<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 				{BUILT_IN_TOOLS.map((tool, index) => {
 					const selected = enabledBuiltInToolIds.includes(tool.id);
 					const toolPotency = selected ? toolPotencyById.get(tool.id) : undefined;
@@ -914,11 +994,11 @@ const ToolsSection = ({
 			</div>
 		</div>
 		{mcpCatalog.length === 0 ? (
-			<p className="border border-border p-4 text-muted-foreground text-sm">
+			<p className="rounded-lg p-4 ring-1 ring-foreground/10 text-muted-foreground text-sm">
 				No tools in the catalog.
 			</p>
 		) : (
-			<div className="border border-border">
+			<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 				{mcpCatalog.map((server, index) => {
 					const selectedTool = enabledTools.find((tool) => tool.serverId === server.id);
 					const selected = Boolean(selectedTool);
@@ -960,7 +1040,7 @@ const ToolsSection = ({
 		<div className="grid gap-2">
 			<p className="text-sm font-medium">Enabled on Agent Profile</p>
 			{profileRevision?.toolEnablements.length ? (
-				<div className="border border-border">
+				<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 					{profileRevision.toolEnablements.map((enablement, index) => {
 						const toolPotency = toolPotencyById.get(enablement.toolId);
 
@@ -987,7 +1067,7 @@ const ToolsSection = ({
 					})}
 				</div>
 			) : (
-				<p className="border border-border p-4 text-muted-foreground text-sm">
+				<p className="rounded-lg p-4 ring-1 ring-foreground/10 text-muted-foreground text-sm">
 					No tools enabled on this Agent Profile revision.
 				</p>
 			)}
@@ -1026,11 +1106,11 @@ const PermissionsSection = ({
 			<div className="grid gap-2">
 				<p className="text-sm font-medium">Requested on draft</p>
 				{requestedPermissions.length === 0 ? (
-					<p className="border border-border p-4 text-muted-foreground text-sm">
+					<p className="rounded-lg p-4 ring-1 ring-foreground/10 text-muted-foreground text-sm">
 						No draft Permission requests.
 					</p>
 				) : (
-					<div className="border border-border">
+					<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 						{requestedPermissions.map((permission, index) => (
 							<div
 								key={`${permission.kind ?? permission.type}:${permission.providerId ?? permission.serverId ?? permission.resource?.serverId ?? index}`}
@@ -1050,11 +1130,11 @@ const PermissionsSection = ({
 			<div className="grid gap-2">
 				<p className="text-sm font-medium">Granted to Thinkspace</p>
 				{grantedPermissions.length === 0 ? (
-					<p className="border border-border p-4 text-muted-foreground text-sm">
+					<p className="rounded-lg p-4 ring-1 ring-foreground/10 text-muted-foreground text-sm">
 						No granted Permissions.
 					</p>
 				) : (
-					<div className="border border-border">
+					<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 						{grantedPermissions.map((permission, index) => {
 							const canRevoke =
 								permission.kind === "mcp_tool_access" ||
@@ -1099,11 +1179,216 @@ const PermissionsSection = ({
 	</section>
 );
 
+const ThinkspaceHeader = ({
+	archiveDialogOpen,
+	archiveError,
+	grantedPermissionsCount,
+	isArchived,
+	isArchiving,
+	isDraft,
+	modelReady,
+	onArchive,
+	onArchiveDialogOpenChange,
+	thinkspace,
+}: {
+	archiveDialogOpen: boolean;
+	archiveError?: Error | null;
+	grantedPermissionsCount: number;
+	isArchived: boolean;
+	isArchiving: boolean;
+	isDraft: boolean;
+	modelReady: boolean;
+	onArchive: () => void;
+	onArchiveDialogOpenChange: (open: boolean) => void;
+	thinkspace: {
+		archivedAt: Date | number | string | null;
+		configurationSummary: string | null;
+		goal: string;
+		status: string;
+		updatedAt: Date | number | string;
+	};
+}) => (
+	<header className="grid gap-4">
+		<nav
+			aria-label="Breadcrumb"
+			className="flex items-center gap-1.5 text-muted-foreground text-xs"
+		>
+			<Link className="transition-colors hover:text-foreground" to="/thinkspaces">
+				Thinkspaces
+			</Link>
+			<ChevronRightIcon aria-hidden className="size-3.5" />
+			<span aria-current="page" className="line-clamp-1 text-foreground">
+				{thinkspace.goal}
+			</span>
+		</nav>
+		<div className="flex items-start justify-between gap-4">
+			<div className="flex items-start gap-2.5">
+				<TargetIcon aria-hidden className="mt-1 size-5 shrink-0 text-muted-foreground" />
+				<h1 className="text-2xl font-semibold tracking-tight text-balance">{thinkspace.goal}</h1>
+			</div>
+			{isArchived ? null : (
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						render={<Button aria-label="Thinkspace actions" size="icon" variant="ghost" />}
+					>
+						<MoreHorizontalIcon />
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							disabled={isDraft}
+							onClick={() => onArchiveDialogOpenChange(true)}
+							variant="destructive"
+						>
+							<ArchiveIcon />
+							Archive Thinkspace
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
+		</div>
+		<div className="flex flex-wrap items-center gap-1.5">
+			<Badge variant={getStatusBadgeVariant(thinkspace.status)}>
+				{renderStatusBadgeIcon(thinkspace.status)}
+				<span className="capitalize">{thinkspace.status}</span>
+			</Badge>
+			<Badge variant={modelReady ? "sage" : "destructive"}>
+				<CpuIcon aria-hidden />
+				{modelReady ? "Model ready" : "Model not ready"}
+			</Badge>
+			<Badge variant="outline">
+				<KeyRoundIcon aria-hidden />
+				{grantedPermissionsCount} {grantedPermissionsCount === 1 ? "Permission" : "Permissions"}
+			</Badge>
+			<Badge variant="outline">
+				<ClockIcon aria-hidden />
+				Updated {formatMetaDate(thinkspace.updatedAt)}
+			</Badge>
+			{thinkspace.archivedAt ? (
+				<Badge variant="outline">
+					<ArchiveIcon aria-hidden />
+					Archived {formatMetaDate(thinkspace.archivedAt)}
+				</Badge>
+			) : null}
+		</div>
+		{thinkspace.configurationSummary ? (
+			<p className="max-w-[65ch] text-muted-foreground text-sm leading-relaxed text-pretty">
+				{thinkspace.configurationSummary}
+			</p>
+		) : null}
+		<Dialog onOpenChange={onArchiveDialogOpenChange} open={archiveDialogOpen}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Archive this Thinkspace?</DialogTitle>
+					<DialogDescription>
+						Archiving disables active work and scheduled Routines. The Thinkspace stays inspectable
+						— you can read its full history at any time.
+					</DialogDescription>
+				</DialogHeader>
+				{archiveError ? (
+					<p className="text-destructive text-sm" role="alert">
+						{archiveError.message}
+					</p>
+				) : null}
+				<DialogFooter>
+					<DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+					<Button disabled={isArchiving} onClick={onArchive} variant="destructive">
+						{isArchiving ? "Archiving…" : "Archive Thinkspace"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	</header>
+);
+
+const RuntimeSection = ({
+	modelReadiness,
+	runtimePolicy,
+	runtimeReadiness,
+}: {
+	modelReadiness: {
+		message: string;
+		modelId: string;
+		modelName?: string | null;
+		providerName?: string | null;
+		status: string;
+	};
+	runtimePolicy: {
+		capabilities: readonly { enabled: boolean; id: string; label: string }[];
+		message: string;
+		mode: string;
+	};
+	runtimeReadiness: {
+		bindingName: string;
+		className: string;
+		runtimeName: string;
+		status: string;
+	};
+}) => (
+	<section aria-labelledby="runtime-heading" className="grid gap-4">
+		<div className="grid gap-1">
+			<h2 className="text-lg font-semibold tracking-tight" id="runtime-heading">
+				Thinkspace Agent runtime
+			</h2>
+			<p className="text-muted-foreground text-sm">
+				This Thinkspace resolves to one durable Thinkspace Agent using the Thinkspace id as its
+				runtime identity.
+			</p>
+		</div>
+		<div className="grid gap-4 rounded-lg p-4 ring-1 ring-foreground/10">
+			<div className="grid gap-2">
+				<div className="flex items-center justify-between gap-4">
+					<p className="text-sm font-medium">Runtime readiness</p>
+					<Badge variant="outline">{runtimeReadiness.status}</Badge>
+				</div>
+				<p className="text-muted-foreground text-xs">
+					Binding: {runtimeReadiness.bindingName} · Class: {runtimeReadiness.className}
+				</p>
+				<p className="break-all text-muted-foreground text-xs">
+					Runtime identity: {runtimeReadiness.runtimeName}
+				</p>
+			</div>
+			<div className="grid gap-2 border-border border-t pt-4">
+				<div className="flex items-center justify-between gap-4">
+					<p className="text-sm font-medium">Model readiness</p>
+					<Badge variant={modelReadiness.status === "ready" ? "sage" : "destructive"}>
+						{modelReadiness.status === "ready" ? "Ready" : "Not ready"}
+					</Badge>
+				</div>
+				<p className="text-muted-foreground text-sm">{modelReadiness.message}</p>
+				<p className="text-muted-foreground text-xs">
+					{modelReadiness.modelName ?? modelReadiness.modelId} ·{" "}
+					{modelReadiness.providerName ?? "Unknown provider"}
+				</p>
+			</div>
+			<div className="grid gap-2 border-border border-t pt-4">
+				<div className="flex items-center justify-between gap-4">
+					<p className="text-sm font-medium">Runtime safety policy</p>
+					<Badge variant="outline">
+						{runtimePolicy.mode === "governed_writes" ? "governed writes" : runtimePolicy.mode}
+					</Badge>
+				</div>
+				<p className="text-muted-foreground text-sm">{runtimePolicy.message}</p>
+				<ul className="grid gap-1">
+					{runtimePolicy.capabilities.map((capability) => (
+						<li className="flex items-center justify-between gap-4 text-xs" key={capability.id}>
+							<span className="text-muted-foreground">{capability.label}</span>
+							<span className={capability.enabled ? "text-sage" : "text-muted-foreground"}>
+								{capability.enabled ? "enabled" : "disabled"}
+							</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		</div>
+	</section>
+);
+
 const RouteComponent = () => {
 	const { thinkspaceId } = routeApi.useParams();
 	const context = routeApi.useRouteContext();
 	const queryClient = useQueryClient();
 	const [revokingPermissionId, setRevokingPermissionId] = useState<string | null>(null);
+	const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
 	const thinkspaceQuery = useSuspenseQuery(
 		context.orpc.thinkspaces.get.queryOptions({ input: { thinkspaceId } }),
 	);
@@ -1120,6 +1405,7 @@ const RouteComponent = () => {
 	const archiveMutation = useMutation(
 		context.orpc.thinkspaces.archive.mutationOptions({
 			onSuccess: async () => {
+				setArchiveDialogOpen(false);
 				await Promise.all([
 					queryClient.invalidateQueries({
 						queryKey: context.orpc.thinkspaces.get.queryKey({ input: { thinkspaceId } }),
@@ -1254,179 +1540,106 @@ const RouteComponent = () => {
 	};
 
 	return (
-		<div className="mx-auto grid w-full max-w-3xl gap-8 px-4 py-8">
-			<Link
-				className="w-fit text-muted-foreground text-sm transition-colors hover:text-foreground"
-				to="/thinkspaces"
-			>
-				← Thinkspaces
-			</Link>
-
-			<div className="grid gap-4">
-				<div className="flex items-start justify-between gap-4">
-					<h1 className="text-2xl font-semibold tracking-tight text-balance">{thinkspace.goal}</h1>
-					<Badge className="shrink-0" variant={isArchived ? "outline" : "default"}>
-						{thinkspace.status}
-					</Badge>
-				</div>
-				<p className="max-w-2xl text-muted-foreground text-sm leading-relaxed">
-					{thinkspace.configurationSummary}
-				</p>
-				<div className="flex gap-4 text-muted-foreground text-xs">
-					<span>Updated {formatDateTime(thinkspace.updatedAt)}</span>
-					{thinkspace.archivedAt ? (
-						<span>Archived {formatDateTime(thinkspace.archivedAt)}</span>
-					) : null}
-				</div>
-			</div>
-
-			<Separator />
-
-			<AgentProfileSection
-				activationError={activateAgentProfileMutation.error}
-				isActivating={activateAgentProfileMutation.isPending}
-				onActivate={handleActivateAgentProfile}
-				pendingDraftRevision={pendingDraftRevision}
-				profileRevision={profileRevision}
-			/>
-
-			<Separator />
-
-			<section aria-labelledby="runtime-heading" className="grid gap-4">
-				<div className="grid gap-1">
-					<h2 className="text-lg font-semibold tracking-tight" id="runtime-heading">
-						Thinkspace Agent runtime
-					</h2>
-					<p className="text-muted-foreground text-sm">
-						This Thinkspace resolves to one durable Thinkspace Agent using the Thinkspace id as its
-						runtime identity.
-					</p>
-				</div>
-				<div className="grid gap-4 border border-border p-4">
-					<div className="grid gap-2">
-						<div className="flex items-center justify-between gap-4">
-							<p className="text-sm font-medium">Runtime readiness</p>
-							<Badge variant="outline">{runtimeReadiness.status}</Badge>
-						</div>
-						<p className="text-muted-foreground text-xs">
-							Binding: {runtimeReadiness.bindingName} · Class: {runtimeReadiness.className}
-						</p>
-						<p className="break-all text-muted-foreground text-xs">
-							Runtime identity: {runtimeReadiness.runtimeName}
-						</p>
-					</div>
-					<div className="grid gap-2 border-border border-t pt-4">
-						<div className="flex items-center justify-between gap-4">
-							<p className="text-sm font-medium">Model readiness</p>
-							<Badge variant={modelReadiness.status === "ready" ? "default" : "destructive"}>
-								{modelReadiness.status === "ready" ? "ready" : "not ready"}
-							</Badge>
-						</div>
-						<p className="text-muted-foreground text-sm">{modelReadiness.message}</p>
-						<p className="text-muted-foreground text-xs">
-							{modelReadiness.modelName ?? modelReadiness.modelId} ·{" "}
-							{modelReadiness.providerName ?? "Unknown provider"}
-						</p>
-					</div>
-					<div className="grid gap-2 border-border border-t pt-4">
-						<div className="flex items-center justify-between gap-4">
-							<p className="text-sm font-medium">Runtime safety policy</p>
-							<Badge variant="outline">
-								{runtimePolicy.mode === "governed_writes" ? "governed writes" : runtimePolicy.mode}
-							</Badge>
-						</div>
-						<p className="text-muted-foreground text-sm">{runtimePolicy.message}</p>
-						<ul className="grid gap-1">
-							{runtimePolicy.capabilities.map((capability) => (
-								<li
-									className="flex items-center justify-between gap-4 text-muted-foreground text-xs"
-									key={capability.id}
-								>
-									<span>{capability.label}</span>
-									<span>{capability.enabled ? "enabled" : "disabled"}</span>
-								</li>
-							))}
-						</ul>
-					</div>
-				</div>
-			</section>
-
-			<Separator />
-
-			<SittingSection
+		<div className="mx-auto grid w-full max-w-3xl gap-6 px-4 py-8">
+			<ThinkspaceHeader
+				archiveDialogOpen={archiveDialogOpen}
+				archiveError={archiveMutation.error}
+				grantedPermissionsCount={grantedPermissions.length}
 				isArchived={isArchived}
+				isArchiving={archiveMutation.isPending}
 				isDraft={isDraft}
 				modelReady={modelReadiness.status === "ready"}
-				thinkspaceId={thinkspaceId}
+				onArchive={handleArchive}
+				onArchiveDialogOpenChange={setArchiveDialogOpen}
+				thinkspace={thinkspace}
 			/>
 
-			<Separator />
+			<Tabs defaultValue="sitting">
+				<TabsList>
+					<TabsTab value="sitting">
+						<MessagesSquareIcon />
+						Sitting
+					</TabsTab>
+					<TabsTab value="profile">
+						<UserRoundIcon />
+						Profile
+					</TabsTab>
+					<TabsTab value="sources">
+						<FileTextIcon />
+						Sources
+					</TabsTab>
+					<TabsTab value="tools">
+						<WrenchIcon />
+						Tools &amp; Permissions
+					</TabsTab>
+					<TabsTab value="runtime">
+						<ActivityIcon />
+						Runtime
+					</TabsTab>
+					<TabsIndicator />
+				</TabsList>
 
-			<SubmitTurnSection
-				isArchived={isArchived}
-				isDraft={isDraft}
-				modelReady={modelReadiness.status === "ready"}
-				thinkspaceId={thinkspaceId}
-			/>
+				<TabsPanel value="sitting">
+					<SittingSection
+						isArchived={isArchived}
+						isDraft={isDraft}
+						modelReady={modelReadiness.status === "ready"}
+						thinkspaceId={thinkspaceId}
+					/>
+				</TabsPanel>
 
-			<Separator />
+				<TabsPanel value="profile">
+					<AgentProfileSection
+						activationError={activateAgentProfileMutation.error}
+						isActivating={activateAgentProfileMutation.isPending}
+						onActivate={handleActivateAgentProfile}
+						pendingDraftRevision={pendingDraftRevision}
+						profileRevision={profileRevision}
+					/>
+				</TabsPanel>
 
-			<SourcesSection isArchived={isArchived} thinkspaceId={thinkspaceId} />
+				<TabsPanel value="sources">
+					<SourcesSection isArchived={isArchived} thinkspaceId={thinkspaceId} />
+				</TabsPanel>
 
-			<Separator />
-
-			<ToolsSection
-				enabledBuiltInToolIds={enabledBuiltInToolIds}
-				enabledTools={enabledTools}
-				isArchived={isArchived}
-				mcpCatalog={mcpCatalogQuery.data}
-				onToggleBuiltInTool={toggleBuiltInTool}
-				onToggleCatalogTool={toggleCatalogTool}
-				profileRevision={editableRevision}
-				toolPotencyById={toolPotencyById}
-				updateToolSelectionsError={updateToolSelectionsMutation.error}
-				updateToolSelectionsPending={updateToolSelectionsMutation.isPending}
-			/>
-
-			<Separator />
-
-			<PermissionsSection
-				grantedPermissions={grantedPermissions}
-				onRevokeGrantedPermission={handleRevokePermission}
-				requestedPermissions={requestedPermissions}
-				revokePermissionError={revokePermissionMutation.error}
-				revokingPermissionId={revokingPermissionId}
-			/>
-
-			{isArchived || isDraft ? null : (
-				<>
+				<TabsPanel className="grid gap-8" value="tools">
+					<ToolsSection
+						enabledBuiltInToolIds={enabledBuiltInToolIds}
+						enabledTools={enabledTools}
+						isArchived={isArchived}
+						mcpCatalog={mcpCatalogQuery.data}
+						onToggleBuiltInTool={toggleBuiltInTool}
+						onToggleCatalogTool={toggleCatalogTool}
+						profileRevision={editableRevision}
+						toolPotencyById={toolPotencyById}
+						updateToolSelectionsError={updateToolSelectionsMutation.error}
+						updateToolSelectionsPending={updateToolSelectionsMutation.isPending}
+					/>
 					<Separator />
-					<section className="grid gap-4">
-						<div className="grid gap-1">
-							<h2 className="text-lg font-semibold tracking-tight">Archive</h2>
-							<p className="text-muted-foreground text-sm">
-								Archiving disables active work and scheduled tasks. The Thinkspace remains
-								inspectable.
-							</p>
-						</div>
-						{archiveMutation.error ? (
-							<p className="text-destructive text-sm" role="alert">
-								{archiveMutation.error.message}
-							</p>
-						) : null}
-						<div>
-							<Button
-								disabled={archiveMutation.isPending}
-								onClick={handleArchive}
-								type="button"
-								variant="destructive"
-							>
-								{archiveMutation.isPending ? "Archiving…" : "Archive Thinkspace"}
-							</Button>
-						</div>
-					</section>
-				</>
-			)}
+					<PermissionsSection
+						grantedPermissions={grantedPermissions}
+						onRevokeGrantedPermission={handleRevokePermission}
+						requestedPermissions={requestedPermissions}
+						revokePermissionError={revokePermissionMutation.error}
+						revokingPermissionId={revokingPermissionId}
+					/>
+				</TabsPanel>
+
+				<TabsPanel className="grid gap-8" value="runtime">
+					<RuntimeSection
+						modelReadiness={modelReadiness}
+						runtimePolicy={runtimePolicy}
+						runtimeReadiness={runtimeReadiness}
+					/>
+					<Separator />
+					<SubmitTurnSection
+						isArchived={isArchived}
+						isDraft={isDraft}
+						modelReady={modelReadiness.status === "ready"}
+						thinkspaceId={thinkspaceId}
+					/>
+				</TabsPanel>
+			</Tabs>
 		</div>
 	);
 };

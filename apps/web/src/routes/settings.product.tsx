@@ -2,6 +2,13 @@ import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { Input } from "@better-agent/ui/components/input";
 import { Label } from "@better-agent/ui/components/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@better-agent/ui/components/select";
 import { Separator } from "@better-agent/ui/components/separator";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
@@ -57,6 +64,17 @@ const RouteComponent = () => {
 		}),
 	);
 
+	// Base UI Select reads `items` to show the selected label in the trigger.
+	const modelItems = catalogQuery.data.map((model) => ({
+		label: `${model.name} · ${model.providerName}`,
+		value: model.id,
+	}));
+	const reasoningItems = REASONING_EFFORTS.map((effort) => ({ label: effort, value: effort }));
+	const providerItems = Object.entries(PROVIDER_LABELS).map(([value, providerName]) => ({
+		label: providerName,
+		value,
+	}));
+
 	const defaultsChanged =
 		defaultModel !== defaultsQuery.data.defaultModel ||
 		defaultReasoningEffort !== defaultsQuery.data.reasoningEffort;
@@ -98,40 +116,48 @@ const RouteComponent = () => {
 					</p>
 				</div>
 				<form
-					className="grid max-w-xl gap-4 border border-border p-4"
+					className="grid max-w-xl gap-4 rounded-lg p-4 ring-1 ring-foreground/10"
 					onSubmit={handleDefaultsSubmit}
 				>
 					<div className="grid gap-1.5">
 						<Label htmlFor="default-model">Default model</Label>
-						<select
-							className="h-8 w-full border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30"
-							id="default-model"
-							onChange={(event) => setDefaultModel(event.target.value)}
+						<Select
+							items={modelItems}
+							onValueChange={(value) => setDefaultModel(value as string)}
 							value={defaultModel}
 						>
-							{catalogQuery.data.map((model) => (
-								<option key={model.id} value={model.id}>
-									{model.name} · {model.providerName} · {model.id}
-								</option>
-							))}
-						</select>
+							<SelectTrigger className="w-full" id="default-model">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{catalogQuery.data.map((model) => (
+									<SelectItem key={model.id} value={model.id}>
+										{model.name} · {model.providerName} · {model.id}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="grid gap-1.5">
 						<Label htmlFor="default-reasoning-effort">Reasoning effort</Label>
-						<select
-							className="h-8 w-full border border-input bg-transparent px-2.5 text-sm capitalize outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30"
-							id="default-reasoning-effort"
-							onChange={(event) =>
-								setDefaultReasoningEffort(event.target.value as (typeof REASONING_EFFORTS)[number])
+						<Select
+							items={reasoningItems}
+							onValueChange={(value) =>
+								setDefaultReasoningEffort(value as (typeof REASONING_EFFORTS)[number])
 							}
 							value={defaultReasoningEffort}
 						>
-							{REASONING_EFFORTS.map((effort) => (
-								<option key={effort} value={effort}>
-									{effort}
-								</option>
-							))}
-						</select>
+							<SelectTrigger className="w-full capitalize" id="default-reasoning-effort">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{REASONING_EFFORTS.map((effort) => (
+									<SelectItem className="capitalize" key={effort} value={effort}>
+										{effort}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					{saveDefaults.error ? (
 						<p className="text-destructive text-sm" role="alert">
@@ -159,7 +185,7 @@ const RouteComponent = () => {
 						Available models and their access status for your account.
 					</p>
 				</div>
-				<div className="border border-border">
+				<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 					{catalogQuery.data.map((model, index) => (
 						<div
 							key={model.id}
@@ -195,23 +221,28 @@ const RouteComponent = () => {
 						API keys are encrypted at rest. Only a redacted preview is shown after saving.
 					</p>
 				</div>
-				<form className="grid max-w-md gap-4 border border-border p-4" onSubmit={handleSubmit}>
+				<form
+					className="grid max-w-md gap-4 rounded-lg p-4 ring-1 ring-foreground/10"
+					onSubmit={handleSubmit}
+				>
 					<div className="grid gap-1.5">
 						<Label htmlFor="provider">Provider</Label>
-						<select
-							className="h-8 w-full border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 dark:bg-input/30"
-							id="provider"
-							onChange={(event) =>
-								setProviderId(event.target.value as keyof typeof PROVIDER_LABELS)
-							}
+						<Select
+							items={providerItems}
+							onValueChange={(value) => setProviderId(value as keyof typeof PROVIDER_LABELS)}
 							value={providerId}
 						>
-							{Object.entries(PROVIDER_LABELS).map(([id, name]) => (
-								<option key={id} value={id}>
-									{name}
-								</option>
-							))}
-						</select>
+							<SelectTrigger className="w-full" id="provider">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{Object.entries(PROVIDER_LABELS).map(([id, name]) => (
+									<SelectItem key={id} value={id}>
+										{name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="grid gap-1.5">
 						<Label htmlFor="credential-label">Label</Label>
@@ -246,7 +277,7 @@ const RouteComponent = () => {
 					</Button>
 				</form>
 				{credentialsQuery.data.length > 0 ? (
-					<div className="border border-border">
+					<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
 						{credentialsQuery.data.map((entry, index) => (
 							<div
 								key={entry.id}
