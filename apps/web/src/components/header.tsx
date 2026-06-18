@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@better-agent/ui/components/theme-toggle";
 import { Link } from "@tanstack/react-router";
 
 import UserMenu from "./user-menu";
@@ -29,7 +30,10 @@ export default function Header() {
 						))}
 					</nav>
 				</div>
-				<UserMenu />
+				<div className="flex items-center gap-2">
+					<ThemeToggle />
+					<UserMenu />
+				</div>
 			</div>
 		</header>
 	);

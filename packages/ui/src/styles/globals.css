@@ -25,6 +25,10 @@
 	--border: oklch(0.922 0 0);
 	--input: oklch(0.922 0 0);
 	--ring: oklch(0.708 0 0);
+	/* Sage accent (DESIGN.md §2). Tuned darker than the canonical 0.65 here so
+	   text-on-light clears WCAG AA; the dark block lightens it for the same
+	   reason. Restrained — affirmative signal only, never decoration. */
+	--sage: oklch(0.5 0.1 148);
 	--chart-1: oklch(0.809 0.105 251.813);
 	--chart-2: oklch(0.623 0.214 259.815);
 	--chart-3: oklch(0.546 0.245 262.881);
@@ -61,6 +65,7 @@
 	--border: oklch(1 0 0 / 10%);
 	--input: oklch(1 0 0 / 15%);
 	--ring: oklch(0.556 0 0);
+	--sage: oklch(0.8 0.07 148);
 	--chart-1: oklch(0.809 0.105 251.813);
 	--chart-2: oklch(0.623 0.214 259.815);
 	--chart-3: oklch(0.546 0.245 262.881);
@@ -93,6 +98,7 @@
 	--color-chart-2: var(--chart-2);
 	--color-chart-1: var(--chart-1);
 	--color-ring: var(--ring);
+	--color-sage: var(--sage);
 	--color-input: var(--input);
 	--color-border: var(--border);
 	--color-destructive: var(--destructive);

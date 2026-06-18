@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@better-agent/ui/components/theme-provider";
 import { Toaster } from "@better-agent/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -14,19 +15,23 @@ export interface RouterAppContext {
 	queryClient: QueryClient;
 }
 
+// suppressHydrationWarning: next-themes sets the theme class on <html> before
+// hydration, so the server-rendered markup intentionally differs for one tick.
 const RootDocument = () => (
-	<html lang="en" className="dark">
+	<html lang="en" suppressHydrationWarning>
 		<head>
 			<HeadContent />
 		</head>
 		<body>
-			<div className="grid h-svh grid-rows-[auto_1fr]">
-				<Header />
-				<main className="min-h-0 overflow-auto">
-					<Outlet />
-				</main>
-			</div>
-			<Toaster richColors />
+			<ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange enableSystem>
+				<div className="grid h-svh grid-rows-[auto_1fr]">
+					<Header />
+					<main className="min-h-0 overflow-auto">
+						<Outlet />
+					</main>
+				</div>
+				<Toaster richColors />
+			</ThemeProvider>
 			<TanStackRouterDevtools position="bottom-left" />
 			<ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
 			<Scripts />
