@@ -4,6 +4,7 @@ import type {
 	ThinkspaceApproval,
 	ThinkspaceApprovalStatus,
 } from "@better-agent/db/schema/approvals";
+import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import { and, desc, eq } from "drizzle-orm";
 
 export interface UpsertPendingThinkspaceApprovalInput {
@@ -118,6 +119,36 @@ export const listPendingThinkspaceApprovals = async (
 		.where(
 			and(
 				eq(thinkspaceApprovals.thinkspaceId, thinkspaceId),
+				eq(thinkspaceApprovals.status, THINKSPACE_APPROVAL_STATUS.PENDING),
+			),
+		)
+		.orderBy(desc(thinkspaceApprovals.createdAt));
+
+/** One Review Queue entry: the pending Approval row and the Goal of the Thinkspace it arose in. */
+export interface PendingThinkspaceApprovalListItem {
+	approval: ThinkspaceApproval;
+	thinkspaceGoal: string;
+}
+
+/**
+ * The cross-Thinkspace Review Queue read: every pending Approval the owner is
+ * holding, across all of their Thinkspaces, most-recent first. `owner_user_id`
+ * is denormalized onto the row so ownership filters without a join; the inner
+ * join carries only the Thinkspace's Goal, so each queue item can name where it
+ * arose. Owner-scoped by construction: an Approval is never visible to anyone
+ * but its owner.
+ */
+export const listPendingThinkspaceApprovalsByOwner = async (
+	db: ProductDb,
+	{ ownerUserId }: { ownerUserId: string },
+): Promise<PendingThinkspaceApprovalListItem[]> =>
+	await db
+		.select({ approval: thinkspaceApprovals, thinkspaceGoal: thinkspaces.goal })
+		.from(thinkspaceApprovals)
+		.innerJoin(thinkspaces, eq(thinkspaceApprovals.thinkspaceId, thinkspaces.id))
+		.where(
+			and(
+				eq(thinkspaceApprovals.ownerUserId, ownerUserId),
 				eq(thinkspaceApprovals.status, THINKSPACE_APPROVAL_STATUS.PENDING),
 			),
 		)

@@ -6,6 +6,7 @@ import {
 	decideOwnedThinkspaceMemoryApproval,
 	ThinkspaceApprovalValidationError,
 } from "../thinkspaces/approval-decisions";
+import { listPendingThinkspaceApprovalsByOwner } from "../thinkspaces/approvals-repository";
 
 export const THINKSPACE_APPROVAL_DECISION_REASON_MAX_LENGTH = 1000;
 
@@ -21,10 +22,10 @@ const toNotFound = (): ORPCError<"NOT_FOUND", undefined> =>
 
 /**
  * The Review Queue is the cross-Thinkspace control-plane surface for pending
- * Approvals: it reads the D1 index, and deciding drives the Durable Object that
- * owns the parked turn. This slice exposes only the decide half (the batched
- * list arrives with the Review Queue page); the listing of pending Approvals
- * across all of a user's Thinkspaces follows the same owner-indexed pattern.
+ * Approvals: `list` reads the owner-indexed D1 index (every pending Approval
+ * across all of a user's Thinkspaces), and `decide` drives the Durable Object
+ * that owns the parked turn. Both are owner-scoped — an Approval is invisible
+ * and undecidable from any other owner's queue.
  */
 export const approvalsRouter = {
 	decide: protectedProcedure.input(decideInput).handler(async ({ context, input }) => {
@@ -58,5 +59,19 @@ export const approvalsRouter = {
 			status: result.status,
 			thinkspaceId: result.thinkspaceId,
 		};
+	}),
+	list: protectedProcedure.handler(async ({ context }) => {
+		const pending = await listPendingThinkspaceApprovalsByOwner(context.db, {
+			ownerUserId: context.session.user.id,
+		});
+
+		return pending.map(({ approval, thinkspaceGoal }) => ({
+			actionKind: approval.actionKind,
+			approvalId: approval.id,
+			proposedAt: approval.createdAt,
+			proposedSummary: approval.proposedSummary,
+			thinkspaceGoal,
+			thinkspaceId: approval.thinkspaceId,
+		}));
 	}),
 };

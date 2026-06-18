@@ -18,10 +18,17 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as ThinkspacesThinkspaceIdRouteImport } from './routes/thinkspaces.$thinkspaceId'
 import { Route as SettingsProfileRouteImport } from './routes/settings.profile'
 import { Route as SettingsProductRouteImport } from './routes/settings.product'
+import { Route as ReviewQueueRouteImport } from './routes/review-queue'
+import { Route as ReviewQueueIndexRouteImport } from './routes/review-queue.index'
 
 const ThinkspacesRoute = ThinkspacesRouteImport.update({
   id: '/thinkspaces',
   path: '/thinkspaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewQueueRoute = ReviewQueueRouteImport.update({
+  id: '/review-queue',
+  path: '/review-queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -43,6 +50,11 @@ const ThinkspacesIndexRoute = ThinkspacesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ThinkspacesRoute,
+} as any)
+const ReviewQueueIndexRoute = ReviewQueueIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ReviewQueueRoute,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
@@ -68,11 +80,13 @@ const SettingsProductRoute = SettingsProductRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/review-queue': typeof ReviewQueueRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/thinkspaces': typeof ThinkspacesRouteWithChildren
   '/settings/product': typeof SettingsProductRoute
   '/settings/profile': typeof SettingsProfileRoute
   '/thinkspaces/$thinkspaceId': typeof ThinkspacesThinkspaceIdRoute
+  '/review-queue/': typeof ReviewQueueIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/thinkspaces/': typeof ThinkspacesIndexRoute
 }
@@ -82,6 +96,7 @@ export interface FileRoutesByTo {
   '/settings/product': typeof SettingsProductRoute
   '/settings/profile': typeof SettingsProfileRoute
   '/thinkspaces/$thinkspaceId': typeof ThinkspacesThinkspaceIdRoute
+  '/review-queue': typeof ReviewQueueIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/thinkspaces': typeof ThinkspacesIndexRoute
 }
@@ -89,11 +104,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/review-queue': typeof ReviewQueueRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/thinkspaces': typeof ThinkspacesRouteWithChildren
   '/settings/product': typeof SettingsProductRoute
   '/settings/profile': typeof SettingsProfileRoute
   '/thinkspaces/$thinkspaceId': typeof ThinkspacesThinkspaceIdRoute
+  '/review-queue/': typeof ReviewQueueIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/thinkspaces/': typeof ThinkspacesIndexRoute
 }
@@ -102,11 +119,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/review-queue'
     | '/settings'
     | '/thinkspaces'
     | '/settings/product'
     | '/settings/profile'
     | '/thinkspaces/$thinkspaceId'
+    | '/review-queue/'
     | '/settings/'
     | '/thinkspaces/'
   fileRoutesByTo: FileRoutesByTo
@@ -116,17 +135,20 @@ export interface FileRouteTypes {
     | '/settings/product'
     | '/settings/profile'
     | '/thinkspaces/$thinkspaceId'
+    | '/review-queue'
     | '/settings'
     | '/thinkspaces'
   id:
     | '__root__'
     | '/'
     | '/login'
+    | '/review-queue'
     | '/settings'
     | '/thinkspaces'
     | '/settings/product'
     | '/settings/profile'
     | '/thinkspaces/$thinkspaceId'
+    | '/review-queue/'
     | '/settings/'
     | '/thinkspaces/'
   fileRoutesById: FileRoutesById
@@ -134,6 +156,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  ReviewQueueRoute: typeof ReviewQueueRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
   ThinkspacesRoute: typeof ThinkspacesRouteWithChildren
 }
@@ -161,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/review-queue': {
+      id: '/review-queue'
+      path: '/review-queue'
+      fullPath: '/review-queue'
+      preLoaderRoute: typeof ReviewQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -174,6 +204,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/thinkspaces/'
       preLoaderRoute: typeof ThinkspacesIndexRouteImport
       parentRoute: typeof ThinkspacesRoute
+    }
+    '/review-queue/': {
+      id: '/review-queue/'
+      path: '/'
+      fullPath: '/review-queue/'
+      preLoaderRoute: typeof ReviewQueueIndexRouteImport
+      parentRoute: typeof ReviewQueueRoute
     }
     '/settings/': {
       id: '/settings/'
@@ -236,9 +273,22 @@ const ThinkspacesRouteWithChildren = ThinkspacesRoute._addFileChildren(
   ThinkspacesRouteChildren,
 )
 
+interface ReviewQueueRouteChildren {
+  ReviewQueueIndexRoute: typeof ReviewQueueIndexRoute
+}
+
+const ReviewQueueRouteChildren: ReviewQueueRouteChildren = {
+  ReviewQueueIndexRoute: ReviewQueueIndexRoute,
+}
+
+const ReviewQueueRouteWithChildren = ReviewQueueRoute._addFileChildren(
+  ReviewQueueRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  ReviewQueueRoute: ReviewQueueRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
   ThinkspacesRoute: ThinkspacesRouteWithChildren,
 }
