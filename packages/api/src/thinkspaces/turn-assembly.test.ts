@@ -7,7 +7,11 @@ import {
 	createMemoryPermissionPolicy,
 } from "./permission-policy";
 import { THINKSPACE_RUNTIME_MAX_STEPS } from "./runtime-policy";
-import { assembleThinkspaceTurn } from "./turn-assembly";
+import {
+	assembleThinkspaceTurn,
+	buildThinkspaceAgentSystemPrompt,
+	THINKSPACE_AGENT_GROUNDING_CLAUSE,
+} from "./turn-assembly";
 
 const NOW = new Date("2026-06-10T12:00:00.000Z");
 
@@ -65,4 +69,21 @@ test("enabled tools without a potency verdict stay inert", () => {
 	const assembly = assembleThinkspaceTurn({ revision: REVISION, toolPotencies: [] });
 
 	assert.deepEqual(assembly.activeTools, []);
+});
+
+test("the system prompt grounds the agent against claiming actions it has no tool for", () => {
+	const assembly = assembleThinkspaceTurn({ revision: REVISION, toolPotencies: [] });
+
+	assert.ok(assembly.systemPrompt.includes(THINKSPACE_AGENT_GROUNDING_CLAUSE));
+});
+
+test("the grounding clause is present even when the profile has no custom instructions", () => {
+	const prompt = buildThinkspaceAgentSystemPrompt({
+		...REVISION,
+		identity: { displayName: "Release Monitor", instructions: "" },
+	});
+
+	assert.match(prompt, /Release Monitor/u);
+	assert.ok(prompt.includes(THINKSPACE_AGENT_GROUNDING_CLAUSE));
+	assert.doesNotMatch(prompt, /\n\n\n/u);
 });
