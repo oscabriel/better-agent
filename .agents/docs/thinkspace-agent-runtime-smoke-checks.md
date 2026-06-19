@@ -533,9 +533,105 @@ notes".`), the search by its query, the fetch by its URL — with no raw
 Add one row per smoke execution. The issue is not complete until all required
 branches above have a passing row against the target deployment.
 
-| Date       | Stage / URL                        | Commit SHA | Operator    | Granted reads + inspection | No-grant inert | Revoked inert | Cross-Thinkspace seal | Notes                                                                                                                |
-| ---------- | ---------------------------------- | ---------- | ----------- | -------------------------- | -------------- | ------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 2026-06-12 | Not executed in this agent session | (issue #89 branch) | fable agent | Not run | Not run | Not run | Not run | Documentation checklist added with the inspection-rendering slice; live execution still requires a deployed/local stage plus owner BYOK model credential. |
+| Date       | Stage / URL                        | Commit SHA         | Operator    | Granted reads + inspection | No-grant inert | Revoked inert | Cross-Thinkspace seal | Notes                                                                                                                                                     |
+| ---------- | ---------------------------------- | ------------------ | ----------- | -------------------------- | -------------- | ------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-12 | Not executed in this agent session | (issue #89 branch) | fable agent | Not run                    | Not run        | Not run       | Not run               | Documentation checklist added with the inspection-rendering slice; live execution still requires a deployed/local stage plus owner BYOK model credential. |
+
+## 11. Held external mutation round-trip: GitHub issues (issue #115)
+
+Expectation: a Thinkspace Agent can propose a GitHub issue through the held
+`create_github_issue` tool, the proposal is parked as a product Approval on both
+decision surfaces, and only an owner approval runs the tool's `execute` — the
+only place the owner's Connected Account credential is decrypted
+(`packages/api/src/thinkspaces/github-issue-creator.ts`, ADR-0009). A rejection
+never touches the token; a dead token fails honestly with a reconnect prompt and
+never fabricates success (`packages/api/src/connected-accounts/github-issues.ts`,
+`GitHubIssueCreationError.needsReconnect`). This is the external-mutation analog
+of the safe-reads (§10) and MCP (§9) loops.
+
+Secrets hygiene: the live round trip needs a **fine-grained GitHub PAT** with
+`issues: write` on a throwaway repo. Treat it like any credential in the
+"Secrets hygiene" section above — paste it only into the Connected Accounts
+form, never commit it, and disconnect/rotate it after the run.
+
+Live-round-trip precondition (all four must hold for `github:create_issue` to be
+potent): the tool is **enabled** on the active Profile revision ∩ the
+`connected_account_credential` Permission is **granted** at activation ∩ a
+**GitHub account is connected** ∩ a **tool-call-capable model** is configured
+(the default `google:gemini-2.5-flash-lite` may not reliably emit the held
+tool). This mirrors the memory-holdpoint precondition (enable ∩ grant ∩ capable
+model), plus the connected-account credential.
+
+### 11.1 Connect + equip: enable ∩ grant ∩ connected ∩ capable
+
+- [ ] `/settings/product` → Connected Accounts → paste the PAT → Connect
+      (`connectedAccounts.connect`, `packages/api/src/connected-accounts/router.ts`).
+      The row reads **"Connected as @&lt;login&gt;"** — the PAT was validated via
+      the GitHub `GET /user` and the login stored as `externalAccountId`; an
+      invalid token is rejected with no row and no fabricated success.
+- [ ] `/thinkspaces/<TS-A>` → Tools → **Create GitHub issue** → Select. The draft
+      gains a `source: "connected_account"` enablement for `github:create_issue`
+      and a `connected_account_credential` Permission request; the Permissions
+      section lists **"Connected Account credential: github"**.
+- [ ] Activate the Profile so the request becomes a grant. The Tools row for
+      `github:create_issue` then shows **Potent** (enable ∩ grant ∩
+      credential-exists, `packages/api/src/thinkspaces/permission-policy.ts`).
+      Disconnecting the account, or revoking the grant, returns it to **Inert**.
+
+### 11.2 Inline-in-Sitting: propose → approve → real issue → resume
+
+- [ ] In a Sitting on TS-A, instruct the agent to create an issue in the
+      throwaway repo. A **GitHub issue proposal** card renders (repo prominent,
+      title, body) badged "Awaiting your decision"; nothing is created yet (the
+      `tool-create_github_issue` part is parked in `approval-requested`,
+      `apps/web/src/components/sitting-section.tsx`).
+- [ ] Approve inline. The card flips to "Approved", the parked turn resumes
+      (`addToolApprovalResponse` → DO continuation), and the agent reports the
+      created issue number + URL.
+- [ ] On GitHub, the issue exists in the repo.
+
+### 11.3 Review Queue: propose → leave → approve from queue → resume
+
+- [ ] Prompt a second proposal and leave it pending. `/review-queue` lists it
+      with the "GitHub issue" badge and the repo prominent (`approvals.list`
+      carries `proposedContent`, parsed by `parseProposedGitHubIssue`).
+- [ ] Approve from the queue (`approvals.decide` → DO `decideApproval`). The
+      parked turn resumes in the runtime and the issue is created; the item
+      leaves the queue.
+- [ ] On GitHub, the second issue exists.
+
+### 11.4 Reject: nothing created, credential never read
+
+- [ ] Prompt a third proposal and reject it (inline or from the queue). On
+      GitHub, no issue is created. Because the held tool's `execute` never runs
+      on a rejection, the owner's PAT is never decrypted (the store-backed
+      creator reads nothing until `create()`).
+
+### 11.5 Dead token: honest failure + reconnect, no fabricated success
+
+- [ ] Revoke the PAT on GitHub (or reconnect a revoked one), keeping the tool
+      enabled and granted. Propose and approve an issue. The agent reports an
+      honest failure with a reconnect prompt (`GitHubIssueCreationError` with
+      `needsReconnect` on a 401/403, surfaced via `toExternalMutationToolFailure`)
+      and never claims the issue was created. On GitHub, no issue exists.
+- [ ] Reconnect a valid PAT and confirm §11.2 succeeds again.
+
+### 11.6 Non-owner: the Connected Account and Approval surfaces are sealed
+
+- [ ] As the intruder user, the owner's Connected Account, TS-A's equip surface,
+      and the owner's pending Approvals are invisible: `approvals.list` returns
+      `[]`, and `approvals.decide` / `connectedAccounts.disconnect` against the
+      owner's resources return NOT_FOUND (owner-gated null → 404,
+      `decideOwnedThinkspaceApproval`), never existence disclosure.
+
+### 11.7 Result record
+
+Add one row per smoke execution. The issue is not complete until every branch
+above has a passing row against the target deployment.
+
+| Date       | Stage / URL                                        | Commit SHA | Operator | Inline approve (11.2) | Queue approve (11.3) | Reject (11.4) | Dead token (11.5) | Non-owner seal (11.6) | Notes                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------- | -------------------------------------------------- | ---------- | -------- | --------------------- | -------------------- | ------------- | ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-06-19 | Local `bun run dev` (workerd, localhost:3001/3000) | `5858998`  | owner    | PASS                  | PASS                 | PASS          | PASS              | PASS                  | Owner-run live verification on the #114 merge. Inline approve created a real issue and resumed the turn; queue approve resumed the parked turn and created the issue; reject created nothing and never read the credential; revoked token surfaced an honest failure + reconnect prompt with no fabricated success; non-owner saw none of the Connected Account / Approval surfaces. |
 
 ## Appendix: temporary local DO probe (optional deep checks)
 
