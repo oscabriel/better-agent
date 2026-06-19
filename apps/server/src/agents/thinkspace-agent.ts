@@ -21,7 +21,13 @@ import {
 	prepareThinkspaceBuiltInRuntimeTools,
 	THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON,
 } from "@better-agent/api/thinkspaces/built-in-runtime-tools";
-import { assertThinkspaceRuntimePolicySupportsExternalMutationTools } from "@better-agent/api/thinkspaces/connected-account-runtime-tools";
+import {
+	assertThinkspaceRuntimePolicySupportsExternalMutationTools,
+	evaluateConnectedAccountRuntimeToolCallPermission,
+	prepareThinkspaceConnectedAccountRuntimeTools,
+	THINKSPACE_CONNECTED_ACCOUNT_TOOL_BLOCKED_REASON,
+} from "@better-agent/api/thinkspaces/connected-account-runtime-tools";
+import { createThinkspaceGitHubIssueCreator } from "@better-agent/api/thinkspaces/github-issue-creator";
 import { createFetchWebReader } from "@better-agent/api/thinkspaces/web-reader";
 import {
 	extractPendingMemoryApprovals,
@@ -407,8 +413,24 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			connectServer: ({ server }) => this.connectBuiltInMcpServerForTurn(server),
 			servers: mcpPlan.servers,
 		});
+
+		// Held external mutations: the credential is bound but read only inside the
+		// tool's execute, which runs only on an owner-approved continuation.
+		const connectedAccountPreparation = prepareThinkspaceConnectedAccountRuntimeTools({
+			activeProductToolIds: assembly.activeTools,
+			gitHubIssueCreator: createThinkspaceGitHubIssueCreator({
+				db,
+				encryptionSecret: this.env.API_ENCRYPTION_KEY ?? this.env.BETTER_AUTH_SECRET,
+				ownerUserId: turnContext.ownerUserId,
+			}),
+		});
+
 		const turnConfig = createThinkspaceRuntimeTurnConfig({
-			activeTools: [...builtInPreparation.activeToolNames, ...mcpPreparation.activeToolNames],
+			activeTools: [
+				...builtInPreparation.activeToolNames,
+				...mcpPreparation.activeToolNames,
+				...connectedAccountPreparation.activeToolNames,
+			],
 		});
 		const systemNotices = [
 			builtInPreparation.sourceManifestNotice,
@@ -419,7 +441,11 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			...turnConfig,
 			model: resolved.model,
 			system: [assembly.systemPrompt, ...systemNotices].join("\n\n"),
-			tools: { ...builtInPreparation.tools, ...mcpPreparation.tools },
+			tools: {
+				...builtInPreparation.tools,
+				...mcpPreparation.tools,
+				...connectedAccountPreparation.tools,
+			},
 		};
 	}
 
@@ -474,6 +500,25 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 				return {
 					action: "block",
 					reason: builtInDecision.reason ?? THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON,
+				};
+			}
+
+			const connectedAccountDecision = await evaluateConnectedAccountRuntimeToolCallPermission({
+				permissionPolicy,
+				revision: resolved.activeRevision,
+				runtimeToolName: ctx.toolName,
+				thinkspaceId: turnContext.thinkspaceId,
+			});
+
+			if (connectedAccountDecision.applies) {
+				if (connectedAccountDecision.allowed) {
+					return;
+				}
+
+				return {
+					action: "block",
+					reason:
+						connectedAccountDecision.reason ?? THINKSPACE_CONNECTED_ACCOUNT_TOOL_BLOCKED_REASON,
 				};
 			}
 
