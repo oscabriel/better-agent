@@ -31,6 +31,9 @@ const RouteComponent = () => {
 	const catalogQuery = useSuspenseQuery(context.orpc.models.listAvailable.queryOptions());
 	const credentialsQuery = useSuspenseQuery(context.orpc.models.listCredentials.queryOptions());
 	const defaultsQuery = useSuspenseQuery(context.orpc.models.getDefaults.queryOptions());
+	const connectedAccountsQuery = useSuspenseQuery(
+		context.orpc.connectedAccounts.list.queryOptions(),
+	);
 	const [defaultModel, setDefaultModel] = useState(defaultsQuery.data.defaultModel);
 	const [defaultReasoningEffort, setDefaultReasoningEffort] = useState(
 		defaultsQuery.data.reasoningEffort,
@@ -38,6 +41,7 @@ const RouteComponent = () => {
 	const [providerId, setProviderId] = useState<keyof typeof PROVIDER_LABELS>("openai");
 	const [credential, setCredential] = useState("");
 	const [label, setLabel] = useState("");
+	const [githubToken, setGithubToken] = useState("");
 	const saveDefaults = useMutation(
 		context.orpc.models.updateDefaults.mutationOptions({
 			onSuccess: async (settings) => {
@@ -60,6 +64,25 @@ const RouteComponent = () => {
 						queryKey: context.orpc.models.listCredentials.queryKey(),
 					}),
 				]);
+			},
+		}),
+	);
+	const connectGithub = useMutation(
+		context.orpc.connectedAccounts.connect.mutationOptions({
+			onSuccess: async () => {
+				setGithubToken("");
+				await queryClient.invalidateQueries({
+					queryKey: context.orpc.connectedAccounts.list.queryKey(),
+				});
+			},
+		}),
+	);
+	const disconnectGithub = useMutation(
+		context.orpc.connectedAccounts.disconnect.mutationOptions({
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({
+					queryKey: context.orpc.connectedAccounts.list.queryKey(),
+				});
 			},
 		}),
 	);
@@ -93,6 +116,14 @@ const RouteComponent = () => {
 			return;
 		}
 		saveCredential.mutate({ credential, label: label.trim() || undefined, providerId });
+	};
+
+	const handleGithubSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (githubToken.trim().length < 20 || connectGithub.isPending) {
+			return;
+		}
+		connectGithub.mutate({ token: githubToken.trim() });
 	};
 
 	return (
@@ -294,6 +325,84 @@ const RouteComponent = () => {
 				) : (
 					<p className="text-muted-foreground text-sm">No credentials saved.</p>
 				)}
+			</section>
+
+			<Separator />
+
+			<section aria-labelledby="connected-accounts-heading" className="grid gap-4">
+				<div className="grid gap-1">
+					<h3 className="text-sm font-medium" id="connected-accounts-heading">
+						Connected Accounts
+					</h3>
+					<p className="text-muted-foreground text-sm">
+						Connect a GitHub account with a fine-grained personal access token. The token is
+						validated with GitHub, encrypted at rest, and used only after you approve a specific
+						action.
+					</p>
+				</div>
+				<form
+					className="grid max-w-md gap-4 rounded-lg p-4 ring-1 ring-foreground/10"
+					onSubmit={handleGithubSubmit}
+				>
+					<div className="grid gap-1.5">
+						<Label htmlFor="github-token">GitHub personal access token</Label>
+						<Input
+							autoComplete="off"
+							id="github-token"
+							onChange={(event) => setGithubToken(event.target.value)}
+							placeholder="github_pat_…"
+							type="password"
+							value={githubToken}
+						/>
+					</div>
+					{connectGithub.error ? (
+						<p className="text-destructive text-sm" role="alert">
+							{connectGithub.error.message}
+						</p>
+					) : null}
+					<Button
+						className="w-fit"
+						disabled={githubToken.trim().length < 20 || connectGithub.isPending}
+						type="submit"
+					>
+						{connectGithub.isPending ? "Connecting…" : "Connect GitHub"}
+					</Button>
+				</form>
+				{connectedAccountsQuery.data.length > 0 ? (
+					<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
+						{connectedAccountsQuery.data.map((account, index) => (
+							<div
+								className={`flex items-center justify-between gap-4 p-4 text-sm ${index < connectedAccountsQuery.data.length - 1 ? "border-b border-border" : ""}`}
+								key={account.id}
+							>
+								<div className="grid gap-1">
+									<span className="font-medium">GitHub</span>
+									<span className="text-muted-foreground text-xs">
+										{account.externalAccountId
+											? `Connected as @${account.externalAccountId}`
+											: "Connected"}
+									</span>
+								</div>
+								<Button
+									disabled={disconnectGithub.isPending}
+									onClick={() => disconnectGithub.mutate({ accountId: account.id })}
+									size="sm"
+									type="button"
+									variant="outline"
+								>
+									{disconnectGithub.isPending ? "Disconnecting…" : "Disconnect"}
+								</Button>
+							</div>
+						))}
+					</div>
+				) : (
+					<p className="text-muted-foreground text-sm">No connected accounts.</p>
+				)}
+				{disconnectGithub.error ? (
+					<p className="text-destructive text-sm" role="alert">
+						{disconnectGithub.error.message}
+					</p>
+				) : null}
 			</section>
 		</div>
 	);
