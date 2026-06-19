@@ -4,16 +4,11 @@ import { ORPCError } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { encryptCredential, redactCredential } from "../crypto";
 import { protectedProcedure, publicProcedure } from "../procedures";
 import { DEFAULT_MODEL_ID, MODEL_PROVIDER_IDS } from "./catalog";
 import { ModelCatalogError } from "./model-catalog";
-import {
-	encryptCredential,
-	getCredentialMap,
-	listProviderCredentials,
-	redactCredential,
-	upsertProviderCredential,
-} from "./credentials";
+import { getCredentialMap, listProviderCredentials, upsertProviderCredential } from "./credentials";
 
 const REASONING_EFFORTS = ["low", "medium", "high"] as const;
 

@@ -14,9 +14,9 @@ import type { AnyProcedure } from "@orpc/server";
 import { eq } from "drizzle-orm";
 
 import type { Context } from "../context";
+import { encryptCredential } from "../crypto";
 import { getModelCatalog } from "../models/catalog";
 import type { ModelCatalogEntry } from "../models/catalog";
-import { encryptCredential } from "../models/credentials";
 import { createMemoryModelCatalog } from "../models/model-catalog";
 import type { ModelCatalog } from "../models/model-catalog";
 import { createTestProductDb } from "../testing/product-db";

@@ -27,6 +27,16 @@ export {
 } from "./approvals";
 export { timestampMsNow } from "./common";
 export {
+	connectedAccountCatalog,
+	connectedAccountCatalogRelations,
+	type ConnectedAccountCatalogEntry,
+	type NewConnectedAccountCatalogEntry,
+	type NewUserConnectedAccount,
+	type UserConnectedAccount,
+	userConnectedAccounts,
+	userConnectedAccountsRelations,
+} from "./connected-accounts";
+export {
 	type NewThinkspaceMemory,
 	thinkspaceMemoryRelations,
 	type ThinkspaceMemory,
