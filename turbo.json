@@ -21,16 +21,7 @@
 		"db:generate": {
 			"cache": false
 		},
-		"db:migrate:local": {
-			"cache": false
-		},
 		"db:migrate:remote": {
-			"cache": false
-		},
-		"db:push": {
-			"cache": false
-		},
-		"db:push:local": {
 			"cache": false
 		},
 		"db:push:remote": {

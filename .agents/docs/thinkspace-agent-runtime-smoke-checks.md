@@ -42,10 +42,13 @@ do not skip a product-surface check because "the logs showed it worked".
 1. Ensure env files exist for the stage (`packages/infra/.env*`,
    `apps/server/.env*`, `apps/web/.env*`); `packages/infra/alchemy.run.ts:37-43`
    fails fast on missing required names.
-2. `bun install`, then `bun run db:migrate:local` for a fresh local D1.
-3. `bun run dev` — runs `alchemy dev` (local workerd via miniflare) plus local
-   Drizzle studio. Note the printed `Web ->` and `Server ->` URLs; the API
-   Worker serves on port 3000 (`packages/infra/alchemy.run.ts:103-105`).
+2. `bun install`.
+3. `bun run dev` — runs `alchemy dev`, which manages the local Cloudflare
+   resources (workerd via miniflare) and applies the D1 migrations from
+   `packages/db/src/migrations` to the local database; it also launches local
+   Drizzle Studio as a read-only viewer. Note the printed `Web ->` and
+   `Server ->` URLs; the API Worker serves on port 3000
+   (`packages/infra/alchemy.run.ts:103-105`).
 4. Export for the curl steps below (adjust to the printed URLs):
 
    ```sh
