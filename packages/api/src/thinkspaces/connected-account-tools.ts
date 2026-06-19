@@ -11,6 +11,8 @@
  */
 import { THINKSPACE_PERMISSION_KINDS } from "@better-agent/db/schema/permissions";
 
+import type { ConnectedAccountCredentialPermissionRequest } from "./agent-profile";
+
 export type ConnectedAccountToolPermissionKind =
 	typeof THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL;
 
@@ -34,3 +36,40 @@ export const connectedAccountToolPermissionKind = (
 	toolId: string,
 ): ConnectedAccountToolPermissionKind | null =>
 	toolId.length > 0 ? THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL : null;
+
+const CONNECTED_ACCOUNT_PERMISSION_REASONS: Readonly<Record<string, string>> = {
+	github:
+		"Allow this Thinkspace Agent to act with your connected GitHub account — for example, to create an issue you approve.",
+};
+
+const DEFAULT_CONNECTED_ACCOUNT_PERMISSION_REASON =
+	"Allow this Thinkspace Agent to act with this connected account, held for your Approval.";
+
+/**
+ * One `connected_account_credential` Permission request per catalog id, however
+ * many of that catalog's tools are enabled — mirroring
+ * `createBuiltInToolPermissionRequests`. The request grants the Thinkspace the
+ * use of the owner's product-level credential; potency still also requires the
+ * account to be connected (credential-exists, PRD #108).
+ */
+export const createConnectedAccountToolPermissionRequests = (
+	toolIds: readonly string[],
+): ConnectedAccountCredentialPermissionRequest[] => {
+	const catalogIds = new Set<string>();
+
+	for (const toolId of toolIds) {
+		const catalogId = connectedAccountCatalogIdFromToolId(toolId);
+
+		if (catalogId) {
+			catalogIds.add(catalogId);
+		}
+	}
+
+	return [...catalogIds].map((catalogId) => ({
+		catalogId,
+		kind: "connected_account_credential",
+		reason:
+			CONNECTED_ACCOUNT_PERMISSION_REASONS[catalogId] ??
+			DEFAULT_CONNECTED_ACCOUNT_PERMISSION_REASON,
+	}));
+};
