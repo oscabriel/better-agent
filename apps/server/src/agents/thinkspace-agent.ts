@@ -21,6 +21,7 @@ import {
 	prepareThinkspaceBuiltInRuntimeTools,
 	THINKSPACE_BUILT_IN_TOOL_BLOCKED_REASON,
 } from "@better-agent/api/thinkspaces/built-in-runtime-tools";
+import { assertThinkspaceRuntimePolicySupportsExternalMutationTools } from "@better-agent/api/thinkspaces/connected-account-runtime-tools";
 import { createFetchWebReader } from "@better-agent/api/thinkspaces/web-reader";
 import {
 	extractPendingMemoryApprovals,
@@ -374,6 +375,9 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			toolPotencies,
 		});
 		assertThinkspaceRuntimePolicySupportsBuiltInTools({
+			activeProductToolIds: assembly.activeTools,
+		});
+		assertThinkspaceRuntimePolicySupportsExternalMutationTools({
 			activeProductToolIds: assembly.activeTools,
 		});
 

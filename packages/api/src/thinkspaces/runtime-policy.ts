@@ -3,7 +3,7 @@ import type { Thinkspace } from "@better-agent/db/schema/thinkspaces";
 
 import { getThinkspace } from "./repository";
 
-export const THINKSPACE_RUNTIME_POLICY_ID = "governed_tools_v3" as const;
+export const THINKSPACE_RUNTIME_POLICY_ID = "governed_tools_v4" as const;
 export const THINKSPACE_RUNTIME_POLICY_MODE = "governed_writes" as const;
 export const THINKSPACE_RUNTIME_MAX_STEPS = 1 as const;
 export const THINKSPACE_RUNTIME_TOOL_MAX_STEPS = 8 as const;
@@ -22,8 +22,8 @@ export const THINKSPACE_RUNTIME_CAPABILITY_IDS = [
 export type ThinkspaceRuntimeCapabilityId = (typeof THINKSPACE_RUNTIME_CAPABILITY_IDS)[number];
 
 /**
- * The held-internal-write capability class — the single mutation-shaped
- * capability `governed_tools_v3` newly enables over `safe_reads_v2` (PRD #92,
+ * The held-internal-write capability class — the mutation-shaped capability
+ * `governed_tools_v3` first enabled over the read-only `safe_reads_v2` (PRD #92,
  * #93). The agent may propose a durable Product Memory, but the proposal is
  * held for the owner's Approval before it takes effect; the capability being
  * enabled never lets a write execute on its own.
@@ -31,13 +31,27 @@ export type ThinkspaceRuntimeCapabilityId = (typeof THINKSPACE_RUNTIME_CAPABILIT
 export const THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID = "memory_writes" as const;
 
 /**
- * `governed_tools_v3` keeps built-in read tools enabled and adds exactly one
- * capability class — held internal writes — over the read-only `safe_reads_v2`.
- * Every other mutation-shaped capability stays disabled (PRD #92, #93).
+ * The held-external-write capability class — the one mutation-shaped capability
+ * `governed_tools_v4` newly enables over `governed_tools_v3` (PRD #108). The
+ * agent may propose an external mutation — creating a GitHub issue through a
+ * Connected Account — but, exactly like a held Memory write, the proposal is
+ * held for the owner's Approval before it takes effect; enabling the capability
+ * never lets a mutation execute on its own. `connected_account_tools` stays
+ * disabled (reserved for future read-only Connected Account tools).
+ */
+export const THINKSPACE_RUNTIME_HELD_EXTERNAL_WRITE_CAPABILITY_ID = "external_mutations" as const;
+
+/**
+ * `governed_tools_v4` keeps built-in read tools enabled and holds every write
+ * for Approval: it adds the held-external-write class to the held-internal-write
+ * class `governed_tools_v3` already enabled, so exactly three capabilities are
+ * on. Every other mutation-shaped capability — `connected_account_tools`,
+ * workspace bash, and the rest — stays disabled (PRD #92, #93, #108).
  */
 export const THINKSPACE_RUNTIME_ENABLED_CAPABILITY_IDS = [
 	"builtin_read_tools",
 	THINKSPACE_RUNTIME_HELD_WRITE_CAPABILITY_ID,
+	THINKSPACE_RUNTIME_HELD_EXTERNAL_WRITE_CAPABILITY_ID,
 ] as const;
 
 const ENABLED_CAPABILITY_ID_SET: ReadonlySet<ThinkspaceRuntimeCapabilityId> = new Set(
@@ -107,7 +121,7 @@ export const THINKSPACE_RUNTIME_POLICY: ThinkspaceRuntimePolicy = {
 	})),
 	maxSteps: THINKSPACE_RUNTIME_MAX_STEPS,
 	message:
-		"This Thinkspace Agent can read freely and may propose a durable Product Memory, but every write is held for your Approval before it takes effect: built-in read-only tools and held Memory writes are the only enabled capabilities, and each still requires enablement on the active Agent Profile revision plus a potent Permission verdict.",
+		"This Thinkspace Agent can read freely and may propose durable changes — a Product Memory, or an external mutation such as creating a GitHub issue through a Connected Account — but every write is held for your Approval before it takes effect: built-in read-only tools, held Memory writes, and held external mutations are the only enabled capabilities, and each still requires enablement on the active Agent Profile revision plus a potent Permission verdict.",
 	mode: THINKSPACE_RUNTIME_POLICY_MODE,
 	policyId: THINKSPACE_RUNTIME_POLICY_ID,
 	workspaceBash: false,
