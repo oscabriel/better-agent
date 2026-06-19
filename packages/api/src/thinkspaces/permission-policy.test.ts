@@ -3,11 +3,13 @@ import test from "node:test";
 
 import type { ProductDb } from "@better-agent/db";
 import { user } from "@better-agent/db/schema/auth";
+import { userConnectedAccounts } from "@better-agent/db/schema/connected-accounts";
 import {
 	THINKSPACE_PERMISSION_KINDS,
 	thinkspacePermissions,
 } from "@better-agent/db/schema/permissions";
 import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
+import { eq } from "drizzle-orm";
 import { createTestProductDb } from "../testing/product-db";
 import type { ActiveAgentProfileRevision, ToolEnablement } from "./agent-profile";
 import { revokeThinkspacePermission } from "./permissions";
@@ -53,6 +55,34 @@ const grantMcpToolAccess = async (
 		kind: THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS,
 		providerId: serverId,
 		thinkspaceId,
+	});
+};
+
+const connectedAccountGrantId = (catalogId: string, thinkspaceId = THINKSPACE_ID): string =>
+	`thinkspace_permission_ca_${catalogId}_${thinkspaceId}`;
+
+const grantConnectedAccountCredential = async (
+	db: ProductDb,
+	catalogId: string,
+	thinkspaceId = THINKSPACE_ID,
+) => {
+	await db.insert(thinkspacePermissions).values({
+		grantedByUserId: OWNER_USER_ID,
+		id: connectedAccountGrantId(catalogId, thinkspaceId),
+		kind: THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL,
+		providerId: catalogId,
+		thinkspaceId,
+	});
+};
+
+const connectOwnerAccount = async (db: ProductDb, catalogId: string, userId = OWNER_USER_ID) => {
+	await db.insert(userConnectedAccounts).values({
+		catalogId,
+		credentialType: "pat",
+		encryptedCredential: "encrypted",
+		externalAccountId: "octocat",
+		id: `connected_account_${catalogId}_${userId}`,
+		userId,
 	});
 };
 
@@ -351,4 +381,111 @@ test("store-backed verdicts feeding turn assembly never activate tools the revis
 	const assembly = assembleThinkspaceTurn({ revision, toolPotencies });
 
 	assert.deepEqual(assembly.activeTools, ["web_search", "cloudflare-docs"]);
+});
+
+test("a connected-account tool is inert with the grant but no connected account (credential-exists axis missing)", async () => {
+	const db = await createSeededDb();
+	await grantConnectedAccountCredential(db, "github");
+
+	const verdicts = await evaluate(db, [
+		{ source: "connected_account", toolId: "github:create_issue" },
+	]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "github:create_issue" }]);
+});
+
+test("a connected-account tool is inert with a connected account but no grant (grant axis missing)", async () => {
+	const db = await createSeededDb();
+	await connectOwnerAccount(db, "github");
+
+	const verdicts = await evaluate(db, [
+		{ source: "connected_account", toolId: "github:create_issue" },
+	]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "github:create_issue" }]);
+});
+
+test("a connected-account tool is potent only with grant ∩ credential; tool- and catalog-scope both resolve", async () => {
+	const db = await createSeededDb();
+	await grantConnectedAccountCredential(db, "github");
+	await connectOwnerAccount(db, "github");
+
+	const verdicts = await evaluate(db, [
+		{ source: "connected_account", toolId: "github" },
+		{ source: "connected_account", toolId: "github:create_issue" },
+	]);
+
+	assert.deepEqual(verdicts, [
+		{ potency: "potent", toolId: "github" },
+		{ potency: "potent", toolId: "github:create_issue" },
+	]);
+});
+
+test("connected-account grants are catalog-scoped: a github grant + account never powers a gitlab tool", async () => {
+	const db = await createSeededDb();
+	await grantConnectedAccountCredential(db, "github");
+	await connectOwnerAccount(db, "github");
+
+	const verdicts = await evaluate(db, [
+		{ source: "connected_account", toolId: "gitlab:create_issue" },
+	]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "gitlab:create_issue" }]);
+});
+
+test("grants match on kind: an MCP grant for the same id never powers a connected-account tool", async () => {
+	const db = await createSeededDb();
+	await grantMcpToolAccess(db, "github");
+	await connectOwnerAccount(db, "github");
+
+	const verdicts = await evaluate(db, [{ source: "connected_account", toolId: "github" }]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "github" }]);
+});
+
+test("revoking the connected-account grant flips the still-enabled tool inert on the next evaluation", async () => {
+	const db = await createSeededDb();
+	await grantConnectedAccountCredential(db, "github");
+	await connectOwnerAccount(db, "github");
+
+	const enablements: ToolEnablement[] = [
+		{ source: "connected_account", toolId: "github:create_issue" },
+	];
+	const granted = await evaluate(db, enablements);
+	assert.deepEqual(granted, [{ potency: "potent", toolId: "github:create_issue" }]);
+
+	const revoked = await revokeThinkspacePermission(db, {
+		permissionId: connectedAccountGrantId("github"),
+		thinkspaceId: THINKSPACE_ID,
+	});
+	assert.ok(revoked);
+
+	const after = await evaluate(db, enablements);
+	assert.deepEqual(after, [{ potency: "inert", toolId: "github:create_issue" }]);
+});
+
+test("disconnecting the account flips the still-enabled tool inert without editing the grant", async () => {
+	const db = await createSeededDb();
+	await grantConnectedAccountCredential(db, "github");
+	await connectOwnerAccount(db, "github");
+
+	const enablements: ToolEnablement[] = [{ source: "connected_account", toolId: "github" }];
+	assert.deepEqual(await evaluate(db, enablements), [{ potency: "potent", toolId: "github" }]);
+
+	await db.delete(userConnectedAccounts).where(eq(userConnectedAccounts.userId, OWNER_USER_ID));
+
+	assert.deepEqual(await evaluate(db, enablements), [{ potency: "inert", toolId: "github" }]);
+});
+
+test("connected-account grants are Thinkspace-scoped even though the credential is shared by the owner", async () => {
+	const db = await createSeededDb();
+	await seedThinkspace(db, OTHER_THINKSPACE_ID);
+	// The owner connects the account once (product-level), and grants only the
+	// OTHER Thinkspace. THIS Thinkspace holds no grant, so its tool stays inert.
+	await connectOwnerAccount(db, "github");
+	await grantConnectedAccountCredential(db, "github", OTHER_THINKSPACE_ID);
+
+	const verdicts = await evaluate(db, [{ source: "connected_account", toolId: "github" }]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "github" }]);
 });

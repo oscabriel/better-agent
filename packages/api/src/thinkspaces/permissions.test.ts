@@ -92,6 +92,22 @@ test("held Memory writing requests convert into a Memory writing grant with a st
 	assert.equal(grant?.resourceScope, JSON.stringify({ type: "memory_write" }));
 });
 
+test("connected-account credential requests convert into a credential grant keyed by catalog id", () => {
+	const grant = toThinkspacePermissionGrant({
+		grantedByUserId: OWNER_USER_ID,
+		permission: {
+			catalogId: "github",
+			kind: "connected_account_credential",
+			reason: "Allow this Thinkspace Agent to act with your connected GitHub account.",
+		},
+		thinkspaceId: THINKSPACE_ID,
+	});
+
+	assert.equal(grant?.kind, THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL);
+	assert.equal(grant?.providerId, "github");
+	assert.equal(grant?.resourceScope, JSON.stringify({ type: "connected_account_credential" }));
+});
+
 test("grantable MCP requests convert into MCP tool access grants with explicit scope", () => {
 	const grant = toThinkspacePermissionGrant(grantInput(), {
 		builtInMcpServers: [readOnlyAuthFreeServer],

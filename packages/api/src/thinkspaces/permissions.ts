@@ -46,6 +46,15 @@ export class ThinkspacePermissionGrantError extends Error {
 const MODEL_PROVIDER_SCOPE = JSON.stringify({ type: "model_provider" });
 
 /**
+ * The repo-allowlist `resourceScope` is reserved but not enforced this slice
+ * (it pairs with the deferred standing-approval policy, ADR-0003); the grant
+ * just records its type for now.
+ */
+const CONNECTED_ACCOUNT_CREDENTIAL_SCOPE = JSON.stringify({
+	type: "connected_account_credential",
+});
+
+/**
  * Grant rows live on the (thinkspaceId, kind, providerId) unique index, so
  * each built-in kind gets a stable resource identity: the web for web
  * reading, this Thinkspace's Sources for Source reading, this Thinkspace's
@@ -148,6 +157,18 @@ export const toThinkspacePermissionGrant = (
 			providerId: BUILT_IN_GRANT_PROVIDER_IDS[permission.kind],
 			reason: permission.reason,
 			resourceScope: BUILT_IN_GRANT_SCOPES[permission.kind],
+			thinkspaceId,
+		};
+	}
+
+	if (permission.kind === THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL) {
+		return {
+			grantedByUserId,
+			id: createPermissionId(),
+			kind: THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL,
+			providerId: permission.catalogId,
+			reason: permission.reason,
+			resourceScope: CONNECTED_ACCOUNT_CREDENTIAL_SCOPE,
 			thinkspaceId,
 		};
 	}
