@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { encryptCredential } from "../models/credentials";
+import { encryptCredential } from "../crypto";
 import { protectedProcedure, publicProcedure } from "../procedures";
 import { listBuiltInMcpServers } from "./catalog";
 import {
