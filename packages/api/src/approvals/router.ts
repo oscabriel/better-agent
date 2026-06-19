@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../procedures";
 import {
-	decideOwnedThinkspaceMemoryApproval,
+	decideOwnedThinkspaceApproval,
 	ThinkspaceApprovalValidationError,
 } from "../thinkspaces/approval-decisions";
 import { listPendingThinkspaceApprovalsByOwner } from "../thinkspaces/approvals-repository";
@@ -29,10 +29,10 @@ const toNotFound = (): ORPCError<"NOT_FOUND", undefined> =>
  */
 export const approvalsRouter = {
 	decide: protectedProcedure.input(decideInput).handler(async ({ context, input }) => {
-		let result: Awaited<ReturnType<typeof decideOwnedThinkspaceMemoryApproval>>;
+		let result: Awaited<ReturnType<typeof decideOwnedThinkspaceApproval>>;
 
 		try {
-			result = await decideOwnedThinkspaceMemoryApproval({
+			result = await decideOwnedThinkspaceApproval({
 				approvalId: input.approvalId,
 				db: context.db,
 				decision: input.decision,
@@ -69,6 +69,7 @@ export const approvalsRouter = {
 			actionKind: approval.actionKind,
 			approvalId: approval.id,
 			proposedAt: approval.createdAt,
+			proposedContent: approval.proposedContent,
 			proposedSummary: approval.proposedSummary,
 			thinkspaceGoal,
 			thinkspaceId: approval.thinkspaceId,

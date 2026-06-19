@@ -7,8 +7,8 @@ import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 
 import { createTestProductDb } from "../testing/product-db";
 import {
-	extractResolvedMemoryApprovals,
-	flipMemoryApprovalInTranscript,
+	extractResolvedApprovals,
+	flipApprovalInTranscript,
 	MEMORY_WRITE_TOOL_PART_TYPE,
 } from "./approvals";
 import type { ThinkspaceApprovalDecision } from "./approvals";
@@ -25,11 +25,11 @@ import {
  * that convergence so the two surfaces can never drift into two mechanisms.
  *
  * - The Review Queue (control plane) flips the held part in place with
- *   `flipMemoryApprovalInTranscript` and resolves the index row directly — what
- *   the runtime's `decideMemoryApproval` does.
+ *   `flipApprovalInTranscript` and resolves the index row directly — what
+ *   the runtime's `decideApproval` does.
  * - An inline Sitting decision drives the agents/ai-chat native tool-approval
  *   transition over the live transcript, and the runtime's `onChatResponse`
- *   reconciliation reads the decided part back out (`extractResolvedMemoryApprovals`)
+ *   reconciliation reads the decided part back out (`extractResolvedApprovals`)
  *   and resolves the same index row.
  */
 
@@ -111,7 +111,7 @@ test("an inline Sitting decision reconciles to the same outcome the control-plan
 		const approved = decision === "approved";
 
 		// The Review Queue flips the held part in place.
-		const controlPlane = flipMemoryApprovalInTranscript({
+		const controlPlane = flipApprovalInTranscript({
 			decision,
 			messages: parkedTranscript(),
 			toolCallId: TOOL_CALL_ID,
@@ -124,8 +124,8 @@ test("an inline Sitting decision reconciles to the same outcome the control-plan
 		// The runtime's index reconciliation reads both surfaces to the identical
 		// resolution — even though an inline reject lands in `output-denied` while a
 		// control-plane reject lands in `approval-responded`.
-		const fromControlPlane = extractResolvedMemoryApprovals(controlPlane.messages);
-		const fromInline = extractResolvedMemoryApprovals(inline);
+		const fromControlPlane = extractResolvedApprovals(controlPlane.messages);
+		const fromInline = extractResolvedApprovals(inline);
 
 		assert.deepEqual(fromInline, fromControlPlane);
 		assert.deepEqual(fromInline, [{ status: decision, toolCallId: TOOL_CALL_ID }]);
@@ -138,7 +138,7 @@ test("either surface resolves the same pending Approval row out of the queue", a
 		const resolvedAt = new Date();
 
 		// The control plane resolves the row with the decision directly, the way
-		// `decideMemoryApproval` does after flipping the transcript.
+		// `decideApproval` does after flipping the transcript.
 		const controlPlaneDb = createTestProductDb();
 		await seed(controlPlaneDb);
 		const controlPlaneRow = await resolveThinkspaceApproval(controlPlaneDb, {
@@ -153,7 +153,7 @@ test("either surface resolves the same pending Approval row out of the queue", a
 		// through the same repository call.
 		const inlineDb = createTestProductDb();
 		await seed(inlineDb);
-		const [resolution] = extractResolvedMemoryApprovals(
+		const [resolution] = extractResolvedApprovals(
 			applyInlineNativeDecision(parkedTranscript(), approved),
 		);
 		assert.ok(resolution);

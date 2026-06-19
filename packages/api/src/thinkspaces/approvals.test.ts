@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-	extractPendingMemoryApprovals,
-	extractResolvedMemoryApprovals,
-	flipMemoryApprovalInTranscript,
+	CREATE_GITHUB_ISSUE_TOOL_PART_TYPE,
+	extractPendingApprovals,
+	extractResolvedApprovals,
+	flipApprovalInTranscript,
+	MEMORY_WRITE_TOOL_PART_TYPE,
+	parseProposedGitHubIssue,
+	readProposedGitHubIssue,
+	summarizeGitHubIssueProposal,
 	summarizeMemoryProposal,
 } from "./approvals";
 
@@ -13,30 +18,63 @@ const memoryPart = (overrides: Record<string, unknown> = {}) => ({
 	input: { content: "The user prefers Vendor A." },
 	state: "approval-requested",
 	toolCallId: "tool_call_1",
-	type: "tool-memory_write",
+	type: MEMORY_WRITE_TOOL_PART_TYPE,
+	...overrides,
+});
+
+const githubPart = (overrides: Record<string, unknown> = {}) => ({
+	approval: { id: "approval_req_gh" },
+	input: {
+		body: "Steps to reproduce the flake.",
+		repo: "octocat/hello-world",
+		title: "Fix the flaky test",
+	},
+	state: "approval-requested",
+	toolCallId: "tool_call_gh",
+	type: CREATE_GITHUB_ISSUE_TOOL_PART_TYPE,
 	...overrides,
 });
 
 const assistant = (parts: Record<string, unknown>[]) => ({ parts, role: "assistant" });
 
-test("a parked Memory proposal is extracted with the durable handles a decision needs", () => {
-	const pending = extractPendingMemoryApprovals([
+test("a parked Memory proposal is extracted with its kind and durable handles", () => {
+	const pending = extractPendingApprovals([
 		assistant([{ text: "Working on it.", type: "text" }, memoryPart()]),
 	]);
 
 	assert.deepEqual(pending, [
 		{
+			actionKind: "memory_write",
 			approvalRequestId: "approval_req_1",
-			content: "The user prefers Vendor A.",
+			proposedContent: "The user prefers Vendor A.",
+			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor A."',
 			toolCallId: "tool_call_1",
 		},
 	]);
 });
 
-test("malformed or non-Memory holds never surface as decidable Approvals", () => {
-	const pending = extractPendingMemoryApprovals([
+test("a parked GitHub-issue proposal is extracted with a serialized payload and a repo-bearing summary", () => {
+	const [pending, ...rest] = extractPendingApprovals([
+		assistant([{ text: "Drafting an issue.", type: "text" }, githubPart()]),
+	]);
+
+	assert.equal(rest.length, 0);
+	assert.ok(pending);
+	assert.equal(pending.actionKind, "github_create_issue");
+	assert.equal(pending.approvalRequestId, "approval_req_gh");
+	assert.equal(pending.toolCallId, "tool_call_gh");
+	assert.equal(pending.proposedSummary, 'Create issue "Fix the flaky test" in octocat/hello-world');
+	assert.deepEqual(parseProposedGitHubIssue(pending.proposedContent), {
+		body: "Steps to reproduce the flake.",
+		repo: "octocat/hello-world",
+		title: "Fix the flaky test",
+	});
+});
+
+test("malformed or unregistered holds never surface as decidable Approvals", () => {
+	const pending = extractPendingApprovals([
 		assistant([
-			// A different tool awaiting approval is not this index's concern.
+			// A different tool awaiting approval is not the index's concern.
 			{
 				approval: { id: "a" },
 				state: "approval-requested",
@@ -49,29 +87,31 @@ test("malformed or non-Memory holds never surface as decidable Approvals", () =>
 			memoryPart({ input: {}, toolCallId: "tool_call_2" }),
 			// Not in the requested state.
 			memoryPart({ state: "output-available", toolCallId: "tool_call_3" }),
+			// A GitHub hold missing its repo cannot name a target, so it is skipped.
+			githubPart({ input: { body: "b", title: "t" }, toolCallId: "tool_call_4" }),
 		]),
 	]);
 
 	assert.deepEqual(pending, []);
 });
 
-test("decided Memory holds are read back with their outcome for index reconciliation", () => {
-	const resolved = extractResolvedMemoryApprovals([
+test("decided holds of either kind are read back with their outcome for index reconciliation", () => {
+	const resolved = extractResolvedApprovals([
 		assistant([
 			memoryPart({
 				approval: { approved: true, id: "a" },
 				state: "output-available",
-				toolCallId: "approved_executed",
+				toolCallId: "memory_executed",
 			}),
-			memoryPart({
-				approval: { approved: false, id: "b" },
+			githubPart({
+				approval: { approved: true, id: "b" },
+				state: "output-available",
+				toolCallId: "issue_created",
+			}),
+			githubPart({
+				approval: { approved: false, id: "c" },
 				state: "output-denied",
-				toolCallId: "rejected",
-			}),
-			memoryPart({
-				approval: { approved: true, id: "c" },
-				state: "approval-responded",
-				toolCallId: "approved_pending",
+				toolCallId: "issue_rejected",
 			}),
 			// Still parked: not yet resolved.
 			memoryPart({ toolCallId: "still_pending" }),
@@ -79,16 +119,16 @@ test("decided Memory holds are read back with their outcome for index reconcilia
 	]);
 
 	assert.deepEqual(resolved, [
-		{ status: "approved", toolCallId: "approved_executed" },
-		{ status: "rejected", toolCallId: "rejected" },
-		{ status: "approved", toolCallId: "approved_pending" },
+		{ status: "approved", toolCallId: "memory_executed" },
+		{ status: "approved", toolCallId: "issue_created" },
+		{ status: "rejected", toolCallId: "issue_rejected" },
 	]);
 });
 
 test("approving flips exactly the matching parked hold to approval-responded, preserving the approval id", () => {
 	const messages = [assistant([{ text: "Note.", type: "text" }, memoryPart()])];
 
-	const result = flipMemoryApprovalInTranscript({
+	const result = flipApprovalInTranscript({
 		decision: "approved",
 		messages,
 		toolCallId: "tool_call_1",
@@ -107,10 +147,25 @@ test("approving flips exactly the matching parked hold to approval-responded, pr
 	assert.equal((inputMessage.parts[1] as Record<string, unknown>).state, "approval-requested");
 });
 
+test("the flip is action-kind-agnostic: a parked GitHub-issue hold flips the same way", () => {
+	const messages = [assistant([githubPart()])];
+
+	const result = flipApprovalInTranscript({
+		decision: "approved",
+		messages,
+		toolCallId: "tool_call_gh",
+	});
+
+	assert.equal(result.flipped, true);
+	const flippedPart = result.messages[0]?.parts?.[0] as Record<string, unknown>;
+	assert.equal(flippedPart.state, "approval-responded");
+	assert.deepEqual(flippedPart.approval, { approved: true, id: "approval_req_gh" });
+});
+
 test("rejecting flips the hold to a denial and carries an optional reason", () => {
 	const messages = [assistant([memoryPart()])];
 
-	const result = flipMemoryApprovalInTranscript({
+	const result = flipApprovalInTranscript({
 		decision: "rejected",
 		messages,
 		reason: "Not durable enough.",
@@ -129,7 +184,7 @@ test("rejecting flips the hold to a denial and carries an optional reason", () =
 test("a decision for a hold that is no longer parked reports no flip so the caller fails closed", () => {
 	const messages = [assistant([memoryPart({ state: "output-available" })])];
 
-	const result = flipMemoryApprovalInTranscript({
+	const result = flipApprovalInTranscript({
 		decision: "approved",
 		messages,
 		toolCallId: "tool_call_1",
@@ -146,4 +201,28 @@ test("a Memory proposal summary collapses whitespace and bounds length for the q
 	const long = summarizeMemoryProposal("x".repeat(500));
 	assert.ok(long.length < 500);
 	assert.match(long, /…"$/u);
+});
+
+test("a GitHub-issue summary names the repo prominently and bounds the title", () => {
+	assert.equal(
+		summarizeGitHubIssueProposal({ repo: "octocat/hello-world", title: "  Fix the   flake  " }),
+		'Create issue "Fix the flake" in octocat/hello-world',
+	);
+
+	const long = summarizeGitHubIssueProposal({
+		repo: "octocat/hello-world",
+		title: "x".repeat(500),
+	});
+	assert.ok(long.endsWith(" in octocat/hello-world"));
+	assert.match(long, /…" in /u);
+});
+
+test("a GitHub issue payload round-trips and rejects malformed input", () => {
+	const issue = { body: "b", repo: "octocat/hello-world", title: "t" };
+	assert.deepEqual(readProposedGitHubIssue(issue), issue);
+	assert.deepEqual(parseProposedGitHubIssue(JSON.stringify(issue)), issue);
+
+	assert.equal(readProposedGitHubIssue({ body: "b", title: "t" }), null);
+	assert.equal(readProposedGitHubIssue(null), null);
+	assert.equal(parseProposedGitHubIssue("not json"), null);
 });

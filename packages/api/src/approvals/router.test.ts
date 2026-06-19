@@ -9,7 +9,7 @@ import { call } from "@orpc/server";
 
 import type { Context } from "../context";
 import { createTestProductDb } from "../testing/product-db";
-import type { ThinkspaceMemoryApprovalDecisionResult } from "../thinkspaces/approval-decisions";
+import type { ThinkspaceApprovalDecisionResult } from "../thinkspaces/approval-decisions";
 import { approvalsRouter } from "./router";
 
 const OWNED_THINKSPACE_ID = "thinkspace_owned";
@@ -29,11 +29,11 @@ const untouchableDb = new Proxy({} as Record<string, unknown>, {
  * result mapping are testable without a live runtime.
  */
 const createAgentNamespace = (
-	decide: () => Promise<ThinkspaceMemoryApprovalDecisionResult>,
+	decide: () => Promise<ThinkspaceApprovalDecisionResult>,
 	calls: { count: number },
 ) => ({
 	get: () => ({
-		decideMemoryApproval: () => {
+		decideApproval: () => {
 			calls.count += 1;
 
 			return decide();
@@ -239,6 +239,7 @@ test("the Review Queue lists the owner's pending Approvals most-recent first, in
 			actionKind: "memory_write",
 			approvalId: "approval_new",
 			proposedAt: new Date(2000),
+			proposedContent: "The user prefers Vendor B.",
 			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor B."',
 			thinkspaceGoal: "Decide between vendors",
 			thinkspaceId: OWNED_THINKSPACE_ID,
@@ -247,7 +248,44 @@ test("the Review Queue lists the owner's pending Approvals most-recent first, in
 			actionKind: "memory_write",
 			approvalId: "approval_old",
 			proposedAt: new Date(1000),
+			proposedContent: "The user prefers Vendor A.",
 			proposedSummary: 'Proposed a durable Product Memory: "The user prefers Vendor A."',
+			thinkspaceGoal: "Decide between vendors",
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+	]);
+});
+
+test("the Review Queue carries a held GitHub-issue proposal's serialized payload for the issue card", async () => {
+	const db = createTestProductDb();
+	await seedOwnedThinkspace(db);
+	const proposedContent = JSON.stringify({
+		body: "The retry logic swallows the error.",
+		repo: "octocat/hello-world",
+		title: "Flaky test on CI",
+	});
+	await db.insert(thinkspaceApprovals).values({
+		actionKind: "github_create_issue",
+		approvalRequestId: "req_issue",
+		id: "approval_issue",
+		ownerUserId: authenticatedSession.user.id,
+		proposedContent,
+		proposedSummary: 'Create issue "Flaky test on CI" in octocat/hello-world',
+		thinkspaceId: OWNED_THINKSPACE_ID,
+		toolCallId: "tool_issue",
+	});
+
+	const queue = await call(approvalsRouter.list, undefined, {
+		context: createCallContext({ db }),
+	});
+
+	assert.deepEqual(queue, [
+		{
+			actionKind: "github_create_issue",
+			approvalId: "approval_issue",
+			proposedAt: queue[0]?.proposedAt,
+			proposedContent,
+			proposedSummary: 'Create issue "Flaky test on CI" in octocat/hello-world',
 			thinkspaceGoal: "Decide between vendors",
 			thinkspaceId: OWNED_THINKSPACE_ID,
 		},

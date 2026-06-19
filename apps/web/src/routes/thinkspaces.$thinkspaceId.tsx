@@ -148,13 +148,37 @@ const BUILT_IN_TOOLS: readonly BuiltInToolView[] = [
 const isBuiltInToolId = (value: string): value is BuiltInToolId =>
 	BUILT_IN_TOOLS.some((tool) => tool.id === value);
 
+type ConnectedAccountToolId = "github:create_issue";
+
+interface ConnectedAccountToolView {
+	description: string;
+	id: ConnectedAccountToolId;
+	name: string;
+	risk: "mutating";
+}
+
+const CONNECTED_ACCOUNT_TOOLS: readonly ConnectedAccountToolView[] = [
+	{
+		description:
+			"Propose creating a GitHub issue in a connected repository, held for your Approval before it is created. Potent only with a connected GitHub account and the Connected Account credential Permission.",
+		id: "github:create_issue",
+		name: "Create GitHub issue",
+		risk: "mutating",
+	},
+];
+
+const isConnectedAccountToolId = (value: string): value is ConnectedAccountToolId =>
+	CONNECTED_ACCOUNT_TOOLS.some((tool) => tool.id === value);
+
 interface PermissionRequestView {
 	actions?: string[];
 	approvalRequired?: boolean;
+	catalogId?: string;
 	kind?:
 		| "built_in_memory_write"
 		| "built_in_source_read"
 		| "built_in_web_read"
+		| "connected_account_credential"
 		| "mcp_tool_access"
 		| "model_provider_credential";
 	providerId?: string;
@@ -292,6 +316,10 @@ const getPermissionRequestTitle = (permission: PermissionRequestView, index: num
 		return `Model credential: ${permission.providerId}`;
 	}
 
+	if (permission.kind === "connected_account_credential") {
+		return `Connected Account credential: ${permission.catalogId ?? "account"}`;
+	}
+
 	if (permission.kind === "mcp_tool_access") {
 		return `External information access: ${permission.serverId}`;
 	}
@@ -331,6 +359,10 @@ const getGrantedPermissionTitle = (permission: GrantedPermissionView): string =>
 
 	if (permission.kind === "model_provider_credential") {
 		return `Model credential: ${permission.providerId ?? "provider"}`;
+	}
+
+	if (permission.kind === "connected_account_credential") {
+		return `Connected Account credential: ${permission.providerId ?? "account"}`;
 	}
 
 	return `${permission.kind}: ${permission.providerId ?? "scoped resource"}`;
@@ -921,22 +953,26 @@ interface McpCatalogServerView {
 
 const ToolsSection = ({
 	enabledBuiltInToolIds,
+	enabledConnectedAccountToolIds,
 	enabledTools,
 	isArchived,
 	mcpCatalog,
 	onToggleBuiltInTool,
 	onToggleCatalogTool,
+	onToggleConnectedAccountTool,
 	profileRevision,
 	toolPotencyById,
 	updateToolSelectionsError,
 	updateToolSelectionsPending,
 }: {
 	enabledBuiltInToolIds: BuiltInToolId[];
+	enabledConnectedAccountToolIds: ConnectedAccountToolId[];
 	enabledTools: EnabledToolSelection[];
 	isArchived: boolean;
 	mcpCatalog: McpCatalogServerView[];
 	onToggleBuiltInTool: (toolId: BuiltInToolId) => void;
 	onToggleCatalogTool: (serverId: string, risk: EnabledToolSelection["risk"]) => void;
+	onToggleConnectedAccountTool: (toolId: ConnectedAccountToolId) => void;
 	profileRevision: AgentProfileRevisionView | null;
 	toolPotencyById: ReadonlyMap<string, EnabledToolPotencyView>;
 	updateToolSelectionsError?: Error | null;
@@ -982,6 +1018,44 @@ const ToolsSection = ({
 							<Button
 								disabled={isArchived || updateToolSelectionsPending}
 								onClick={() => onToggleBuiltInTool(tool.id)}
+								size="sm"
+								type="button"
+								variant={selected ? "secondary" : "outline"}
+							>
+								{selected ? "Remove" : "Select"}
+							</Button>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+		<div className="grid gap-2">
+			<p className="text-sm font-medium">Connected Account tools</p>
+			<div className="overflow-hidden rounded-lg ring-1 ring-foreground/10">
+				{CONNECTED_ACCOUNT_TOOLS.map((tool, index) => {
+					const selected = enabledConnectedAccountToolIds.includes(tool.id);
+					const toolPotency = selected ? toolPotencyById.get(tool.id) : undefined;
+
+					return (
+						<div
+							key={tool.id}
+							className={`flex items-center justify-between gap-4 p-4 ${index < CONNECTED_ACCOUNT_TOOLS.length - 1 ? "border-b border-border" : ""} ${selected ? "bg-muted/30" : ""}`}
+						>
+							<div className="grid gap-0.5">
+								<div className="flex items-center gap-2">
+									<p className="text-sm font-medium">{tool.name}</p>
+									<span className="text-muted-foreground text-xs">{tool.risk}</span>
+									{toolPotency ? (
+										<Badge variant={getToolPotencyBadgeVariant(toolPotency.potency)}>
+											{getToolPotencyLabel(toolPotency.potency)}
+										</Badge>
+									) : null}
+								</div>
+								<p className="text-muted-foreground text-sm">{tool.description}</p>
+							</div>
+							<Button
+								disabled={isArchived || updateToolSelectionsPending}
+								onClick={() => onToggleConnectedAccountTool(tool.id)}
 								size="sm"
 								type="button"
 								variant={selected ? "secondary" : "outline"}
@@ -1479,6 +1553,11 @@ const RouteComponent = () => {
 			.filter((enablement) => enablement.source === "built_in")
 			.map((enablement) => enablement.toolId)
 			.filter(isBuiltInToolId) ?? [];
+	const enabledConnectedAccountToolIds =
+		editableRevision?.toolEnablements
+			.filter((enablement) => enablement.source === "connected_account")
+			.map((enablement) => enablement.toolId)
+			.filter(isConnectedAccountToolId) ?? [];
 	const enabledToolPotencies = (thinkspace.enabledToolPotencies ?? []) as EnabledToolPotencyView[];
 	const toolPotencyById = new Map(
 		enabledToolPotencies.map((toolPotency) => [toolPotency.toolId, toolPotency] as const),
@@ -1494,6 +1573,7 @@ const RouteComponent = () => {
 
 		updateToolSelectionsMutation.mutate({
 			builtInToolIds: enabledBuiltInToolIds,
+			connectedAccountToolIds: enabledConnectedAccountToolIds,
 			selections,
 			thinkspaceId,
 		});
@@ -1507,6 +1587,21 @@ const RouteComponent = () => {
 
 		updateToolSelectionsMutation.mutate({
 			builtInToolIds,
+			connectedAccountToolIds: enabledConnectedAccountToolIds,
+			selections: enabledTools,
+			thinkspaceId,
+		});
+	};
+
+	const toggleConnectedAccountTool = (toolId: ConnectedAccountToolId) => {
+		const selected = enabledConnectedAccountToolIds.includes(toolId);
+		const connectedAccountToolIds = selected
+			? enabledConnectedAccountToolIds.filter((enabledToolId) => enabledToolId !== toolId)
+			: [...enabledConnectedAccountToolIds, toolId];
+
+		updateToolSelectionsMutation.mutate({
+			builtInToolIds: enabledBuiltInToolIds,
+			connectedAccountToolIds,
 			selections: enabledTools,
 			thinkspaceId,
 		});
@@ -1605,11 +1700,13 @@ const RouteComponent = () => {
 				<TabsPanel className="grid gap-8" value="tools">
 					<ToolsSection
 						enabledBuiltInToolIds={enabledBuiltInToolIds}
+						enabledConnectedAccountToolIds={enabledConnectedAccountToolIds}
 						enabledTools={enabledTools}
 						isArchived={isArchived}
 						mcpCatalog={mcpCatalogQuery.data}
 						onToggleBuiltInTool={toggleBuiltInTool}
 						onToggleCatalogTool={toggleCatalogTool}
+						onToggleConnectedAccountTool={toggleConnectedAccountTool}
 						profileRevision={editableRevision}
 						toolPotencyById={toolPotencyById}
 						updateToolSelectionsError={updateToolSelectionsMutation.error}

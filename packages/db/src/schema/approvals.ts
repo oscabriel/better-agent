@@ -21,15 +21,28 @@ export type ThinkspaceApprovalStatus =
 	(typeof THINKSPACE_APPROVAL_STATUS)[keyof typeof THINKSPACE_APPROVAL_STATUS];
 
 /**
- * The class of action a pending Approval holds. The first (and only) held
- * action in this slice is the agent proposing a durable Product Memory.
+ * The class of action a pending Approval holds. The first held action was the
+ * agent proposing a durable Product Memory; `github_create_issue` is the first
+ * held *external* mutation (PRD #108). Both reuse `proposed_content` /
+ * `proposed_summary`, so adding a kind needs no migration.
  */
 export const THINKSPACE_APPROVAL_ACTION_KIND = {
+	GITHUB_CREATE_ISSUE: "github_create_issue",
 	MEMORY_WRITE: "memory_write",
 } as const;
 
 export type ThinkspaceApprovalActionKind =
 	(typeof THINKSPACE_APPROVAL_ACTION_KIND)[keyof typeof THINKSPACE_APPROVAL_ACTION_KIND];
+
+/**
+ * Whether a stored `action_kind` string is one the product still understands.
+ * The decide path uses this to fail closed on an unknown kind rather than
+ * trusting an arbitrary row value.
+ */
+export const isThinkspaceApprovalActionKind = (
+	value: string,
+): value is ThinkspaceApprovalActionKind =>
+	(Object.values(THINKSPACE_APPROVAL_ACTION_KIND) as string[]).includes(value);
 
 /**
  * The D1 index half of a pending Approval (ADR-0002): the authoritative

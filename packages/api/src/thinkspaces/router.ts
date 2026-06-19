@@ -45,6 +45,11 @@ import {
 } from "./permissions";
 import { BUILT_IN_TOOL_IDS, createBuiltInToolPermissionRequests } from "./built-in-tools";
 import type { BuiltInToolId } from "./built-in-tools";
+import {
+	CONNECTED_ACCOUNT_TOOL_IDS,
+	createConnectedAccountToolPermissionRequests,
+} from "./connected-account-tools";
+import type { ConnectedAccountToolId } from "./connected-account-tools";
 import { createMcpToolAccessPermissionRequest, serializeThinkspaceToolSelections } from "./policy";
 import {
 	createThinkspaceArchivePatch,
@@ -97,6 +102,7 @@ const toolSelectionSchema = z.object({
 
 const updateToolSelectionsInput = z.object({
 	builtInToolIds: z.array(z.enum(BUILT_IN_TOOL_IDS)).optional(),
+	connectedAccountToolIds: z.array(z.enum(CONNECTED_ACCOUNT_TOOL_IDS)).optional(),
 	selections: z.array(toolSelectionSchema),
 	thinkspaceId: z.string().min(1),
 });
@@ -122,8 +128,18 @@ const normalizeBuiltInToolIds = (toolIds: readonly BuiltInToolId[]): BuiltInTool
 	return BUILT_IN_TOOL_IDS.filter((toolId) => requested.has(toolId));
 };
 
+/** Deduped, in stable catalog order, mirroring `normalizeBuiltInToolIds`. */
+const normalizeConnectedAccountToolIds = (
+	toolIds: readonly ConnectedAccountToolId[],
+): ConnectedAccountToolId[] => {
+	const requested = new Set(toolIds);
+
+	return CONNECTED_ACCOUNT_TOOL_IDS.filter((toolId) => requested.has(toolId));
+};
+
 const toToolEnablements = (
 	builtInToolIds: readonly BuiltInToolId[],
+	connectedAccountToolIds: readonly ConnectedAccountToolId[],
 	selections: z.infer<typeof toolSelectionSchema>[],
 ): ToolEnablement[] => {
 	const normalized = JSON.parse(serializeThinkspaceToolSelections(selections)) as z.infer<
@@ -134,6 +150,12 @@ const toToolEnablements = (
 		...builtInToolIds.map(
 			(toolId): ToolEnablement => ({
 				source: "built_in",
+				toolId,
+			}),
+		),
+		...connectedAccountToolIds.map(
+			(toolId): ToolEnablement => ({
+				source: "connected_account",
 				toolId,
 			}),
 		),
@@ -153,8 +175,8 @@ const toToolEnablements = (
  * requests Permission to use the owner's saved credential for that model's
  * provider. The owner grants it at activation (the default grants all requests),
  * which is what makes model resolution potent — without this grant the runtime
- * fails closed with `permission_required`. Built-in and MCP tool requests are
- * added on top from the user's selections.
+ * fails closed with `permission_required`. Built-in, connected-account, and MCP
+ * tool requests are added on top from the user's selections.
  */
 const createModelProviderCredentialPermissionRequest = (modelId: string): RequestedPermission => ({
 	kind: "model_provider_credential",
@@ -165,10 +187,12 @@ const createModelProviderCredentialPermissionRequest = (modelId: string): Reques
 const toRequestedPermissions = (
 	modelId: string,
 	builtInToolIds: readonly BuiltInToolId[],
+	connectedAccountToolIds: readonly ConnectedAccountToolId[],
 	selections: z.infer<typeof toolSelectionSchema>[],
 ): RequestedPermission[] => [
 	createModelProviderCredentialPermissionRequest(modelId),
 	...createBuiltInToolPermissionRequests(builtInToolIds),
+	...createConnectedAccountToolPermissionRequests(connectedAccountToolIds),
 	...selections.map((selection) => createMcpToolAccessPermissionRequest(selection)),
 ];
 
@@ -395,7 +419,7 @@ export const thinkspacesRouter = {
 				id: createAgentProfileRevisionId(),
 				identity,
 				modelBehavior,
-				requestedPermissions: toRequestedPermissions(modelBehavior.modelId, [], []),
+				requestedPermissions: toRequestedPermissions(modelBehavior.modelId, [], [], []),
 				thinkspaceId: record.id,
 			});
 			const created = await createThinkspaceWithAgentProfileDraft(context.db, { draft, record });
@@ -645,15 +669,23 @@ export const thinkspacesRouter = {
 				}
 
 				const builtInToolIds = normalizeBuiltInToolIds(input.builtInToolIds ?? []);
+				const connectedAccountToolIds = normalizeConnectedAccountToolIds(
+					input.connectedAccountToolIds ?? [],
+				);
 				const updatedDraft = await saveAgentProfileDraft(context.db, {
 					draft: {
 						...draft,
 						requestedPermissions: toRequestedPermissions(
 							draft.modelBehavior.modelId,
 							builtInToolIds,
+							connectedAccountToolIds,
 							input.selections,
 						),
-						toolEnablements: toToolEnablements(builtInToolIds, input.selections),
+						toolEnablements: toToolEnablements(
+							builtInToolIds,
+							connectedAccountToolIds,
+							input.selections,
+						),
 						updatedAt: new Date(),
 					},
 				});
