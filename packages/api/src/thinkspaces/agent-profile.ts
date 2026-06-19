@@ -112,6 +112,18 @@ export interface ModelProviderCredentialPermissionRequest {
 	reason: string;
 }
 
+/**
+ * A request to let this Thinkspace use a product-level Connected Account
+ * credential, identified by its connected_account_catalog id (e.g. "github").
+ * The credential lives at the product level; this grant authorizes one
+ * Thinkspace to act with it (PRD #108, ADR-0009).
+ */
+export interface ConnectedAccountCredentialPermissionRequest {
+	catalogId: string;
+	kind: "connected_account_credential";
+	reason: string;
+}
+
 export const MCP_TOOL_ACCESS_REQUEST_RISKS = ["read_only", "mutating", "unknown"] as const;
 export type McpToolAccessRequestRisk = (typeof MCP_TOOL_ACCESS_REQUEST_RISKS)[number];
 
@@ -146,6 +158,7 @@ export interface BuiltInToolAccessPermissionRequest {
 
 export type RequestedPermission =
 	| BuiltInToolAccessPermissionRequest
+	| ConnectedAccountCredentialPermissionRequest
 	| ModelProviderCredentialPermissionRequest
 	| McpToolAccessPermissionRequest;
 
@@ -372,13 +385,22 @@ const isBuiltInToolAccessPermissionRequest = (
 	BUILT_IN_TOOL_PERMISSION_REQUEST_KINDS.includes(value.kind as BuiltInToolPermissionRequestKind) &&
 	typeof value.reason === "string";
 
+const isConnectedAccountCredentialPermissionRequest = (
+	value: unknown,
+): value is ConnectedAccountCredentialPermissionRequest =>
+	isRecord(value) &&
+	value.kind === "connected_account_credential" &&
+	isNonEmptyString(value.catalogId) &&
+	typeof value.reason === "string";
+
 const isRequestedPermission = (value: unknown): value is RequestedPermission =>
 	(isRecord(value) &&
 		value.kind === "model_provider_credential" &&
 		MODEL_PROVIDER_IDS.includes(value.providerId as ModelProviderId) &&
 		typeof value.reason === "string") ||
 	isMcpToolAccessPermissionRequest(value) ||
-	isBuiltInToolAccessPermissionRequest(value);
+	isBuiltInToolAccessPermissionRequest(value) ||
+	isConnectedAccountCredentialPermissionRequest(value);
 
 const parseJsonArray = <T>(
 	label: string,

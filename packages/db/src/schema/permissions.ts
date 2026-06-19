@@ -16,6 +16,13 @@ export const THINKSPACE_PERMISSION_KINDS = {
 	BUILT_IN_SOURCE_READ: "built_in_source_read",
 	/** Governs built-in web reading — search and fetch together. */
 	BUILT_IN_WEB_READ: "built_in_web_read",
+	/**
+	 * Governs a Thinkspace's use of a product-level Connected Account credential,
+	 * keyed by the connected_account_catalog id in `providerId` (e.g. "github").
+	 * Mirrors `mcp_tool_access` (keyed by server id): the grant is one axis of
+	 * potency; the backing credential must also exist (PRD #108, ADR-0009).
+	 */
+	CONNECTED_ACCOUNT_CREDENTIAL: "connected_account_credential",
 	MCP_TOOL_ACCESS: "mcp_tool_access",
 	MODEL_PROVIDER_CREDENTIAL: "model_provider_credential",
 } as const;

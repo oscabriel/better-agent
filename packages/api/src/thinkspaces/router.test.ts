@@ -383,6 +383,36 @@ test("activating a granted MCP request creates a Thinkspace Permission grant and
 	assert.equal(activation.grantedPermissions[0]?.resourceScope, JSON.stringify({ type: "server" }));
 });
 
+test("activating a granted connected-account credential request creates a Thinkspace Permission grant", async () => {
+	const db = createTestProductDb();
+	await seedRealThinkspaceWithProfile({
+		db,
+		requestedPermissions: [
+			{
+				catalogId: "github",
+				kind: "connected_account_credential",
+				reason: "Allow this Thinkspace Agent to act with your connected GitHub account.",
+			},
+		],
+		toolEnablements: [{ source: "connected_account", toolId: "github:create_issue" }],
+	});
+
+	const activation = await call(
+		thinkspacesRouter.activateAgentProfile,
+		{ grantedPermissionIndexes: [0], thinkspaceId: OWNED_THINKSPACE_ID },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.ok(activation);
+	assert.equal(activation.activatedRevision.status, "active");
+	assert.equal(activation.grantedPermissions.length, 1);
+	assert.equal(
+		activation.grantedPermissions[0]?.kind,
+		THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL,
+	);
+	assert.equal(activation.grantedPermissions[0]?.providerId, "github");
+});
+
 test("declining an MCP request creates no grant while activation still succeeds", async () => {
 	const db = createTestProductDb();
 	await seedRealThinkspaceWithProfile({
