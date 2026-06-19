@@ -516,6 +516,43 @@ test("enabling built-in tools writes built_in enablements and deduped Permission
 	);
 });
 
+test("enabling a connected-account tool writes a connected_account enablement and a credential request", async () => {
+	const { db, saved } = createDbForAgentProfileDraftUpdate(
+		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),
+	);
+	const context = createCallContext({ db });
+
+	const updated = await call(
+		thinkspacesRouter.updateToolSelections,
+		{
+			connectedAccountToolIds: ["github:create_issue"],
+			selections: [],
+			thinkspaceId: OWNED_THINKSPACE_ID,
+		},
+		{ context },
+	);
+
+	assert.ok(updated);
+	assert.deepEqual(JSON.parse(String(saved[0]?.toolEnablements)), [
+		{ source: "connected_account", toolId: "github:create_issue" },
+	]);
+
+	// One credential request per catalog id, keyed by the connected_account_catalog
+	// id, alongside the always-present model provider credential request.
+	const requests = JSON.parse(String(saved[0]?.requestedPermissions)) as {
+		catalogId?: string;
+		kind: string;
+	}[];
+	assert.deepEqual(
+		requests.map((request) => request.kind).toSorted((left, right) => left.localeCompare(right)),
+		["connected_account_credential", "model_provider_credential"],
+	);
+	assert.equal(
+		requests.find((request) => request.kind === "connected_account_credential")?.catalogId,
+		"github",
+	);
+});
+
 test("activating granted built-in requests creates the two Permission kinds with their resource identities", async () => {
 	const db = createTestProductDb();
 	await seedRealThinkspaceWithProfile({

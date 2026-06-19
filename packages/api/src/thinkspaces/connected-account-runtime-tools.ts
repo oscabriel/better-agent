@@ -23,6 +23,12 @@ import { z } from "zod";
 
 import { GitHubIssueCreationError } from "../connected-accounts/github-issues";
 import type { ActiveAgentProfileRevision } from "./agent-profile";
+import {
+	CONNECTED_ACCOUNT_TOOL_IDS,
+	CREATE_GITHUB_ISSUE_TOOL_ID,
+	isConnectedAccountToolId,
+} from "./connected-account-tools";
+import type { ConnectedAccountToolId } from "./connected-account-tools";
 import type { ThinkspaceGitHubIssueCreator } from "./github-issue-creator";
 import { markThinkspaceTurnProductSafeError } from "./inspect";
 import type { ThinkspacePermissionPolicy } from "./permission-policy";
@@ -44,26 +50,26 @@ export const THINKSPACE_GITHUB_ISSUE_BODY_MAX_LENGTH = 60_000;
 const GITHUB_REPO_MAX_LENGTH = 200;
 
 /**
- * The held GitHub-issue tool. Its **runtime name** (the toolset key, the
+ * The held GitHub-issue tool's **runtime name** (the toolset key, the
  * `ctx.toolName` at the call boundary, and the `tool-create_github_issue`
- * transcript part) is `create_github_issue`; its **product tool id** (the
- * enablement id, the entry in `assembly.activeTools`, and the Permission keying)
- * is `github:create_issue` in the locked `${catalogId}:${toolName}` convention.
+ * transcript part). Its **product tool id** (the enablement id, the entry in
+ * `assembly.activeTools`, and the Permission keying) is `github:create_issue`,
+ * defined in the `ai`-free `connected-account-tools.ts` and re-exported here.
  */
 export const CREATE_GITHUB_ISSUE_TOOL_NAME = "create_github_issue";
-export const CREATE_GITHUB_ISSUE_TOOL_ID = "github:create_issue";
+export { CREATE_GITHUB_ISSUE_TOOL_ID };
 
 /**
- * The external-mutation product tool ids. `github:create_issue` is the only one
- * today; mirrors MCP's `serverId:tool` form and the connected-account
- * Permission/credential lookup.
+ * The external-mutation product tool ids — the connected-account tool catalog
+ * viewed as held external writes. The catalog is owned by
+ * `connected-account-tools.ts`; this is the same set under the runtime's name
+ * for it (mirrors MCP's `serverId:tool` form and the credential lookup).
  */
-export const EXTERNAL_MUTATION_TOOL_IDS = [CREATE_GITHUB_ISSUE_TOOL_ID] as const;
+export const EXTERNAL_MUTATION_TOOL_IDS = CONNECTED_ACCOUNT_TOOL_IDS;
 
-export type ExternalMutationToolId = (typeof EXTERNAL_MUTATION_TOOL_IDS)[number];
+export type ExternalMutationToolId = ConnectedAccountToolId;
 
-export const isExternalMutationToolId = (value: string): value is ExternalMutationToolId =>
-	EXTERNAL_MUTATION_TOOL_IDS.includes(value as ExternalMutationToolId);
+export const isExternalMutationToolId = isConnectedAccountToolId;
 
 const activeExternalMutationToolIds = (
 	activeProductToolIds: readonly string[],

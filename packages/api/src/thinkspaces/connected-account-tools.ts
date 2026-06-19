@@ -13,6 +13,28 @@ import { THINKSPACE_PERMISSION_KINDS } from "@better-agent/db/schema/permissions
 
 import type { ConnectedAccountCredentialPermissionRequest } from "./agent-profile";
 
+/**
+ * The held GitHub-issue tool's **product tool id**, in the locked
+ * `${catalogId}:${toolName}` convention. The runtime tool factory's name for it
+ * (`create_github_issue`) and its `ai` dependency live in
+ * `connected-account-runtime-tools.ts`; this id lives here, in the `ai`-free
+ * catalog mapper, so the equip surface (the router's selection enum, the
+ * profile editor) can reference it without pulling the runtime tool in.
+ */
+export const CREATE_GITHUB_ISSUE_TOOL_ID = "github:create_issue" as const;
+
+/**
+ * The connected-account product tool ids a Thinkspace can equip — the source
+ * of truth mirrored by `EXTERNAL_MUTATION_TOOL_IDS` in the runtime tools, in
+ * the same role `BUILT_IN_TOOL_IDS` plays for built-ins.
+ */
+export const CONNECTED_ACCOUNT_TOOL_IDS = [CREATE_GITHUB_ISSUE_TOOL_ID] as const;
+
+export type ConnectedAccountToolId = (typeof CONNECTED_ACCOUNT_TOOL_IDS)[number];
+
+export const isConnectedAccountToolId = (value: string): value is ConnectedAccountToolId =>
+	CONNECTED_ACCOUNT_TOOL_IDS.includes(value as ConnectedAccountToolId);
+
 export type ConnectedAccountToolPermissionKind =
 	typeof THINKSPACE_PERMISSION_KINDS.CONNECTED_ACCOUNT_CREDENTIAL;
 

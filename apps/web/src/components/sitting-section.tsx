@@ -1,4 +1,9 @@
-import { MEMORY_WRITE_TOOL_PART_TYPE } from "@better-agent/api/thinkspaces/approvals";
+import {
+	CREATE_GITHUB_ISSUE_TOOL_PART_TYPE,
+	MEMORY_WRITE_TOOL_PART_TYPE,
+	readProposedGitHubIssue,
+} from "@better-agent/api/thinkspaces/approvals";
+import type { ProposedGitHubIssue } from "@better-agent/api/thinkspaces/approvals";
 import { env } from "@better-agent/env/web";
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
@@ -106,6 +111,50 @@ const toProposalDecisionView = (state: string): ProposalDecisionView | null => {
 	}
 };
 
+/**
+ * The shared footer for any held proposal card: while pending, the decision
+ * hint and the approve/reject controls; once decided, a line recording the
+ * owner's choice. Both the Memory and GitHub-issue cards resolve the same
+ * Approval through `onDecide`, so they share this rather than drift.
+ */
+const ProposalDecisionFooter = ({
+	approvalId,
+	decision,
+	disabled,
+	onDecide,
+	pendingHint,
+}: {
+	approvalId: string;
+	decision: ProposalDecisionView;
+	disabled: boolean;
+	onDecide: (approvalId: string, approved: boolean) => void;
+	pendingHint: string;
+}) =>
+	decision === "pending" ? (
+		<div className="flex flex-wrap items-center justify-between gap-3">
+			<p className="text-muted-foreground text-xs">{pendingHint}</p>
+			<div className="flex gap-2">
+				<Button
+					disabled={disabled}
+					onClick={() => onDecide(approvalId, false)}
+					size="sm"
+					variant="outline"
+				>
+					<XIcon />
+					Reject
+				</Button>
+				<Button disabled={disabled} onClick={() => onDecide(approvalId, true)} size="sm">
+					<CheckIcon />
+					Approve
+				</Button>
+			</div>
+		</div>
+	) : (
+		<p className="text-muted-foreground text-xs">
+			{decision === "approved" ? "You approved this proposal." : "You rejected this proposal."}
+		</p>
+	);
+
 const HeldMemoryProposal = ({
 	approvalId,
 	content,
@@ -128,32 +177,50 @@ const HeldMemoryProposal = ({
 				<Badge variant={badge.variant}>{badge.label}</Badge>
 			</div>
 			<p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{content}</p>
-			{decision === "pending" ? (
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<p className="text-muted-foreground text-xs">
-						Held until you decide — approve to write this Memory, reject to discard it.
-					</p>
-					<div className="flex gap-2">
-						<Button
-							disabled={disabled}
-							onClick={() => onDecide(approvalId, false)}
-							size="sm"
-							variant="outline"
-						>
-							<XIcon />
-							Reject
-						</Button>
-						<Button disabled={disabled} onClick={() => onDecide(approvalId, true)} size="sm">
-							<CheckIcon />
-							Approve
-						</Button>
-					</div>
+			<ProposalDecisionFooter
+				approvalId={approvalId}
+				decision={decision}
+				disabled={disabled}
+				onDecide={onDecide}
+				pendingHint="Held until you decide — approve to write this Memory, reject to discard it."
+			/>
+		</div>
+	);
+};
+
+const HeldGitHubIssueProposal = ({
+	approvalId,
+	decision,
+	disabled,
+	issue,
+	onDecide,
+}: {
+	approvalId: string;
+	decision: ProposalDecisionView;
+	disabled: boolean;
+	issue: ProposedGitHubIssue;
+	onDecide: (approvalId: string, approved: boolean) => void;
+}) => {
+	const badge = PROPOSAL_BADGE[decision];
+
+	return (
+		<div className="grid gap-3 rounded-lg border border-border bg-card p-4">
+			<div className="flex items-start justify-between gap-3">
+				<div className="grid gap-1">
+					<p className="text-sm font-medium">GitHub issue proposal</p>
+					<p className="break-all font-mono text-muted-foreground text-xs">{issue.repo}</p>
 				</div>
-			) : (
-				<p className="text-muted-foreground text-xs">
-					{decision === "approved" ? "You approved this proposal." : "You rejected this proposal."}
-				</p>
-			)}
+				<Badge variant={badge.variant}>{badge.label}</Badge>
+			</div>
+			<p className="text-foreground text-sm font-medium leading-relaxed">{issue.title}</p>
+			<p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{issue.body}</p>
+			<ProposalDecisionFooter
+				approvalId={approvalId}
+				decision={decision}
+				disabled={disabled}
+				onDecide={onDecide}
+				pendingHint={`Held until you decide — approve to create this issue in ${issue.repo}, reject to discard it.`}
+			/>
 		</div>
 	);
 };
@@ -213,14 +280,22 @@ const LiveSitting = ({ thinkspaceId }: { thinkspaceId: string }) => {
 								return true;
 							}
 
-							// A held Memory proposal is renderable once it carries a decidable
-							// state and content; a half-formed or malformed hold is skipped so it
+							// A held proposal is renderable once it carries a decidable state and a
+							// well-formed payload; a half-formed or malformed hold is skipped so it
 							// never surfaces a card with nothing to decide.
-							return (
-								part.type === MEMORY_WRITE_TOOL_PART_TYPE &&
-								toProposalDecisionView(getToolPartState(part)) !== null &&
-								readProposedMemory(getToolInput(part)) !== null
-							);
+							if (toProposalDecisionView(getToolPartState(part)) === null) {
+								return false;
+							}
+
+							if (part.type === MEMORY_WRITE_TOOL_PART_TYPE) {
+								return readProposedMemory(getToolInput(part)) !== null;
+							}
+
+							if (part.type === CREATE_GITHUB_ISSUE_TOOL_PART_TYPE) {
+								return readProposedGitHubIssue(getToolInput(part)) !== null;
+							}
+
+							return false;
 						});
 
 						// Skip turns with nothing to show: a turn that returned no text, or
@@ -263,6 +338,27 @@ const LiveSitting = ({ thinkspaceId }: { thinkspaceId: string }) => {
 												decision={decision}
 												disabled={isBusy}
 												key={`${message.id}-proposal-${index}`}
+												onDecide={handleDecideProposal}
+											/>
+										);
+									}
+
+									if (part.type === CREATE_GITHUB_ISSUE_TOOL_PART_TYPE) {
+										const approval = getToolApproval(part);
+										const issue = readProposedGitHubIssue(getToolInput(part));
+										const decision = toProposalDecisionView(getToolPartState(part));
+
+										if (!(approval && issue && decision)) {
+											return null;
+										}
+
+										return (
+											<HeldGitHubIssueProposal
+												approvalId={approval.id}
+												decision={decision}
+												disabled={isBusy}
+												issue={issue}
+												key={`${message.id}-issue-${index}`}
 												onDecide={handleDecideProposal}
 											/>
 										);

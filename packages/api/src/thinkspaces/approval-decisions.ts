@@ -9,12 +9,12 @@ import { resolveThinkspaceAgentRuntime, THINKSPACE_AGENT_BINDING_NAME } from "./
 export const THINKSPACE_APPROVAL_ID_MAX_LENGTH = 128;
 
 /**
- * The worker→runtime contract for deciding one pending Approval out-of-band.
- * Deciding drives the Durable Object (which owns the parked-turn state); the
- * Review Queue reads the D1 index. Mirrors the submit/inspect runtime contracts
- * in turns.ts and inspect.ts.
+ * The worker→runtime contract for deciding one pending Approval out-of-band,
+ * for any held action kind. Deciding drives the Durable Object (which owns the
+ * parked-turn state); the Review Queue reads the D1 index. Mirrors the
+ * submit/inspect runtime contracts in turns.ts and inspect.ts.
  */
-export interface ThinkspaceMemoryApprovalDecisionRequest {
+export interface ThinkspaceApprovalDecisionRequest {
 	approvalId: string;
 	decision: ThinkspaceApprovalDecision;
 	ownerUserId: string;
@@ -22,12 +22,12 @@ export interface ThinkspaceMemoryApprovalDecisionRequest {
 	thinkspaceId: string;
 }
 
-export type ThinkspaceMemoryApprovalDecisionStatus = "applied" | "not_found";
+export type ThinkspaceApprovalDecisionStatus = "applied" | "not_found";
 
-export interface ThinkspaceMemoryApprovalDecisionResult {
+export interface ThinkspaceApprovalDecisionResult {
 	approvalId: string;
 	decision: ThinkspaceApprovalDecision;
-	status: ThinkspaceMemoryApprovalDecisionStatus;
+	status: ThinkspaceApprovalDecisionStatus;
 	thinkspaceId: string;
 }
 
@@ -63,14 +63,14 @@ type GetThinkspaceByOwner = (
 
 type DecideApproval = (input: {
 	env: ThinkspaceApprovalDecisionEnv;
-	request: ThinkspaceMemoryApprovalDecisionRequest;
+	request: ThinkspaceApprovalDecisionRequest;
 	runtimeName: string;
-}) => Promise<ThinkspaceMemoryApprovalDecisionResult>;
+}) => Promise<ThinkspaceApprovalDecisionResult>;
 
 interface ThinkspaceAgentApprovalStub {
-	decideMemoryApproval: (
-		request: ThinkspaceMemoryApprovalDecisionRequest,
-	) => Promise<ThinkspaceMemoryApprovalDecisionResult>;
+	decideApproval: (
+		request: ThinkspaceApprovalDecisionRequest,
+	) => Promise<ThinkspaceApprovalDecisionResult>;
 	/**
 	 * PartyServer's initialization RPC. User-defined RPC methods do not pass
 	 * through the runtime's fetch/alarm entry points where `onStart()` would run,
@@ -87,10 +87,10 @@ const decideViaThinkspaceAgentRuntime: DecideApproval = async ({ env, request, r
 
 	await stub.setName(runtimeName);
 
-	return await stub.decideMemoryApproval(request);
+	return await stub.decideApproval(request);
 };
 
-export interface DecideOwnedThinkspaceMemoryApprovalInput {
+export interface DecideOwnedThinkspaceApprovalInput {
 	approvalId: string;
 	db: ProductDb;
 	decideApproval?: DecideApproval;
@@ -109,7 +109,7 @@ export interface DecideOwnedThinkspaceMemoryApprovalInput {
  * the runtime, which is authoritative over whether the specific Approval is
  * still pending.
  */
-export const decideOwnedThinkspaceMemoryApproval = async ({
+export const decideOwnedThinkspaceApproval = async ({
 	approvalId,
 	db,
 	decideApproval = decideViaThinkspaceAgentRuntime,
@@ -119,7 +119,7 @@ export const decideOwnedThinkspaceMemoryApproval = async ({
 	ownerUserId,
 	reason,
 	thinkspaceId,
-}: DecideOwnedThinkspaceMemoryApprovalInput): Promise<ThinkspaceMemoryApprovalDecisionResult | null> => {
+}: DecideOwnedThinkspaceApprovalInput): Promise<ThinkspaceApprovalDecisionResult | null> => {
 	const boundedApprovalId = validateThinkspaceApprovalId(approvalId);
 
 	const thinkspace = await getThinkspaceByOwner(db, { ownerUserId, thinkspaceId });

@@ -30,10 +30,9 @@ import {
 import { createThinkspaceGitHubIssueCreator } from "@better-agent/api/thinkspaces/github-issue-creator";
 import { createFetchWebReader } from "@better-agent/api/thinkspaces/web-reader";
 import {
-	extractPendingMemoryApprovals,
-	extractResolvedMemoryApprovals,
-	flipMemoryApprovalInTranscript,
-	summarizeMemoryProposal,
+	extractPendingApprovals,
+	extractResolvedApprovals,
+	flipApprovalInTranscript,
 } from "@better-agent/api/thinkspaces/approvals";
 import {
 	getThinkspaceApproval,
@@ -43,11 +42,11 @@ import {
 } from "@better-agent/api/thinkspaces/approvals-repository";
 import { validateThinkspaceApprovalId } from "@better-agent/api/thinkspaces/approval-decisions";
 import type {
-	ThinkspaceMemoryApprovalDecisionRequest,
-	ThinkspaceMemoryApprovalDecisionResult,
+	ThinkspaceApprovalDecisionRequest,
+	ThinkspaceApprovalDecisionResult,
 } from "@better-agent/api/thinkspaces/approval-decisions";
 import { createThinkspaceMemoryWriter } from "@better-agent/api/thinkspaces/memory-writer";
-import { THINKSPACE_APPROVAL_ACTION_KIND } from "@better-agent/db/schema/approvals";
+import { isThinkspaceApprovalActionKind } from "@better-agent/db/schema/approvals";
 import { createThinkspaceSourceReader } from "@better-agent/api/sources/reader";
 import {
 	createThinkspaceMcpDegradationNotice,
@@ -246,20 +245,22 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 	}
 
 	/**
-	 * Decides one pending Memory Approval out-of-band: the same apply-and-continue
-	 * path an inline Sitting approval drives, invoked from the control plane. The
-	 * decision flips the parked tool part to `approval-responded` in place and
-	 * resumes the turn — on approval the held tool's `execute` finally runs and
-	 * writes the Memory; on rejection it never runs and nothing persists. The
-	 * runtime is authoritative: a forged or mismatched context, an Approval that
-	 * is unknown, already decided, or no longer parked, all resolve to
-	 * `not_found` so the control plane can render the sealed 404.
+	 * Decides one pending Approval out-of-band, of any held action kind: the same
+	 * apply-and-continue path an inline Sitting approval drives, invoked from the
+	 * control plane. The decision flips the parked tool part to
+	 * `approval-responded` in place and resumes the turn — on approval the held
+	 * tool's `execute` finally runs and performs the action (writes the Memory,
+	 * creates the GitHub issue); on rejection it never runs and nothing happens.
+	 * The runtime is authoritative: a forged or mismatched context, an Approval
+	 * that is unknown, already decided, of an unrecognized kind, or no longer
+	 * parked, all resolve to `not_found` so the control plane renders the sealed
+	 * 404.
 	 */
-	async decideMemoryApproval(
-		request: ThinkspaceMemoryApprovalDecisionRequest,
-	): Promise<ThinkspaceMemoryApprovalDecisionResult> {
+	async decideApproval(
+		request: ThinkspaceApprovalDecisionRequest,
+	): Promise<ThinkspaceApprovalDecisionResult> {
 		const approvalId = validateThinkspaceApprovalId(request.approvalId);
-		const notFound: ThinkspaceMemoryApprovalDecisionResult = {
+		const notFound: ThinkspaceApprovalDecisionResult = {
 			approvalId,
 			decision: request.decision,
 			status: "not_found",
@@ -286,13 +287,13 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		if (
 			!approval ||
 			approval.status !== "pending" ||
-			approval.actionKind !== THINKSPACE_APPROVAL_ACTION_KIND.MEMORY_WRITE
+			!isThinkspaceApprovalActionKind(approval.actionKind)
 		) {
 			return notFound;
 		}
 
 		const messages = await this.getMessages();
-		const flip = flipMemoryApprovalInTranscript({
+		const flip = flipApprovalInTranscript({
 			decision: request.decision,
 			messages,
 			reason: request.reason,
@@ -305,8 +306,11 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 
 		// Persist the single flipped message in place (never append — that would
 		// duplicate the transcript), then resolve the index row before resuming.
-		// The decision is final once the transcript records it; resuming only
-		// fires its consequence, which the held tool's idempotent write absorbs.
+		// The decision is final once the transcript records it: the flip only acts
+		// on an `approval-requested` part and the resolve guards on a still-pending
+		// row, so a repeated decide finds the hold already gone and never fires the
+		// consequence twice (the held tool's `execute` — a Memory write or a GitHub
+		// issue creation — runs once on the resumed continuation).
 		for (const [index, message] of messages.entries()) {
 			const flippedMessage = flip.messages[index];
 
@@ -593,17 +597,17 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			const messages = await this.getMessages();
 			const db = createDb(this.env.DB);
 
-			for (const pending of extractPendingMemoryApprovals(messages)) {
+			for (const pending of extractPendingApprovals(messages)) {
 				await upsertPendingThinkspaceApproval(db, {
 					record: {
-						actionKind: THINKSPACE_APPROVAL_ACTION_KIND.MEMORY_WRITE,
+						actionKind: pending.actionKind,
 						approvalRequestId: pending.approvalRequestId,
 						id: `approval_${crypto.randomUUID()}`,
 						ownerUserId: turnContext.ownerUserId,
 						profileRevisionId: attribution?.profileRevisionId ?? null,
 						profileVersion: attribution?.profileVersion ?? null,
-						proposedContent: pending.content,
-						proposedSummary: summarizeMemoryProposal(pending.content),
+						proposedContent: pending.proposedContent,
+						proposedSummary: pending.proposedSummary,
 						submissionId: null,
 						thinkspaceId: turnContext.thinkspaceId,
 						toolCallId: pending.toolCallId,
@@ -611,7 +615,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 				});
 			}
 
-			const resolvedProposals = extractResolvedMemoryApprovals(messages);
+			const resolvedProposals = extractResolvedApprovals(messages);
 
 			if (resolvedProposals.length === 0) {
 				return;

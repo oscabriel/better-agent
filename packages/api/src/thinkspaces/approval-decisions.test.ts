@@ -4,10 +4,10 @@ import test from "node:test";
 import type { ProductDb } from "@better-agent/db";
 
 import {
-	decideOwnedThinkspaceMemoryApproval,
+	decideOwnedThinkspaceApproval,
 	ThinkspaceApprovalValidationError,
 } from "./approval-decisions";
-import type { ThinkspaceMemoryApprovalDecisionRequest } from "./approval-decisions";
+import type { ThinkspaceApprovalDecisionRequest } from "./approval-decisions";
 
 const env = {
 	THINKSPACE_AGENT: {
@@ -18,9 +18,9 @@ const env = {
 const ownerFound = () => Promise.resolve({ id: "thinkspace_1" });
 
 test("deciding forwards the bound Thinkspace, owner, decision, and reason to the runtime", async () => {
-	const seen: ThinkspaceMemoryApprovalDecisionRequest[] = [];
+	const seen: ThinkspaceApprovalDecisionRequest[] = [];
 
-	const result = await decideOwnedThinkspaceMemoryApproval({
+	const result = await decideOwnedThinkspaceApproval({
 		approvalId: "  approval_1  ",
 		db: {} as ProductDb,
 		decideApproval: ({ request }) => {
@@ -56,7 +56,7 @@ test("deciding forwards the bound Thinkspace, owner, decision, and reason to the
 test("a non-owner's decide resolves to null without ever reaching the runtime", async () => {
 	let reachedRuntime = false;
 
-	const result = await decideOwnedThinkspaceMemoryApproval({
+	const result = await decideOwnedThinkspaceApproval({
 		approvalId: "approval_1",
 		db: {} as ProductDb,
 		decideApproval: () => {
@@ -82,7 +82,7 @@ test("a non-owner's decide resolves to null without ever reaching the runtime", 
 
 test("an empty Approval handle is rejected before any ownership or runtime work", async () => {
 	await assert.rejects(
-		decideOwnedThinkspaceMemoryApproval({
+		decideOwnedThinkspaceApproval({
 			approvalId: "   ",
 			db: {} as ProductDb,
 			decideApproval: () => Promise.reject(new Error("must not run")),

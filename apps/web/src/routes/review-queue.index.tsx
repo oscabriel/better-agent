@@ -1,3 +1,4 @@
+import { parseProposedGitHubIssue } from "@better-agent/api/thinkspaces/approvals";
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -15,10 +16,42 @@ const formatProposedAt = (value: Date | number | string): string =>
 	dateFormatter.format(new Date(value));
 
 const ACTION_LABELS: Record<string, string> = {
+	github_create_issue: "GitHub issue",
 	memory_write: "Memory proposal",
 };
 
 const actionLabel = (actionKind: string): string => ACTION_LABELS[actionKind] ?? "Held action";
+
+/**
+ * The held proposal's detail. A GitHub-issue proposal parses its serialized
+ * payload to show the target repo prominently above the title and body; any
+ * other kind (and a malformed issue payload) falls back to the product-language
+ * summary line.
+ */
+const ProposalDetail = ({
+	actionKind,
+	proposedContent,
+	proposedSummary,
+}: {
+	actionKind: string;
+	proposedContent: string;
+	proposedSummary: string;
+}) => {
+	const issue =
+		actionKind === "github_create_issue" ? parseProposedGitHubIssue(proposedContent) : null;
+
+	if (!issue) {
+		return <p className="text-foreground text-sm leading-relaxed">{proposedSummary}</p>;
+	}
+
+	return (
+		<div className="grid gap-1">
+			<p className="break-all font-mono text-muted-foreground text-xs">{issue.repo}</p>
+			<p className="text-foreground text-sm font-medium leading-relaxed">{issue.title}</p>
+			<p className="whitespace-pre-wrap text-foreground text-sm leading-relaxed">{issue.body}</p>
+		</div>
+	);
+};
 
 const RouteComponent = () => {
 	const context = routeApi.useRouteContext();
@@ -92,7 +125,11 @@ const RouteComponent = () => {
 										<Badge variant="secondary">{actionLabel(item.actionKind)}</Badge>
 									</div>
 
-									<p className="text-foreground text-sm leading-relaxed">{item.proposedSummary}</p>
+									<ProposalDetail
+										actionKind={item.actionKind}
+										proposedContent={item.proposedContent}
+										proposedSummary={item.proposedSummary}
+									/>
 
 									<div className="flex items-center justify-between gap-3">
 										<p className="text-muted-foreground text-xs">
