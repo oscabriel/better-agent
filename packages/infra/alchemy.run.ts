@@ -77,6 +77,11 @@ const thinkspaceAgents = DurableObjectNamespace("thinkspace-agent", {
 	sqlite: true,
 });
 
+const curatorAgents = DurableObjectNamespace("curator-agent", {
+	className: "CuratorAgent",
+	sqlite: true,
+});
+
 const commonBindings = {
 	API_ENCRYPTION_KEY: requiredSecretEnv("API_ENCRYPTION_KEY"),
 	BETTER_AUTH_SECRET: requiredSecretEnv("BETTER_AUTH_SECRET"),
@@ -90,6 +95,7 @@ const commonBindings = {
 
 const serverBindings = {
 	...commonBindings,
+	CURATOR_AGENT: curatorAgents,
 	THINKSPACE_AGENT: thinkspaceAgents,
 };
 

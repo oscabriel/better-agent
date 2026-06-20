@@ -1,4 +1,10 @@
 import { appRouter, createContext } from "@better-agent/api";
+import {
+	CURATION_FORWARD_CONTEXT_HEADER,
+	encodeCurationForwardContext,
+	parseCurationDraftThinkspaceId,
+} from "@better-agent/api/curator/forward-context";
+import { getOwnedCuratorAgentRuntimeReadiness } from "@better-agent/api/curator/runtime";
 import { getOwnedThinkspaceAgentRuntimeReadiness } from "@better-agent/api/thinkspaces/runtime";
 import {
 	encodeSittingForwardContext,
@@ -21,6 +27,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
+export { CuratorAgent } from "./agents/curator-agent";
 export { ThinkspaceAgent } from "./agents/thinkspace-agent";
 
 const app = new Hono<{ Bindings: CloudflareEnv }>();
@@ -150,6 +157,57 @@ app.use("/api/sittings/*", async (c) => {
 
 	const runtime = await getAgentByName(
 		c.env.THINKSPACE_AGENT as unknown as Parameters<typeof getAgentByName>[0],
+		readiness.runtimeName,
+	);
+
+	return runtime.fetch(new Request(c.req.raw, { headers: forwardHeaders }));
+});
+
+/**
+ * The one authenticated seam by which browser traffic reaches a Curator runtime:
+ * the creation conversation over a draft Thinkspace. Mirrors the Sitting seam
+ * exactly — the worker verifies the Better Auth session and draft ownership, then
+ * strips any client-supplied forward header and stamps its own authenticated
+ * (owner, draft) context before handing the request to the runtime resolved by
+ * draft id. Every other outcome — bad path, unauthenticated, non-owner, missing
+ * draft — returns the same 404, so ownership stays the only signal.
+ */
+app.use("/api/curator/*", async (c) => {
+	const draftThinkspaceId = parseCurationDraftThinkspaceId(new URL(c.req.url).pathname);
+
+	if (!draftThinkspaceId) {
+		return c.notFound();
+	}
+
+	const db = createDb(c.env.DB);
+	const session = await createAuth({ db, env: c.env }).api.getSession({
+		headers: c.req.raw.headers,
+	});
+
+	if (!session?.user) {
+		return c.notFound();
+	}
+
+	const readiness = await getOwnedCuratorAgentRuntimeReadiness({
+		db,
+		draftThinkspaceId,
+		env: c.env,
+		ownerUserId: session.user.id,
+	});
+
+	if (!readiness) {
+		return c.notFound();
+	}
+
+	const forwardHeaders = new Headers(c.req.raw.headers);
+	forwardHeaders.delete(CURATION_FORWARD_CONTEXT_HEADER);
+	forwardHeaders.set(
+		CURATION_FORWARD_CONTEXT_HEADER,
+		encodeCurationForwardContext({ draftThinkspaceId, ownerUserId: session.user.id }),
+	);
+
+	const runtime = await getAgentByName(
+		c.env.CURATOR_AGENT as unknown as Parameters<typeof getAgentByName>[0],
 		readiness.runtimeName,
 	);
 
