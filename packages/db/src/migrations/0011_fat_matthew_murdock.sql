@@ -1,0 +1,1 @@
+ALTER TABLE `user_product_settings` ADD `curator_model` text;
