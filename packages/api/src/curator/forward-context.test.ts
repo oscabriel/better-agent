@@ -22,6 +22,13 @@ test("fails closed for non-curation or id-less paths", () => {
 	assert.equal(parseCurationDraftThinkspaceId("/api/curator"), null);
 });
 
+test("fails closed (not a URIError) on a malformed percent-escape in the id", () => {
+	// `new URL(...).pathname` keeps percent-escapes raw, so a malformed one reaches
+	// the parser. It must return null → the worker's sealed 404, never a 500.
+	assert.equal(parseCurationDraftThinkspaceId("/api/curator/%E0%A4%A"), null);
+	assert.equal(parseCurationDraftThinkspaceId("/api/curator/%"), null);
+});
+
 test("round-trips an authenticated forward context through the header value", () => {
 	const context = { draftThinkspaceId: "thinkspace_abc", ownerUserId: "user_1" };
 	const decoded = decodeCurationForwardContext(encodeCurationForwardContext(context));

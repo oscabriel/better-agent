@@ -56,7 +56,17 @@ export const parseCurationDraftThinkspaceId = (pathname: string): string | null 
 		return null;
 	}
 
-	const draftThinkspaceId = decodeURIComponent(segment).trim();
+	let decodedSegment: string;
+	try {
+		decodedSegment = decodeURIComponent(segment);
+	} catch {
+		// A malformed percent-escape must fail closed to the worker's sealed 404,
+		// not let a URIError escape to a 500 that would distinguish a bad-id probe
+		// from a clean miss.
+		return null;
+	}
+
+	const draftThinkspaceId = decodedSegment.trim();
 
 	return draftThinkspaceId.length > 0 ? draftThinkspaceId : null;
 };
