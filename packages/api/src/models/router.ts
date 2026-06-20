@@ -7,6 +7,7 @@ import { z } from "zod";
 import { encryptCredential, redactCredential } from "../crypto";
 import { protectedProcedure, publicProcedure } from "../procedures";
 import { DEFAULT_MODEL_ID, MODEL_PROVIDER_IDS } from "./catalog";
+import { checkCuratorModelReadiness, getUserCuratorModelSettings } from "./curator";
 import { ModelCatalogError } from "./model-catalog";
 import { getCredentialMap, listProviderCredentials, upsertProviderCredential } from "./credentials";
 
@@ -22,6 +23,11 @@ const saveCredentialInput = z.object({
 const updateDefaultsInput = z.object({
 	defaultModel: z.string().trim().min(1),
 	reasoningEffort: z.enum(REASONING_EFFORTS),
+});
+
+/** `null` clears the override, reverting the Curator to the default model. */
+const updateCuratorModelInput = z.object({
+	curatorModel: z.string().trim().min(1).nullable(),
 });
 
 const encryptionSecret = (env: { API_ENCRYPTION_KEY?: string; BETTER_AUTH_SECRET: string }) =>
@@ -64,6 +70,20 @@ const getUserModelDefaults = async (db: ProductDb, userId: string) => {
 };
 
 export const modelsRouter = {
+	getCuratorModel: protectedProcedure.handler(async ({ context }) => {
+		const settings = await getUserCuratorModelSettings(context.db, context.session.user.id);
+		return { curatorModel: settings?.curatorModel ?? null };
+	}),
+	getCuratorReadiness: protectedProcedure.handler(async ({ context }) => {
+		const settings = await getUserCuratorModelSettings(context.db, context.session.user.id);
+		return await checkCuratorModelReadiness({
+			db: context.db,
+			env: context.env,
+			modelCatalog: context.modelCatalog,
+			settings,
+			userId: context.session.user.id,
+		});
+	}),
 	getDefaults: protectedProcedure.handler(
 		async ({ context }) => await getUserModelDefaults(context.db, context.session.user.id),
 	),
@@ -116,6 +136,47 @@ export const modelsRouter = {
 					message: CREDENTIAL_SAVE_FAILED_MESSAGE,
 				});
 			}
+		}),
+	updateCuratorModel: protectedProcedure
+		.input(updateCuratorModelInput)
+		.handler(async ({ context, input }) => {
+			let curatorModelId: string | null = null;
+			if (input.curatorModel !== null) {
+				let model = null;
+				try {
+					model = await context.modelCatalog.getModel(input.curatorModel);
+				} catch (error) {
+					if (error instanceof ModelCatalogError) {
+						throw catalogUnavailableError();
+					}
+					throw error;
+				}
+
+				if (!model) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: "Choose a Curator model from the supported model catalog.",
+					});
+				}
+				curatorModelId = model.id;
+			}
+
+			const updatedAt = new Date();
+			await context.db
+				.insert(userProductSettings)
+				.values({
+					curatorModel: curatorModelId,
+					updatedAt,
+					userId: context.session.user.id,
+				})
+				.onConflictDoUpdate({
+					set: {
+						curatorModel: curatorModelId,
+						updatedAt,
+					},
+					target: userProductSettings.userId,
+				});
+
+			return { curatorModel: curatorModelId };
 		}),
 	updateDefaults: protectedProcedure
 		.input(updateDefaultsInput)

@@ -82,28 +82,26 @@ const withDefaultProviderOptions = (
 	});
 };
 
-export const resolveLanguageModel = ({
+/**
+ * The provider-construction core shared by every resolution path: given a
+ * catalog definition and a concrete API key, build the native AI SDK provider
+ * model and wrap it with the model's reasoning options. This deliberately
+ * carries NO authorization opinion — each caller (the Thinkspace-Agent grant
+ * gate in `resolveLanguageModel`, the ungated Curator path in `models/curator`)
+ * decides who may reach this point. Keep it that way: the credential-Permission
+ * invariant lives in the callers, not here.
+ */
+export const buildResolvedLanguageModel = ({
+	apiKey,
 	modelDefinition,
-	policy,
-	userCredentials,
-}: ResolveLanguageModelInput): ResolvedLanguageModel => {
-	if (modelDefinition.id !== policy.modelId) {
-		throw new ModelResolutionError(`Unknown model: ${policy.modelId}`);
-	}
-
+	reasoningEffort,
+}: {
+	apiKey: string;
+	modelDefinition: ModelCatalogEntry;
+	reasoningEffort?: ReasoningEffort;
+}): ResolvedLanguageModel => {
 	const { providerId, providerModelId } = parseModelId(modelDefinition.id);
-	if (policy.credentialPermission !== "granted") {
-		throw new ModelResolutionError(
-			"This Thinkspace has not been granted Permission to use the saved provider credential.",
-		);
-	}
-
-	const apiKey = userCredentials?.[providerId];
-	if (!apiKey) {
-		throw new ModelResolutionError(`Missing ${providerId} credential for ${policy.modelId}.`);
-	}
-
-	const providerOptions = getReasoningProviderOptions(modelDefinition, policy.reasoningEffort);
+	const providerOptions = getReasoningProviderOptions(modelDefinition, reasoningEffort);
 	let baseModel: LanguageModelV3;
 	if (providerId === "openai") {
 		baseModel = createOpenAI({ apiKey })(providerModelId);
@@ -121,4 +119,32 @@ export const resolveLanguageModel = ({
 		providerModelId,
 		reasoningProviderOptions: providerOptions,
 	};
+};
+
+export const resolveLanguageModel = ({
+	modelDefinition,
+	policy,
+	userCredentials,
+}: ResolveLanguageModelInput): ResolvedLanguageModel => {
+	if (modelDefinition.id !== policy.modelId) {
+		throw new ModelResolutionError(`Unknown model: ${policy.modelId}`);
+	}
+
+	const { providerId } = parseModelId(modelDefinition.id);
+	if (policy.credentialPermission !== "granted") {
+		throw new ModelResolutionError(
+			"This Thinkspace has not been granted Permission to use the saved provider credential.",
+		);
+	}
+
+	const apiKey = userCredentials?.[providerId];
+	if (!apiKey) {
+		throw new ModelResolutionError(`Missing ${providerId} credential for ${policy.modelId}.`);
+	}
+
+	return buildResolvedLanguageModel({
+		apiKey,
+		modelDefinition,
+		reasoningEffort: policy.reasoningEffort,
+	});
 };

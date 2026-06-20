@@ -6,6 +6,7 @@ import { timestampMsNow } from "./common";
 
 export const userProductSettings = sqliteTable("user_product_settings", {
 	createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampMsNow).notNull(),
+	curatorModel: text("curator_model"),
 	defaultModel: text("default_model"),
 	reasoningEffort: text("reasoning_effort").default("medium").notNull(),
 	theme: text("theme").default("system").notNull(),

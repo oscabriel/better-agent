@@ -156,3 +156,73 @@ test("saving a credential never leaks storage internals to the client", async ()
 		},
 	);
 });
+
+test("reads the saved Curator model override", async () => {
+	const { db } = createDbForDefaults([{ curatorModel: "openai:gpt-4.1" }]);
+	const result = await call(modelsRouter.getCuratorModel, undefined, {
+		context: createCallContext({ db }),
+	});
+
+	assert.equal(result.curatorModel, "openai:gpt-4.1");
+});
+
+test("reports no Curator model override when unset", async () => {
+	const { db } = createDbForDefaults();
+	const result = await call(modelsRouter.getCuratorModel, undefined, {
+		context: createCallContext({ db }),
+	});
+
+	assert.equal(result.curatorModel, null);
+});
+
+test("updates the Curator model only for catalog models", async () => {
+	const { db, inserted, updated } = createDbForDefaults();
+	const result = await call(
+		modelsRouter.updateCuratorModel,
+		{ curatorModel: "anthropic:claude-sonnet-4-5-20250929" },
+		{ context: createCallContext({ db }) },
+	);
+
+	assert.equal(result.curatorModel, "anthropic:claude-sonnet-4-5-20250929");
+	assert.equal(inserted[0]?.userId, "owner_user");
+	assert.equal(inserted[0]?.curatorModel, "anthropic:claude-sonnet-4-5-20250929");
+	assert.equal(updated[0]?.curatorModel, "anthropic:claude-sonnet-4-5-20250929");
+});
+
+test("clears the Curator model override when set to null", async () => {
+	const { db, inserted } = createDbForDefaults();
+	const result = await call(
+		modelsRouter.updateCuratorModel,
+		{ curatorModel: null },
+		{
+			context: createCallContext({ db }),
+		},
+	);
+
+	assert.equal(result.curatorModel, null);
+	assert.equal(inserted[0]?.curatorModel, null);
+});
+
+test("rejects unknown Curator model ids", async () => {
+	const { db, inserted } = createDbForDefaults();
+	await assert.rejects(
+		call(
+			modelsRouter.updateCuratorModel,
+			{ curatorModel: "google:not-real" },
+			{ context: createCallContext({ db }) },
+		),
+		expectCode("BAD_REQUEST"),
+	);
+	assert.equal(inserted.length, 0);
+});
+
+test("Curator readiness reports a connect-first state when no credential exists", async () => {
+	const { db } = createDbForDefaults();
+	const readiness = await call(modelsRouter.getCuratorReadiness, undefined, {
+		context: createCallContext({ db, env: { BETTER_AUTH_SECRET: "test-secret" } }),
+	});
+
+	assert.equal(readiness.status, "not_ready");
+	assert.equal(readiness.reason, "missing_user_credential");
+	assert.match(readiness.message, /Connect a model provider credential/u);
+});
