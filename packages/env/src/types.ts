@@ -2,6 +2,7 @@ export interface CloudflareEnv {
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	CORS_ORIGIN: string;
+	CURATOR_AGENT: DurableObjectNamespace;
 	DB: D1Database;
 	THINKSPACE_AGENT: DurableObjectNamespace;
 	SESSION_KV?: KVNamespace;

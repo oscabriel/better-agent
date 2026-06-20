@@ -21,6 +21,10 @@ const agentSource = readFileSync(
 	new URL("agents/thinkspace-agent.ts", sourceRoot).pathname,
 	"utf-8",
 );
+const curatorAgentSource = readFileSync(
+	new URL("agents/curator-agent.ts", sourceRoot).pathname,
+	"utf-8",
+);
 
 test("the worker never mounts raw Project Think agent routes", () => {
 	assert.doesNotMatch(workerSource, /routeAgentRequest/u);
@@ -44,6 +48,7 @@ test("the worker only exposes known app-owned route prefixes", () => {
 		"/api/rpc/*",
 		"/api/openapi/*",
 		"/api/sittings/*",
+		"/api/curator/*",
 		"/",
 		"/api/health",
 	]);
@@ -62,6 +67,40 @@ test("the worker authenticates and owner-gates the Sitting route before forwardi
 	assert.match(workerSource, /encodeSittingForwardContext\(/u);
 	// Resolution is by Thinkspace id via the agents helper, never a raw router.
 	assert.match(workerSource, /getAgentByName\(/u);
+});
+
+test("the worker authenticates and owner-gates the curation route before forwarding", () => {
+	// The Curator creation seam mirrors the Sitting gate exactly: session check,
+	// then draft-ownership check, then forward. A non-owner or unauthenticated
+	// caller gets the same 404 as a missing draft, so ownership is the only signal.
+	assert.match(workerSource, /"\/api\/curator\/\*"/u);
+	assert.match(workerSource, /getOwnedCuratorAgentRuntimeReadiness\(/u);
+	// The worker strips any client-supplied forward header, then stamps its own.
+	assert.match(workerSource, /forwardHeaders\.delete\(CURATION_FORWARD_CONTEXT_HEADER\)/u);
+	assert.match(workerSource, /encodeCurationForwardContext\(/u);
+	assert.match(workerSource, /c\.env\.CURATOR_AGENT/u);
+});
+
+test("the Curator runtime keeps direct HTTP access fail-closed", () => {
+	// The override defaults to 404; it admits only a worker-stamped curation
+	// forward whose (owner, draft) matches the runtime's bound context, then hands
+	// off to Project Think's chat protocol via super.fetch.
+	assert.match(curatorAgentSource, /override async fetch\(/u);
+	assert.match(curatorAgentSource, /status: 404/u);
+	assert.match(curatorAgentSource, /decodeCurationForwardContext\(/u);
+	assert.match(curatorAgentSource, /matchesCurationForwardContext\(/u);
+	assert.match(curatorAgentSource, /return super\.fetch\(request\)/u);
+});
+
+test("the Curator runtime runs the ungated Curator model and assembles no mutation tools", () => {
+	// The DO resolves the ungated Curator model (#124) in beforeTurn and ships no
+	// mutation tools yet — "proposes, never grants" is structural from the start.
+	assert.match(curatorAgentSource, /resolveCuratorModel\(/u);
+	assert.match(curatorAgentSource, /override async beforeTurn\(/u);
+	// The toolset is structurally empty in this skeleton — there is no activate or
+	// grant tool to assemble, so "proposes, never grants" cannot regress here.
+	assert.match(curatorAgentSource, /private readonly curatorToolSet: ToolSet = \{\}/u);
+	assert.match(curatorAgentSource, /getTools\(\): ToolSet \{\s*return this\.curatorToolSet;/u);
 });
 
 test("the Thinkspace Agent runtime keeps direct HTTP access fail-closed", () => {
