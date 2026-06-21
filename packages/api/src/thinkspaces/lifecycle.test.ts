@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	createCurationDraftThinkspaceRecord,
 	createThinkspaceArchivePatch,
 	createThinkspaceCreationRecord,
 	THINKSPACE_CREATION_DEFAULTS,
@@ -43,6 +44,35 @@ test("builds a deterministic configuration summary when none is supplied", () =>
 	assert.match(
 		record.configurationSummary ?? "",
 		/Memory governance starts in user-reviewed mode/u,
+	);
+});
+
+test("mints an empty-Goal draft record for a curation conversation to open against", () => {
+	const record = createCurationDraftThinkspaceRecord({
+		id: "thinkspace_curation",
+		ownerUserId: "user_123",
+	});
+
+	assert.equal(record.id, "thinkspace_curation");
+	assert.equal(record.ownerUserId, "user_123");
+	assert.equal(record.goal, "");
+	assert.equal(record.configurationSummary, "");
+	assert.equal(record.status, "draft");
+	assert.equal(
+		record.memoryGovernance,
+		JSON.stringify(THINKSPACE_CREATION_DEFAULTS.memoryGovernance),
+	);
+});
+
+test("rejects a curation draft without an owner or identifier", () => {
+	assert.throws(
+		() => createCurationDraftThinkspaceRecord({ id: "thinkspace_curation", ownerUserId: "" }),
+		ThinkspaceLifecycleValidationError,
+	);
+
+	assert.throws(
+		() => createCurationDraftThinkspaceRecord({ id: "", ownerUserId: "user_123" }),
+		ThinkspaceLifecycleValidationError,
 	);
 });
 

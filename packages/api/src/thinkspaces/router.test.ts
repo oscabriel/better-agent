@@ -342,6 +342,94 @@ test("creating a Thinkspace rejects models outside the catalog before persistenc
 	assert.equal(inserted.length, 0);
 });
 
+test("startCuration mints an empty-Goal draft Thinkspace and its initial draft Agent Profile owned by the caller", async () => {
+	const db = createTestProductDb();
+	await db.insert(user).values({
+		email: "owner@example.com",
+		id: authenticatedSession.user.id,
+		name: "Owner",
+	});
+	const context = createCallContext({ db });
+
+	const started = await call(thinkspacesRouter.startCuration, undefined, { context });
+
+	assert.ok(started);
+	assert.equal(started.status, "draft");
+	assert.equal(started.goal, "");
+	assert.equal(started.ownerUserId, authenticatedSession.user.id);
+	assert.ok(started.id.startsWith("thinkspace_"));
+	assert.equal(started.agentProfileRevision.status, "draft");
+	assert.equal(started.agentProfileRevision.identity.displayName, "Untitled Thinkspace");
+	assert.equal(started.agentProfileRevision.identity.instructions, "");
+	// The model provider credential is requested up front so activation can grant it.
+	assert.deepEqual(
+		started.agentProfileRevision.requestedPermissions.map((request) => request.kind),
+		["model_provider_credential"],
+	);
+
+	// An in-progress (empty-Goal) draft stays fetchable/resumable by id, owner-scoped.
+	const resumed = await call(thinkspacesRouter.get, { thinkspaceId: started.id }, { context });
+
+	assert.equal(resumed.id, started.id);
+	assert.equal(resumed.agentProfileRevision?.status, "draft");
+	assert.equal(resumed.agentProfileRevision?.identity.displayName, "Untitled Thinkspace");
+});
+
+test("list hides empty-Goal curation drafts while a draft that gains a Goal appears", async () => {
+	const db = createTestProductDb();
+	await db.insert(user).values({
+		email: "owner@example.com",
+		id: authenticatedSession.user.id,
+		name: "Owner",
+	});
+	const context = createCallContext({ db });
+
+	const inProgress = await call(thinkspacesRouter.startCuration, undefined, { context });
+	const withGoal = await call(
+		thinkspacesRouter.create,
+		{ goal: "Monitor model catalog releases" },
+		{ context },
+	);
+
+	assert.ok(inProgress);
+	assert.ok(withGoal);
+
+	const listed = await call(thinkspacesRouter.list, undefined, { context });
+	const listedIds = new Set(listed.map((thinkspace) => thinkspace.id));
+
+	assert.equal(listedIds.has(inProgress.id), false);
+	assert.equal(listedIds.has(withGoal.id), true);
+});
+
+test("a non-owner cannot fetch or resume another user's in-progress curation draft", async () => {
+	const db = createTestProductDb();
+	await db.insert(user).values({
+		email: "owner@example.com",
+		id: authenticatedSession.user.id,
+		name: "Owner",
+	});
+
+	const started = await call(thinkspacesRouter.startCuration, undefined, {
+		context: createCallContext({ db }),
+	});
+
+	assert.ok(started);
+
+	await assert.rejects(
+		call(
+			thinkspacesRouter.get,
+			{ thinkspaceId: started.id },
+			{
+				context: createCallContext({
+					db,
+					session: { session: { id: "session_other" }, user: { id: "other_user" } },
+				}),
+			},
+		),
+		expectCode("NOT_FOUND"),
+	);
+});
+
 test("owners can activate the draft Agent Profile revision and draft Thinkspace together", async () => {
 	const { db, patches } = createDbForAgentProfileActivation(
 		ownedThinkspaceRow({ ...ownedAgentProfileColumns("draft"), status: "draft" }),

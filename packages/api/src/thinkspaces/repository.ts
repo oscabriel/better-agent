@@ -2,7 +2,7 @@ import type { ProductDb } from "@better-agent/db";
 import { thinkspaceAgentProfiles } from "@better-agent/db/schema/agent-profiles";
 import { THINKSPACE_STATUS, thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import type { Thinkspace, ThinkspaceStatus } from "@better-agent/db/schema/thinkspaces";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, or } from "drizzle-orm";
 
 import { parseAgentProfileRevision, serializeAgentProfileRevision } from "./agent-profile";
 import type { DraftAgentProfileRevision } from "./agent-profile";
@@ -97,6 +97,11 @@ export const listThinkspaces = async (
 				status
 					? eq(thinkspaces.status, status)
 					: ne(thinkspaces.status, THINKSPACE_STATUS.ARCHIVED),
+				// An empty-Goal draft is an in-progress curation: keep it out of the
+				// list until the Curator gives it a real Goal. The draft still
+				// persists and stays fetchable by id, it just does not clutter the
+				// list. A draft that has gained a Goal has goal != '' and reappears.
+				or(ne(thinkspaces.status, THINKSPACE_STATUS.DRAFT), ne(thinkspaces.goal, "")),
 			),
 		)
 		.orderBy(desc(thinkspaces.updatedAt));
