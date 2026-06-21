@@ -11,29 +11,30 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ThinkspacesRouteImport } from './routes/thinkspaces'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ReviewQueueRouteImport } from './routes/review-queue'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ThinkspacesIndexRouteImport } from './routes/thinkspaces.index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as ReviewQueueIndexRouteImport } from './routes/review-queue.index'
 import { Route as ThinkspacesThinkspaceIdRouteImport } from './routes/thinkspaces.$thinkspaceId'
 import { Route as SettingsProfileRouteImport } from './routes/settings.profile'
 import { Route as SettingsProductRouteImport } from './routes/settings.product'
-import { Route as ReviewQueueRouteImport } from './routes/review-queue'
-import { Route as ReviewQueueIndexRouteImport } from './routes/review-queue.index'
+import { Route as ThinkspacesCreateDraftThinkspaceIdRouteImport } from './routes/thinkspaces.create.$draftThinkspaceId'
 
 const ThinkspacesRoute = ThinkspacesRouteImport.update({
   id: '/thinkspaces',
   path: '/thinkspaces',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReviewQueueRoute = ReviewQueueRouteImport.update({
-  id: '/review-queue',
-  path: '/review-queue',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewQueueRoute = ReviewQueueRouteImport.update({
+  id: '/review-queue',
+  path: '/review-queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -51,15 +52,15 @@ const ThinkspacesIndexRoute = ThinkspacesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ThinkspacesRoute,
 } as any)
-const ReviewQueueIndexRoute = ReviewQueueIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ReviewQueueRoute,
-} as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => SettingsRoute,
+} as any)
+const ReviewQueueIndexRoute = ReviewQueueIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ReviewQueueRoute,
 } as any)
 const ThinkspacesThinkspaceIdRoute = ThinkspacesThinkspaceIdRouteImport.update({
   id: '/$thinkspaceId',
@@ -76,6 +77,12 @@ const SettingsProductRoute = SettingsProductRouteImport.update({
   path: '/product',
   getParentRoute: () => SettingsRoute,
 } as any)
+const ThinkspacesCreateDraftThinkspaceIdRoute =
+  ThinkspacesCreateDraftThinkspaceIdRouteImport.update({
+    id: '/create/$draftThinkspaceId',
+    path: '/create/$draftThinkspaceId',
+    getParentRoute: () => ThinkspacesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/review-queue/': typeof ReviewQueueIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/thinkspaces/': typeof ThinkspacesIndexRoute
+  '/thinkspaces/create/$draftThinkspaceId': typeof ThinkspacesCreateDraftThinkspaceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
   '/review-queue': typeof ReviewQueueIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/thinkspaces': typeof ThinkspacesIndexRoute
+  '/thinkspaces/create/$draftThinkspaceId': typeof ThinkspacesCreateDraftThinkspaceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +122,7 @@ export interface FileRoutesById {
   '/review-queue/': typeof ReviewQueueIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/thinkspaces/': typeof ThinkspacesIndexRoute
+  '/thinkspaces/create/$draftThinkspaceId': typeof ThinkspacesCreateDraftThinkspaceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/review-queue/'
     | '/settings/'
     | '/thinkspaces/'
+    | '/thinkspaces/create/$draftThinkspaceId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/review-queue'
     | '/settings'
     | '/thinkspaces'
+    | '/thinkspaces/create/$draftThinkspaceId'
   id:
     | '__root__'
     | '/'
@@ -151,6 +163,7 @@ export interface FileRouteTypes {
     | '/review-queue/'
     | '/settings/'
     | '/thinkspaces/'
+    | '/thinkspaces/create/$draftThinkspaceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -177,18 +190,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/review-queue': {
       id: '/review-queue'
       path: '/review-queue'
       fullPath: '/review-queue'
       preLoaderRoute: typeof ReviewQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -205,19 +218,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThinkspacesIndexRouteImport
       parentRoute: typeof ThinkspacesRoute
     }
-    '/review-queue/': {
-      id: '/review-queue/'
-      path: '/'
-      fullPath: '/review-queue/'
-      preLoaderRoute: typeof ReviewQueueIndexRouteImport
-      parentRoute: typeof ReviewQueueRoute
-    }
     '/settings/': {
       id: '/settings/'
       path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/review-queue/': {
+      id: '/review-queue/'
+      path: '/'
+      fullPath: '/review-queue/'
+      preLoaderRoute: typeof ReviewQueueIndexRouteImport
+      parentRoute: typeof ReviewQueueRoute
     }
     '/thinkspaces/$thinkspaceId': {
       id: '/thinkspaces/$thinkspaceId'
@@ -240,8 +253,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsProductRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/thinkspaces/create/$draftThinkspaceId': {
+      id: '/thinkspaces/create/$draftThinkspaceId'
+      path: '/create/$draftThinkspaceId'
+      fullPath: '/thinkspaces/create/$draftThinkspaceId'
+      preLoaderRoute: typeof ThinkspacesCreateDraftThinkspaceIdRouteImport
+      parentRoute: typeof ThinkspacesRoute
+    }
   }
 }
+
+interface ReviewQueueRouteChildren {
+  ReviewQueueIndexRoute: typeof ReviewQueueIndexRoute
+}
+
+const ReviewQueueRouteChildren: ReviewQueueRouteChildren = {
+  ReviewQueueIndexRoute: ReviewQueueIndexRoute,
+}
+
+const ReviewQueueRouteWithChildren = ReviewQueueRoute._addFileChildren(
+  ReviewQueueRouteChildren,
+)
 
 interface SettingsRouteChildren {
   SettingsProductRoute: typeof SettingsProductRoute
@@ -262,27 +294,18 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 interface ThinkspacesRouteChildren {
   ThinkspacesThinkspaceIdRoute: typeof ThinkspacesThinkspaceIdRoute
   ThinkspacesIndexRoute: typeof ThinkspacesIndexRoute
+  ThinkspacesCreateDraftThinkspaceIdRoute: typeof ThinkspacesCreateDraftThinkspaceIdRoute
 }
 
 const ThinkspacesRouteChildren: ThinkspacesRouteChildren = {
   ThinkspacesThinkspaceIdRoute: ThinkspacesThinkspaceIdRoute,
   ThinkspacesIndexRoute: ThinkspacesIndexRoute,
+  ThinkspacesCreateDraftThinkspaceIdRoute:
+    ThinkspacesCreateDraftThinkspaceIdRoute,
 }
 
 const ThinkspacesRouteWithChildren = ThinkspacesRoute._addFileChildren(
   ThinkspacesRouteChildren,
-)
-
-interface ReviewQueueRouteChildren {
-  ReviewQueueIndexRoute: typeof ReviewQueueIndexRoute
-}
-
-const ReviewQueueRouteChildren: ReviewQueueRouteChildren = {
-  ReviewQueueIndexRoute: ReviewQueueIndexRoute,
-}
-
-const ReviewQueueRouteWithChildren = ReviewQueueRoute._addFileChildren(
-  ReviewQueueRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
