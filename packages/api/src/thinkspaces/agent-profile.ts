@@ -237,6 +237,41 @@ export const isAgentProfileReasoningLevel = (value: unknown): value is AgentProf
 	AGENT_PROFILE_REASONING_LEVELS.includes(value as AgentProfileReasoningLevel);
 
 /**
+ * Derives an Agent Profile display name from a Goal, truncating with an
+ * ellipsis past the display-name limit. The Goal names the outcome; the name
+ * is its short label, so seeding the name from the Goal keeps the two aligned
+ * until a future slice lets the Curator name the agent independently.
+ */
+export const deriveAgentProfileDisplayName = (goal: string): string => {
+	const normalized = goal.trim();
+
+	if (normalized.length <= AGENT_PROFILE_DISPLAY_NAME_MAX_LENGTH) {
+		return normalized;
+	}
+
+	return `${normalized.slice(0, AGENT_PROFILE_DISPLAY_NAME_MAX_LENGTH - 1).trimEnd()}…`;
+};
+
+/**
+ * Picks the reasoning level to seed a revision with: non-reasoning models must
+ * be "none", otherwise the user's saved reasoning effort if it is a real level,
+ * falling back to "medium". Shared by Thinkspace creation and the Curator's
+ * `set_model` so both seed the same way.
+ */
+export const getSeedReasoningLevel = (input: {
+	catalogEntryReasoning: string;
+	reasoningEffort: string | null | undefined;
+}): AgentProfileReasoningLevel => {
+	if (input.catalogEntryReasoning === "none") {
+		return "none";
+	}
+
+	return isAgentProfileReasoningLevel(input.reasoningEffort) && input.reasoningEffort !== "none"
+		? input.reasoningEffort
+		: "medium";
+};
+
+/**
  * Validates the (model, reasoning level) pair against a catalog entry.
  * Non-reasoning models must use "none"; reasoning-capable models must pick
  * an actual level, so an Agent Profile can never hold an ambiguous pairing.

@@ -84,6 +84,72 @@ export const archiveThinkspace = async (
 	return archived ?? null;
 };
 
+export interface UpdateCurationDraftThinkspaceInput {
+	ownerUserId: string;
+	patch: Partial<Pick<typeof thinkspaces.$inferInsert, "configurationSummary" | "goal">> & {
+		updatedAt: Date;
+	};
+	thinkspaceId: string;
+}
+
+/**
+ * Applies a Curator-proposed change to a draft Thinkspace's own fields (Goal,
+ * configuration summary). Owner-scoped as defense in depth even though the
+ * Curator runtime is already bound to one owner+draft: the patch can only land
+ * on a Thinkspace the caller owns, and a miss returns null so the tool fails
+ * product-safely. Giving an empty-Goal draft a real Goal is what returns it to
+ * the owner's list (see `listThinkspaces`).
+ */
+export const updateCurationDraftThinkspace = async (
+	db: ProductDb,
+	{ ownerUserId, patch, thinkspaceId }: UpdateCurationDraftThinkspaceInput,
+): Promise<Thinkspace | null> => {
+	const [updated] = await db
+		.update(thinkspaces)
+		.set(patch)
+		.where(and(eq(thinkspaces.id, thinkspaceId), eq(thinkspaces.ownerUserId, ownerUserId)))
+		.returning();
+
+	return updated ?? null;
+};
+
+export interface ApplyCurationGoalInput {
+	displayName: string;
+	goal: string;
+	ownerUserId: string;
+	revisionId: string;
+	thinkspaceId: string;
+	updatedAt: Date;
+}
+
+/**
+ * Atomically gives a curation draft a real Goal and the matching display name:
+ * the Thinkspace row's Goal (which returns the draft to the owner's list) and
+ * the draft revision's display name move together in one D1 batch, so a failure
+ * can never leave the Goal set while the agent card still reads "Untitled
+ * Thinkspace". Owner-scoped on the Thinkspace; returns null (no Thinkspace
+ * updated) so the caller fails product-safely without having written anything.
+ */
+export const applyCurationGoal = async (
+	db: ProductDb,
+	{ displayName, goal, ownerUserId, revisionId, thinkspaceId, updatedAt }: ApplyCurationGoalInput,
+): Promise<Thinkspace | null> => {
+	const [thinkspaceRows] = await db.batch([
+		db
+			.update(thinkspaces)
+			.set({ goal, updatedAt })
+			.where(and(eq(thinkspaces.id, thinkspaceId), eq(thinkspaces.ownerUserId, ownerUserId)))
+			.returning(),
+		db
+			.update(thinkspaceAgentProfiles)
+			.set({ displayName, updatedAt })
+			.where(eq(thinkspaceAgentProfiles.id, revisionId)),
+	]);
+	const [updated] = thinkspaceRows;
+
+	return updated ?? null;
+};
+
 export const listThinkspaces = async (
 	db: ProductDb,
 	{ ownerUserId, status }: ListThinkspacesInput,
