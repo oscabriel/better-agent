@@ -2,7 +2,7 @@ import type { ProductDb } from "@better-agent/db";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { DEFAULT_MODEL_ID, parseModelId } from "../models/catalog";
+import { DEFAULT_MODEL_ID } from "../models/catalog";
 import { ModelCatalogError, validateCatalogModelId } from "../models/model-catalog";
 import {
 	getOwnedThinkspaceModelReadiness,
@@ -12,8 +12,8 @@ import {
 import { protectedProcedure } from "../procedures";
 import {
 	AgentProfileValidationError,
-	AGENT_PROFILE_DISPLAY_NAME_MAX_LENGTH,
-	isAgentProfileReasoningLevel,
+	deriveAgentProfileDisplayName,
+	getSeedReasoningLevel,
 	validateAgentProfileIdentity,
 	validateAgentProfileModelBehavior,
 } from "./agent-profile";
@@ -43,14 +43,14 @@ import {
 	saveThinkspacePermissionGrants,
 	ThinkspacePermissionGrantError,
 } from "./permissions";
-import { BUILT_IN_TOOL_IDS, createBuiltInToolPermissionRequests } from "./built-in-tools";
-import type { BuiltInToolId } from "./built-in-tools";
+import { BUILT_IN_TOOL_IDS } from "./built-in-tools";
+import { CONNECTED_ACCOUNT_TOOL_IDS } from "./connected-account-tools";
 import {
-	CONNECTED_ACCOUNT_TOOL_IDS,
-	createConnectedAccountToolPermissionRequests,
-} from "./connected-account-tools";
-import type { ConnectedAccountToolId } from "./connected-account-tools";
-import { createMcpToolAccessPermissionRequest, serializeThinkspaceToolSelections } from "./policy";
+	normalizeBuiltInToolIds,
+	normalizeConnectedAccountToolIds,
+	toRequestedPermissions,
+	toToolEnablements,
+} from "./tool-selection";
 import {
 	createCurationDraftThinkspaceRecord,
 	createThinkspaceArchivePatch,
@@ -131,81 +131,6 @@ const createAgentProfileRevisionId = (): string => `agent_profile_revision_${cry
  */
 const CURATION_DRAFT_DISPLAY_NAME = "Untitled Thinkspace";
 
-/** Deduped, in stable catalog order, however the caller ordered them. */
-const normalizeBuiltInToolIds = (toolIds: readonly BuiltInToolId[]): BuiltInToolId[] => {
-	const requested = new Set(toolIds);
-
-	return BUILT_IN_TOOL_IDS.filter((toolId) => requested.has(toolId));
-};
-
-/** Deduped, in stable catalog order, mirroring `normalizeBuiltInToolIds`. */
-const normalizeConnectedAccountToolIds = (
-	toolIds: readonly ConnectedAccountToolId[],
-): ConnectedAccountToolId[] => {
-	const requested = new Set(toolIds);
-
-	return CONNECTED_ACCOUNT_TOOL_IDS.filter((toolId) => requested.has(toolId));
-};
-
-const toToolEnablements = (
-	builtInToolIds: readonly BuiltInToolId[],
-	connectedAccountToolIds: readonly ConnectedAccountToolId[],
-	selections: z.infer<typeof toolSelectionSchema>[],
-): ToolEnablement[] => {
-	const normalized = JSON.parse(serializeThinkspaceToolSelections(selections)) as z.infer<
-		typeof toolSelectionSchema
-	>[];
-
-	return [
-		...builtInToolIds.map(
-			(toolId): ToolEnablement => ({
-				source: "built_in",
-				toolId,
-			}),
-		),
-		...connectedAccountToolIds.map(
-			(toolId): ToolEnablement => ({
-				source: "connected_account",
-				toolId,
-			}),
-		),
-		...normalized.map(
-			(selection): ToolEnablement => ({
-				source: "mcp_server",
-				toolId: selection.toolName
-					? `${selection.serverId}:${selection.toolName}`
-					: selection.serverId,
-			}),
-		),
-	];
-};
-
-/**
- * Every Agent Profile revision needs its model to run, so the draft always
- * requests Permission to use the owner's saved credential for that model's
- * provider. The owner grants it at activation (the default grants all requests),
- * which is what makes model resolution potent — without this grant the runtime
- * fails closed with `permission_required`. Built-in, connected-account, and MCP
- * tool requests are added on top from the user's selections.
- */
-const createModelProviderCredentialPermissionRequest = (modelId: string): RequestedPermission => ({
-	kind: "model_provider_credential",
-	providerId: parseModelId(modelId).providerId,
-	reason: "Use your saved provider credential to run this Thinkspace Agent's model.",
-});
-
-const toRequestedPermissions = (
-	modelId: string,
-	builtInToolIds: readonly BuiltInToolId[],
-	connectedAccountToolIds: readonly ConnectedAccountToolId[],
-	selections: z.infer<typeof toolSelectionSchema>[],
-): RequestedPermission[] => [
-	createModelProviderCredentialPermissionRequest(modelId),
-	...createBuiltInToolPermissionRequests(builtInToolIds),
-	...createConnectedAccountToolPermissionRequests(connectedAccountToolIds),
-	...selections.map((selection) => createMcpToolAccessPermissionRequest(selection)),
-];
-
 export interface EnabledToolPotencyInspection {
 	potency: ToolPotency;
 	source: ToolEnablement["source"];
@@ -233,29 +158,6 @@ const inspectEnabledToolPotencies = async (
 		source: enablement.source,
 		toolId: enablement.toolId,
 	}));
-};
-
-const deriveAgentProfileDisplayName = (goal: string): string => {
-	const normalized = goal.trim();
-
-	if (normalized.length <= AGENT_PROFILE_DISPLAY_NAME_MAX_LENGTH) {
-		return normalized;
-	}
-
-	return `${normalized.slice(0, AGENT_PROFILE_DISPLAY_NAME_MAX_LENGTH - 1).trimEnd()}…`;
-};
-
-const getSeedReasoningLevel = (input: {
-	catalogEntryReasoning: string;
-	reasoningEffort: string | null | undefined;
-}) => {
-	if (input.catalogEntryReasoning === "none") {
-		return "none";
-	}
-
-	return isAgentProfileReasoningLevel(input.reasoningEffort) && input.reasoningEffort !== "none"
-		? input.reasoningEffort
-		: "medium";
 };
 
 /**

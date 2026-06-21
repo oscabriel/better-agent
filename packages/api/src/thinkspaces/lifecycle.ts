@@ -1,8 +1,8 @@
 import { THINKSPACE_STATUS } from "@better-agent/db/schema/thinkspaces";
 import type { NewThinkspace } from "@better-agent/db/schema/thinkspaces";
 
-const MAX_GOAL_LENGTH = 280;
-const MAX_CONFIGURATION_SUMMARY_LENGTH = 1600;
+export const MAX_GOAL_LENGTH = 280;
+export const MAX_CONFIGURATION_SUMMARY_LENGTH = 1600;
 
 export const THINKSPACE_CREATION_DEFAULTS = {
 	memoryGovernance: {
@@ -97,6 +97,36 @@ export const createCurationDraftThinkspaceRecord = ({
 		ownerUserId,
 		status: THINKSPACE_STATUS.DRAFT,
 	};
+};
+
+/**
+ * Validates a Goal the Curator proposes for a draft Thinkspace: a non-empty,
+ * length-bounded string. A real Goal is what flips an in-progress curation
+ * draft back into the owner's list (#126), so an empty Goal is rejected here
+ * just as it is at form-based creation.
+ */
+export const validateCurationGoal = (goal: string): string => {
+	const normalized = normalizeText(goal);
+
+	if (!normalized) {
+		throw new ThinkspaceLifecycleValidationError("Goal is required to shape a Thinkspace.");
+	}
+
+	assertMaxLength("Goal", normalized, MAX_GOAL_LENGTH);
+
+	return normalized;
+};
+
+/**
+ * Validates a configuration summary the Curator proposes: length-bounded, and
+ * allowed to be cleared back to empty.
+ */
+export const validateCurationConfigurationSummary = (summary: string): string => {
+	const normalized = normalizeText(summary);
+
+	assertMaxLength("Configuration summary", normalized, MAX_CONFIGURATION_SUMMARY_LENGTH);
+
+	return normalized;
 };
 
 export const createThinkspaceCreationRecord = ({

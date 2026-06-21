@@ -8,11 +8,14 @@ import {
 import type { CurationForwardContext } from "@better-agent/api/curator/forward-context";
 import { CURATOR_RUNTIME_MAX_STEPS } from "@better-agent/api/curator/runtime";
 import { CURATOR_SYSTEM_PROMPT } from "@better-agent/api/curator/system-prompt";
+import { createProductModelCatalog } from "@better-agent/api/models/models-dev";
 import {
 	CuratorModelUnavailableError,
 	getUserCuratorModelSettings,
 	resolveCuratorModel,
 } from "@better-agent/api/models/curator";
+import { createCuratorRuntimeTools } from "@better-agent/api/thinkspaces/curator-runtime-tools";
+import type { CuratorRuntimeToolContext } from "@better-agent/api/thinkspaces/curator-runtime-tools";
 import { createDb } from "@better-agent/db";
 import type { ProductDb } from "@better-agent/db";
 import type { CloudflareEnv } from "@better-agent/env/types";
@@ -34,15 +37,17 @@ const CURATOR_MODEL_UNAVAILABLE_MESSAGE = "The Curator could not resolve a model
  * The Curator's creation runtime — a deliberate parallel of {@link ThinkspaceAgent},
  * for a different role (ADR-0010). Keyed on the **draft Thinkspace id** (one
  * Curator per draft), it reuses Project Think's durable session, streaming, and
- * recovery wholesale. This is the skeleton (#125): it runs and streams on the
- * ungated Curator model and carries the Curator system prompt, but assembles
- * **no mutation tools** — the propose-only `set_*`/`enable_tool` toolset lands in
- * #127. "Proposes, never grants" is therefore already structural here: there is
- * nothing for it to grant or activate with.
+ * recovery wholesale. It runs and streams on the ungated Curator model, carries
+ * the Curator system prompt, and assembles the propose-only `set_*`/`enable_tool`
+ * toolset (#127) that molds the bound draft Agent Profile. "Proposes, never
+ * grants" is structural: the toolset has no activate and no grant tool, so
+ * granting Permissions and activating the Thinkspace stay user-only acts.
  */
 export class CuratorAgent extends Think<CloudflareEnv> {
 	private readonly curatorSystemPrompt = CURATOR_SYSTEM_PROMPT;
-	private readonly curatorToolSet: ToolSet = {};
+	private readonly curatorToolSet: ToolSet = createCuratorRuntimeTools({
+		resolveContext: () => this.resolveCuratorToolContext(),
+	});
 	private readonly turnModelPlaceholder: LanguageModel = UNRESOLVED_CURATOR_MODEL;
 
 	override maxSteps = CURATOR_RUNTIME_MAX_STEPS;
@@ -98,6 +103,31 @@ export class CuratorAgent extends Think<CloudflareEnv> {
 
 	override getTools(): ToolSet {
 		return this.curatorToolSet;
+	}
+
+	/**
+	 * Resolves what the propose-only tools need at execute time: the (owner,
+	 * draft) the runtime is bound to, plus a product db and model catalog built
+	 * from this runtime's environment. Mirrors how `beforeTurn` reads the bound
+	 * context and builds the db. Returns null when the context is absent, so a
+	 * tool that somehow runs before admission fails product-safely rather than
+	 * touching another owner's data.
+	 */
+	private async resolveCuratorToolContext(): Promise<CuratorRuntimeToolContext | null> {
+		const context = await this.ctx.storage.get<CurationForwardContext>(
+			CURATION_CONTEXT_STORAGE_KEY,
+		);
+
+		if (!context) {
+			return null;
+		}
+
+		return {
+			db: createDb(this.env.DB),
+			draftThinkspaceId: context.draftThinkspaceId,
+			modelCatalog: createProductModelCatalog(this.env),
+			ownerUserId: context.ownerUserId,
+		};
 	}
 
 	override async beforeTurn() {
