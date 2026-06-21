@@ -25,18 +25,29 @@ const PROVIDER_LABELS = {
 
 const REASONING_EFFORTS = ["low", "medium", "high"] as const;
 
+/**
+ * Sentinel Select value for "no Curator override" — clearing the per-user
+ * `curatorModel` so the Curator inherits the account default. The Select cannot
+ * carry a real `null`, so this stands in and maps back to `null` on save.
+ */
+const CURATOR_MODEL_DEFAULT = "__default__";
+
 const RouteComponent = () => {
 	const context = routeApi.useRouteContext();
 	const queryClient = useQueryClient();
 	const catalogQuery = useSuspenseQuery(context.orpc.models.listAvailable.queryOptions());
 	const credentialsQuery = useSuspenseQuery(context.orpc.models.listCredentials.queryOptions());
 	const defaultsQuery = useSuspenseQuery(context.orpc.models.getDefaults.queryOptions());
+	const curatorModelQuery = useSuspenseQuery(context.orpc.models.getCuratorModel.queryOptions());
 	const connectedAccountsQuery = useSuspenseQuery(
 		context.orpc.connectedAccounts.list.queryOptions(),
 	);
 	const [defaultModel, setDefaultModel] = useState(defaultsQuery.data.defaultModel);
 	const [defaultReasoningEffort, setDefaultReasoningEffort] = useState(
 		defaultsQuery.data.reasoningEffort,
+	);
+	const [curatorModel, setCuratorModel] = useState(
+		curatorModelQuery.data.curatorModel ?? CURATOR_MODEL_DEFAULT,
 	);
 	const [providerId, setProviderId] = useState<keyof typeof PROVIDER_LABELS>("openai");
 	const [credential, setCredential] = useState("");
@@ -49,6 +60,16 @@ const RouteComponent = () => {
 				setDefaultReasoningEffort(settings.reasoningEffort);
 				await queryClient.invalidateQueries({
 					queryKey: context.orpc.models.getDefaults.queryKey(),
+				});
+			},
+		}),
+	);
+	const saveCuratorModel = useMutation(
+		context.orpc.models.updateCuratorModel.mutationOptions({
+			onSuccess: async (result) => {
+				setCuratorModel(result.curatorModel ?? CURATOR_MODEL_DEFAULT);
+				await queryClient.invalidateQueries({
+					queryKey: context.orpc.models.getCuratorModel.queryKey(),
 				});
 			},
 		}),
@@ -92,6 +113,10 @@ const RouteComponent = () => {
 		label: `${model.name} · ${model.providerName}`,
 		value: model.id,
 	}));
+	const curatorModelItems = [
+		{ label: "Use account default", value: CURATOR_MODEL_DEFAULT },
+		...modelItems,
+	];
 	const reasoningItems = REASONING_EFFORTS.map((effort) => ({ label: effort, value: effort }));
 	const providerItems = Object.entries(PROVIDER_LABELS).map(([value, providerName]) => ({
 		label: providerName,
@@ -108,6 +133,19 @@ const RouteComponent = () => {
 			return;
 		}
 		saveDefaults.mutate({ defaultModel, reasoningEffort: defaultReasoningEffort });
+	};
+
+	const curatorModelChanged =
+		curatorModel !== (curatorModelQuery.data.curatorModel ?? CURATOR_MODEL_DEFAULT);
+
+	const handleCuratorModelSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (!curatorModelChanged || saveCuratorModel.isPending) {
+			return;
+		}
+		saveCuratorModel.mutate({
+			curatorModel: curatorModel === CURATOR_MODEL_DEFAULT ? null : curatorModel,
+		});
 	};
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -201,6 +239,59 @@ const RouteComponent = () => {
 						type="submit"
 					>
 						{saveDefaults.isPending ? "Saving…" : "Save defaults"}
+					</Button>
+				</form>
+			</section>
+
+			<Separator />
+
+			<section aria-labelledby="curator-model-heading" className="grid gap-4">
+				<div className="grid gap-1">
+					<h3 className="text-sm font-medium" id="curator-model-heading">
+						Curator model
+					</h3>
+					<p className="text-muted-foreground text-sm">
+						The model the Curator reasons with while you shape a new Thinkspace in conversation. It
+						runs on your own provider credential and is separate from the model each Thinkspace
+						Agent uses. Leave it on the account default unless you want the Curator to use a
+						specific model.
+					</p>
+				</div>
+				<form
+					className="grid max-w-xl gap-4 rounded-lg p-4 ring-1 ring-foreground/10"
+					onSubmit={handleCuratorModelSubmit}
+				>
+					<div className="grid gap-1.5">
+						<Label htmlFor="curator-model">Curator model</Label>
+						<Select
+							items={curatorModelItems}
+							onValueChange={(value) => setCuratorModel(value as string)}
+							value={curatorModel}
+						>
+							<SelectTrigger className="w-full" id="curator-model">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={CURATOR_MODEL_DEFAULT}>Use account default</SelectItem>
+								{catalogQuery.data.map((model) => (
+									<SelectItem key={model.id} value={model.id}>
+										{model.name} · {model.providerName} · {model.id}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					{saveCuratorModel.error ? (
+						<p className="text-destructive text-sm" role="alert">
+							{saveCuratorModel.error.message}
+						</p>
+					) : null}
+					<Button
+						className="w-fit"
+						disabled={!curatorModelChanged || saveCuratorModel.isPending}
+						type="submit"
+					>
+						{saveCuratorModel.isPending ? "Saving…" : "Save Curator model"}
 					</Button>
 				</form>
 			</section>

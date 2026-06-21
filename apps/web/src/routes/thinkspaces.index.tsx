@@ -1,21 +1,19 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { Input } from "@better-agent/ui/components/input";
-import { Label } from "@better-agent/ui/components/label";
-import { Textarea } from "@better-agent/ui/components/textarea";
 import { cn } from "@better-agent/ui/lib/utils";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, getRouteApi, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { createFileRoute, getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArchiveIcon,
 	CircleDashedIcon,
 	CircleDotIcon,
 	ClockIcon,
+	KeyRoundIcon,
 	PlusIcon,
 	SearchIcon,
 	TargetIcon,
 } from "lucide-react";
-import type { FormEvent } from "react";
 import { useState } from "react";
 
 const routeApi = getRouteApi("/thinkspaces/");
@@ -71,46 +69,53 @@ const GHOST_THINKSPACES = [
 
 const RouteComponent = () => {
 	const context = routeApi.useRouteContext();
-	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const thinkspacesQuery = useSuspenseQuery(context.orpc.thinkspaces.list.queryOptions());
-	const [goal, setGoal] = useState("");
-	const [initialInstructions, setInitialInstructions] = useState("");
-	const [configurationSummary, setConfigurationSummary] = useState("");
-	const [showCreate, setShowCreate] = useState(false);
+	const readinessQuery = useQuery(context.orpc.models.getCuratorReadiness.queryOptions());
+	const [showGate, setShowGate] = useState(false);
 	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-	const createMutation = useMutation(
-		context.orpc.thinkspaces.create.mutationOptions({
-			onSuccess: async () => {
-				setGoal("");
-				setInitialInstructions("");
-				setConfigurationSummary("");
-				setShowCreate(false);
-				await queryClient.invalidateQueries({
-					queryKey: context.orpc.thinkspaces.list.queryKey(),
+	// Minting a Thinkspace now opens a conversational creation surface: start a
+	// curation draft, then route to it by id. The 3-field form is gone.
+	const startCurationMutation = useMutation(
+		context.orpc.thinkspaces.startCuration.mutationOptions({
+			onSuccess: async (draft) => {
+				if (!draft) {
+					return;
+				}
+
+				await navigate({
+					params: { draftThinkspaceId: draft.id },
+					to: "/thinkspaces/create/$draftThinkspaceId",
 				});
 			},
 		}),
 	);
 
-	const trimmedGoal = goal.trim();
-	const trimmedConfigurationSummary = configurationSummary.trim();
-	const canCreate =
-		Boolean(trimmedGoal && trimmedConfigurationSummary) && !createMutation.isPending;
+	const readiness = readinessQuery.data;
+	const isStarting = startCurationMutation.isPending;
+	const startDisabled = isStarting || readinessQuery.isLoading;
 
-	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-
-		if (!canCreate) {
+	// No credential → gate creation with a connect-first prompt, never a form. A
+	// missing credential is a not-ready readiness; everything else proceeds.
+	const handleStartCuration = () => {
+		if (startDisabled) {
 			return;
 		}
 
-		createMutation.mutate({
-			configurationSummary,
-			goal,
-			initialInstructions,
-		});
+		if (readiness?.status !== "ready") {
+			setShowGate(true);
+			return;
+		}
+
+		setShowGate(false);
+		startCurationMutation.mutate({});
 	};
+
+	const gateMessage =
+		readiness?.status === "not_ready"
+			? readiness.message
+			: "Connect a model provider credential before starting a curation conversation with the Curator.";
 
 	const thinkspaces = thinkspacesQuery.data;
 	const hasThinkspaces = thinkspaces.length > 0;
@@ -135,68 +140,38 @@ const RouteComponent = () => {
 				</p>
 			</div>
 
-			{showCreate ? (
-				<form
+			{showGate ? (
+				<section
+					aria-labelledby="curator-gate-heading"
 					className="grid gap-4 rounded-lg p-6 ring-1 ring-foreground/10"
-					onSubmit={handleSubmit}
 				>
-					<div className="grid gap-1">
-						<h2 className="text-lg font-semibold tracking-tight">Create Thinkspace</h2>
-						<p className="text-muted-foreground text-sm">
-							Define a bounded Goal and initial configuration.
-						</p>
+					<div className="flex items-start gap-2.5">
+						<KeyRoundIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+						<div className="grid gap-1">
+							<h2 className="text-lg font-semibold tracking-tight" id="curator-gate-heading">
+								Connect a model provider first
+							</h2>
+							<p className="max-w-lg text-muted-foreground text-sm leading-relaxed text-pretty">
+								{gateMessage}
+							</p>
+						</div>
 					</div>
-					<div className="grid gap-1.5">
-						<Label htmlFor="thinkspace-goal">Goal</Label>
-						<Input
-							id="thinkspace-goal"
-							name="goal"
-							onChange={(event) => setGoal(event.target.value)}
-							placeholder="The bounded outcome this Thinkspace will pursue"
-							required
-							value={goal}
-						/>
-					</div>
-					<div className="grid gap-1.5">
-						<Label htmlFor="thinkspace-configuration-summary">Configuration summary</Label>
-						<Textarea
-							id="thinkspace-configuration-summary"
-							name="configurationSummary"
-							onChange={(event) => setConfigurationSummary(event.target.value)}
-							placeholder="Scope, Sources to consider, and review expectations"
-							required
-							rows={4}
-							value={configurationSummary}
-						/>
-					</div>
-					<div className="grid gap-1.5">
-						<Label htmlFor="thinkspace-initial-instructions">Initial instructions</Label>
-						<Textarea
-							id="thinkspace-initial-instructions"
-							name="initialInstructions"
-							onChange={(event) => setInitialInstructions(event.target.value)}
-							placeholder="Starting guidance for the Thinkspace Agent (optional)"
-							rows={3}
-							value={initialInstructions}
-						/>
-					</div>
-					{createMutation.error ? (
-						<p className="text-destructive text-sm" role="alert">
-							{createMutation.error.message}
-						</p>
-					) : null}
 					<div className="flex gap-2">
-						<Button disabled={!canCreate} type="submit">
-							{createMutation.isPending ? "Creating…" : "Create Thinkspace"}
-						</Button>
-						<Button onClick={() => setShowCreate(false)} type="button" variant="ghost">
-							Cancel
+						<Button render={<Link to="/settings/product" />}>Go to provider settings</Button>
+						<Button onClick={() => setShowGate(false)} type="button" variant="ghost">
+							Dismiss
 						</Button>
 					</div>
-				</form>
+				</section>
 			) : null}
 
-			{!showCreate && hasThinkspaces ? (
+			{startCurationMutation.error ? (
+				<p className="text-destructive text-sm" role="alert">
+					{startCurationMutation.error.message}
+				</p>
+			) : null}
+
+			{hasThinkspaces ? (
 				<section aria-labelledby="thinkspace-list-heading" className="grid gap-4">
 					<h2 className="sr-only" id="thinkspace-list-heading">
 						Your Thinkspaces
@@ -232,9 +207,13 @@ const RouteComponent = () => {
 								</button>
 							))}
 						</div>
-						<Button className="ml-auto shrink-0" onClick={() => setShowCreate(true)}>
+						<Button
+							className="ml-auto shrink-0"
+							disabled={startDisabled}
+							onClick={handleStartCuration}
+						>
 							<PlusIcon />
-							New Thinkspace
+							{isStarting ? "Starting…" : "New Thinkspace"}
 						</Button>
 					</div>
 					{filteredThinkspaces.length === 0 ? (
@@ -277,7 +256,7 @@ const RouteComponent = () => {
 				</section>
 			) : null}
 
-			{!showCreate && !hasThinkspaces ? (
+			{hasThinkspaces ? null : (
 				<section
 					aria-labelledby="thinkspace-empty-heading"
 					className="grid overflow-hidden rounded-lg ring-1 ring-foreground/10 md:grid-cols-2"
@@ -288,12 +267,13 @@ const RouteComponent = () => {
 						</h2>
 						<p className="max-w-sm text-muted-foreground text-sm leading-relaxed text-pretty">
 							A Thinkspace is a bounded environment for one Goal — its own Sources, Permissions, and
-							a dedicated agent. Compose it once, then return to review what it produced.
+							a dedicated agent. Shape it in a conversation with the Curator, then return to review
+							what it produced.
 						</p>
 						<div>
-							<Button onClick={() => setShowCreate(true)}>
+							<Button disabled={startDisabled} onClick={handleStartCuration}>
 								<PlusIcon />
-								Create Thinkspace
+								{isStarting ? "Starting…" : "Create Thinkspace"}
 							</Button>
 						</div>
 					</div>
@@ -327,7 +307,7 @@ const RouteComponent = () => {
 						</div>
 					</div>
 				</section>
-			) : null}
+			)}
 		</div>
 	);
 };

@@ -113,7 +113,21 @@ const ListPanel = ({
 		</div>
 	);
 
-const CuratorCardBody = ({ card }: { card: CuratorCardProjection }) => (
+/**
+ * The presentational agent card. Pure render over a {@link CuratorCardProjection}
+ * with no transport of its own, so the creation surface (#129) can own one shared
+ * `useAgent` connection and feed both the chat and this card from it.
+ * `showRequestedPermissions` is `false` when the surface renders the requested
+ * Permissions as interactive grant toggles in its Activate step instead, so the
+ * same list never appears twice.
+ */
+export const CuratorAgentCardBody = ({
+	card,
+	showRequestedPermissions = true,
+}: {
+	card: CuratorCardProjection;
+	showRequestedPermissions?: boolean;
+}) => (
 	<div className="grid gap-4 rounded-lg p-5 ring-1 ring-foreground/10">
 		<div className="flex items-start justify-between gap-4">
 			<div className="grid gap-1">
@@ -175,22 +189,24 @@ const CuratorCardBody = ({ card }: { card: CuratorCardProjection }) => (
 			</ListPanel>
 		</CardField>
 
-		<CardField label="Requested Permissions">
-			<div className="flex items-center gap-2 pb-1">
-				<KeyRoundIcon aria-hidden className="size-4 text-muted-foreground" />
-				<span className="text-muted-foreground text-xs">
-					You grant these when you activate the Thinkspace.
-				</span>
-			</div>
-			<ListPanel
-				count={card.requestedPermissions.length}
-				emptyMessage="No Permissions requested yet."
-			>
-				{card.requestedPermissions.map((permission) => (
-					<PermissionRow key={`${permission.kind}:${permission.label}`} permission={permission} />
-				))}
-			</ListPanel>
-		</CardField>
+		{showRequestedPermissions ? (
+			<CardField label="Requested Permissions">
+				<div className="flex items-center gap-2 pb-1">
+					<KeyRoundIcon aria-hidden className="size-4 text-muted-foreground" />
+					<span className="text-muted-foreground text-xs">
+						You grant these when you activate the Thinkspace.
+					</span>
+				</div>
+				<ListPanel
+					count={card.requestedPermissions.length}
+					emptyMessage="No Permissions requested yet."
+				>
+					{card.requestedPermissions.map((permission) => (
+						<PermissionRow key={`${permission.kind}:${permission.label}`} permission={permission} />
+					))}
+				</ListPanel>
+			</CardField>
+		) : null}
 
 		{card.connectedAccounts.length > 0 ? (
 			<CardField label="Connected Accounts">
@@ -205,34 +221,26 @@ const CuratorCardBody = ({ card }: { card: CuratorCardProjection }) => (
 );
 
 /**
- * The live agent card (#128) — the surface the creation conversation converges
- * on. It reads the Curator runtime's synced state (`useAgent` `state`, kept in
- * sync via `onStateUpdate`), which the DO re-projects after each propose-only
- * tool writes the draft. On load — and for a freshly minted draft that has had
- * no tool calls yet, so the runtime has not projected — it seeds the same view
- * from the draft query through the shared pure builder, then lets live synced
- * deltas take over. **D1 is the source of truth; synced state is a projection.**
+ * Builds the card's seed projection from the draft query — the initial-load
+ * reconciliation. The same pure builder the DO uses runs here so the card has
+ * content before the first synced delta arrives (and for a freshly minted draft
+ * that has had no tool calls yet, whose synced state is still null). Returns
+ * `null` until the draft query resolves to an actual draft revision.
  *
- * The page that places this beside the chat pane plus the Activate step is #129;
- * this is the standalone card.
+ * Exposed as a hook so the creation surface (#129) can share the seed: it derives
+ * the live card display from it (`syncedState ?? seed`) and its Activate step
+ * reads the requested Permissions from the same authoritative draft query, never
+ * from the lagging synced projection. **D1 is the source of truth; synced state
+ * is a projection.**
  */
-export const CuratorAgentCard = ({ draftThinkspaceId }: { draftThinkspaceId: string }) => {
+export const useCuratorCardSeed = (draftThinkspaceId: string): CuratorCardProjection | null => {
 	const thinkspaceQuery = useQuery(
 		orpc.thinkspaces.get.queryOptions({ input: { thinkspaceId: draftThinkspaceId } }),
 	);
 	const connectedAccountsQuery = useQuery(orpc.connectedAccounts.list.queryOptions());
 	const modelDefaultsQuery = useQuery(orpc.models.getDefaults.queryOptions());
 
-	const agent = useAgent<CuratorCardProjection | null>({
-		agent: CURATOR_AGENT_RUNTIME,
-		basePath: `api/curator/${draftThinkspaceId}`,
-		host: env.VITE_SERVER_URL,
-		name: draftThinkspaceId,
-	});
-
-	// The initial-load reconciliation: build the same projection from the draft
-	// query so the card has content before the first synced delta arrives.
-	const seed = useMemo<CuratorCardProjection | null>(() => {
+	return useMemo<CuratorCardProjection | null>(() => {
 		const thinkspace = thinkspaceQuery.data;
 		const draft = thinkspace?.agentProfileRevision;
 
@@ -247,6 +255,24 @@ export const CuratorAgentCard = ({ draftThinkspaceId }: { draftThinkspaceId: str
 			thinkspace,
 		});
 	}, [thinkspaceQuery.data, connectedAccountsQuery.data, modelDefaultsQuery.data]);
+};
+
+/**
+ * The live agent card (#128) — the surface the creation conversation converges
+ * on. It self-connects to the Curator runtime and reads its synced state
+ * (`useAgent` `state`, kept in sync via `onStateUpdate`), which the DO re-projects
+ * after each propose-only tool writes the draft, falling back to the seed before
+ * the first delta. The creation page (#129) owns one shared `useAgent` instead and
+ * renders {@link CuratorAgentCardBody} directly; this stays the standalone card.
+ */
+export const CuratorAgentCard = ({ draftThinkspaceId }: { draftThinkspaceId: string }) => {
+	const seed = useCuratorCardSeed(draftThinkspaceId);
+	const agent = useAgent<CuratorCardProjection | null>({
+		agent: CURATOR_AGENT_RUNTIME,
+		basePath: `api/curator/${draftThinkspaceId}`,
+		host: env.VITE_SERVER_URL,
+		name: draftThinkspaceId,
+	});
 
 	// Synced state wins once the runtime has projected; the seed covers the first
 	// load and a fresh, never-curated draft (whose synced state is still null).
@@ -260,5 +286,5 @@ export const CuratorAgentCard = ({ draftThinkspaceId }: { draftThinkspaceId: str
 		);
 	}
 
-	return <CuratorCardBody card={card} />;
+	return <CuratorAgentCardBody card={card} />;
 };
