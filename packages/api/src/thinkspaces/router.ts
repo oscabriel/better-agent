@@ -52,6 +52,7 @@ import {
 import type { ConnectedAccountToolId } from "./connected-account-tools";
 import { createMcpToolAccessPermissionRequest, serializeThinkspaceToolSelections } from "./policy";
 import {
+	createCurationDraftThinkspaceRecord,
 	createThinkspaceArchivePatch,
 	createThinkspaceCreationRecord,
 	ThinkspaceLifecycleValidationError,
@@ -120,6 +121,15 @@ const submitTurnInput = z.object({
 
 const createThinkspaceId = (): string => `thinkspace_${crypto.randomUUID()}`;
 const createAgentProfileRevisionId = (): string => `agent_profile_revision_${crypto.randomUUID()}`;
+
+/**
+ * Placeholder display name a curation draft's first Agent Profile revision
+ * carries until the Curator names the agent. There is no user-authored name at
+ * `startCuration` — the Goal and identity emerge through the conversation — but
+ * `validateAgentProfileIdentity` rejects an empty display name, so the draft
+ * holds this until the Curator's `set_*` tools (#127) overwrite it.
+ */
+const CURATION_DRAFT_DISPLAY_NAME = "Untitled Thinkspace";
 
 /** Deduped, in stable catalog order, however the caller ordered them. */
 const normalizeBuiltInToolIds = (toolIds: readonly BuiltInToolId[]): BuiltInToolId[] => {
@@ -595,6 +605,47 @@ export const thinkspacesRouter = {
 				throw error;
 			}
 		}),
+	// Conversational entry point: minting a Thinkspace now begins a curation
+	// session, not a form submission. A DRAFT with an empty Goal plus its initial
+	// Agent Profile draft is created up front — the draft id is also the
+	// `CuratorAgent` key, so the front end opens the runtime against it. Empty-Goal
+	// drafts are hidden from `list` and resumable by id via `get` (owner-scoped),
+	// so an abandoned curation persists without cluttering the list.
+	startCuration: protectedProcedure.handler(async ({ context }) => {
+		try {
+			const record = createCurationDraftThinkspaceRecord({
+				id: createThinkspaceId(),
+				ownerUserId: context.session.user.id,
+			});
+			const identity = validateAgentProfileIdentity({
+				displayName: CURATION_DRAFT_DISPLAY_NAME,
+				instructions: "",
+			});
+			const settings = await getUserProductModelSettings(context.db, context.session.user.id);
+			const requestedModelId = settings?.defaultModel?.trim() || DEFAULT_MODEL_ID;
+			const { entry } = await validateCatalogModelId(context.modelCatalog, requestedModelId);
+			const modelBehavior = validateAgentProfileModelBehavior({
+				catalogEntry: entry,
+				modelId: requestedModelId,
+				reasoningLevel: getSeedReasoningLevel({
+					catalogEntryReasoning: entry.reasoning,
+					reasoningEffort: settings?.reasoningEffort,
+				}),
+			});
+			const draft = createInitialAgentProfileDraft({
+				id: createAgentProfileRevisionId(),
+				identity,
+				modelBehavior,
+				requestedPermissions: toRequestedPermissions(modelBehavior.modelId, [], [], []),
+				thinkspaceId: record.id,
+			});
+			const created = await createThinkspaceWithAgentProfileDraft(context.db, { draft, record });
+
+			return { ...created.thinkspace, agentProfileRevision: created.draft };
+		} catch (error) {
+			throwProductSafeProfileError(error);
+		}
+	}),
 	submitTurn: protectedProcedure.input(submitTurnInput).handler(async ({ context, input }) => {
 		try {
 			const acceptance = await submitOwnedThinkspaceTurn({

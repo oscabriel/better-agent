@@ -61,6 +61,44 @@ export const createThinkspaceArchivePatch = (
 	};
 };
 
+export interface CreateCurationDraftThinkspaceInput {
+	id: string;
+	ownerUserId: string;
+}
+
+/**
+ * Mints the empty-Goal DRAFT a curation conversation opens against. Unlike
+ * `createThinkspaceCreationRecord`, there is no user-authored Goal yet — the
+ * Curator's `set_*` tools (#127) fill the Goal and configuration as the
+ * conversation shapes the agent. The empty Goal is the signal `listThinkspaces`
+ * filters on to keep in-progress curations out of the main list; a draft that
+ * later gains a Goal reappears. An abandoned empty draft persists (no GC): the
+ * judgement already spent in the session is never silently discarded.
+ */
+export const createCurationDraftThinkspaceRecord = ({
+	id,
+	ownerUserId,
+}: CreateCurationDraftThinkspaceInput): NewThinkspace => {
+	if (!ownerUserId) {
+		throw new ThinkspaceLifecycleValidationError(
+			"A Thinkspace must belong to an authenticated owner.",
+		);
+	}
+
+	if (!id) {
+		throw new ThinkspaceLifecycleValidationError("A Thinkspace requires a stable identifier.");
+	}
+
+	return {
+		configurationSummary: "",
+		goal: "",
+		id,
+		memoryGovernance: JSON.stringify(THINKSPACE_CREATION_DEFAULTS.memoryGovernance),
+		ownerUserId,
+		status: THINKSPACE_STATUS.DRAFT,
+	};
+};
+
 export const createThinkspaceCreationRecord = ({
 	configurationSummary,
 	goal,
