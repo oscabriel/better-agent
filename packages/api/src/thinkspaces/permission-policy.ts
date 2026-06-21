@@ -115,6 +115,19 @@ const NO_GRANTS: ThinkspaceToolGrants = {
 };
 
 /**
+ * The fail-closed decision rule applied with no grants, synchronously. Because
+ * a Thinkspace that holds no grants leaves every Permission-governed source
+ * inert, this answers a static question without touching Permission storage:
+ * "would this tool be potent on enablement alone?" — i.e. read-only
+ * (enablement-only) vs needs-Permission. A draft under curation holds no grants,
+ * so the Curator card badges its enabled tools from exactly this rule rather
+ * than hand-classifying sources.
+ */
+export const evaluateEnablementOnlyToolPotency = (
+	enablements: ToolEnablement[],
+): ToolPotencyVerdict[] => evaluateAgainstGrants(enablements, NO_GRANTS);
+
+/**
  * The decision rule with no grant lookup: useful where Permission storage is
  * out of reach (pure assembly tests) — equivalent to the store-backed policy
  * when the Thinkspace holds no grants, so every tool-governing source is
@@ -122,7 +135,7 @@ const NO_GRANTS: ThinkspaceToolGrants = {
  */
 export const createEnablementOnlyPermissionPolicy = (): ThinkspacePermissionPolicy => ({
 	evaluateToolPotency: ({ enablements }) =>
-		Promise.resolve(evaluateAgainstGrants(enablements, NO_GRANTS)),
+		Promise.resolve(evaluateEnablementOnlyToolPotency(enablements)),
 });
 
 /** Test adapter with caller-chosen verdicts per tool id. */
