@@ -633,6 +633,103 @@ above has a passing row against the target deployment.
 | ---------- | -------------------------------------------------- | ---------- | -------- | --------------------- | -------------------- | ------------- | ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 2026-06-19 | Local `bun run dev` (workerd, localhost:3001/3000) | `5858998`  | owner    | PASS                  | PASS                 | PASS          | PASS              | PASS                  | Owner-run live verification on the #114 merge. Inline approve created a real issue and resumed the turn; queue approve resumed the parked turn and created the issue; reject created nothing and never read the credential; revoked token surfaced an honest failure + reconnect prompt with no fabricated success; non-owner saw none of the Connected Account / Approval surfaces. |
 
+## 12. Curator-led creation round-trip (issue #129/#130)
+
+Expectation: minting a Thinkspace is a live conversation with the `CuratorAgent`,
+not a form. New Thinkspace starts a curation draft (`thinkspaces.startCuration`)
+and routes to the creation surface
+(`apps/web/src/routes/thinkspaces.create.$draftThinkspaceId.tsx`), which places
+the streamed Curator chat beside the live agent card. The Curator's propose-only
+tools (`set_goal` / `set_configuration_summary` / `set_instructions` /
+`set_model` / `enable_tool`, `packages/api/src/thinkspaces/curator-runtime-tools.ts`)
+mold the bound draft; after each tool the DO re-projects the card into Think
+synced state (`apps/server/src/agents/curator-agent.ts` `afterToolCall` →
+`projectCard` → `setState`, derived by the pure
+`packages/api/src/thinkspaces/curator-card.ts` builder). The owner grants a
+subset of the requested Permissions and activates in-surface
+(`activateAgentProfile({ grantedPermissionIndexes })`), which flips DRAFT →
+ACTIVE with exactly the granted Permissions. "Proposes, never grants" is
+structural: the toolset has no activate and no grant tool. This is the creation
+analog of the Sitting loop (§"Sittings") on the parallel Curator runtime
+(ADR-0010).
+
+Live-round-trip precondition: a **model provider credential is connected**
+(`/settings/product`) so `models.getCuratorReadiness` is `ready` and the Curator
+resolves its ungated product-credential model (#124); plus a **tool-call-capable
+Curator model** (the default `google:gemini-2.5-flash-lite` may not reliably
+emit the `set_*`/`enable_tool` calls — set a capable model via Settings →
+Product → **Curator model** if the card never updates). The card-display gate
+(`card.ready`) is non-empty Goal ∩ a `model_provider_credential` request on the
+draft; whether that credential actually resolves is the separate activation-time
+gate.
+
+### 12.1 Happy path: describe → live shaping → push-back → grant subset → activate
+
+- [x] Thinkspaces → **New Thinkspace** → `startCuration` mints an empty-Goal draft
+      and routes to `/thinkspaces/create/<draftId>` (chat left, agent card right).
+- [x] Describe an intent in the composer. The Curator **sharpens a bounded Goal**
+      and proposes a tool-equipped Agent Profile; the **agent card updates per
+      tool call** — display name, Goal, instructions, model (+ provenance),
+      enabled tools (badged), and requested Permissions populate live as the DO
+      re-projects synced state after each `set_*`/`enable_tool` write.
+- [x] **Push back at least once** (narrow the Goal, change the model, drop a
+      tool). The card changes in response on the next tool call — the live
+      synced-state projection (#128) converges in the browser, not just the seed.
+- [x] The card badge flips to **"Ready to activate"** once the Goal and the
+      `model_provider_credential` request are present.
+- [x] In the Activate step, **toggle OFF at least one** requested Permission, then
+      **Activate Thinkspace**. The grant set is read from a fresh re-read of the
+      draft (`thinkspaces.get` at click time) and mapped to
+      `grantedPermissionIndexes` by stable Permission key, so the withheld
+      Permission is the one actually dropped — no index drift from the lagging
+      projection.
+- [x] The surface routes to `/thinkspaces/<id>`; the Thinkspace is **ACTIVE** with
+      its first Agent Profile revision and **exactly the granted Permissions**
+      (the toggled-off Permission is absent from the granted list).
+
+### 12.2 Connected-account display: connected vs not-connected, warn-not-block
+
+- [x] Have the Curator `enable_tool` a connected-account tool
+      (`github:create_issue`) **while GitHub is disconnected**. The card's
+      Connected Accounts row reads **"Not connected — the tool stays inert…"** and
+      the Activate step shows the **warning** (TriangleAlert + Connect link).
+- [x] Activation is **not blocked** by the unconnected account: Activate succeeds,
+      and on the active Thinkspace the connected-account tool is **Inert** (the
+      potency rule — enable ∩ grant ∩ connected, `permission-policy.ts`).
+- [x] (Optional) connect GitHub, re-open the draft → the row flips to **"Connected
+      as @&lt;login&gt;"** (`buildCuratorCardProjection` reads the live
+      `listConnectedAccounts` rows on the next projection).
+
+### 12.3 No-credential gate: connect-first, no form
+
+- [x] As a user with **no provider credential**, click **New Thinkspace** /
+      **Create Thinkspace**. A **connect-first gate** ("Connect a model provider
+      first") renders with the readiness message and a link to `/settings/product`
+      — **no 3-field form**, and **no draft is created** (`startCuration` is not
+      called until readiness is `ready`).
+- [x] Dismiss works; after connecting a credential, New Thinkspace proceeds into
+      the creation surface.
+
+### 12.4 Abandoned draft: empty-Goal draft preserved + hidden + resumable
+
+- [x] Start curation and leave before the Curator sets a Goal, then return to
+      `/thinkspaces`. The empty-Goal draft is **hidden** from the list
+      (`listThinkspaces` SQL exclusion `or(status != 'draft', goal != '')`).
+- [x] Reloading `/thinkspaces/create/<draftId>` **resumes the same draft** (the DO
+      and D1 row persist; the card re-seeds from `thinkspaces.get` and the DO's
+      persisted projection) — no duplicate draft is minted.
+- [x] If the Curator did set a Goal before you left, that draft **reappears** in
+      the list as a Draft — expected, since the list hides only empty-Goal drafts.
+
+### 12.5 Result record
+
+Add one row per smoke execution. The issue is not complete until every branch
+above has a passing row against the target deployment.
+
+| Date       | Stage / URL                                        | Commit SHA | Operator | Happy path (12.1) | Connected-account (12.2) | No-credential gate (12.3) | Abandoned draft (12.4) | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------- | -------------------------------------------------- | ---------- | -------- | ----------------- | ------------------------ | ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-22 | Local `bun run dev` (workerd, localhost:3001/3000) | `d5bc8c7`  | owner    | PASS              | PASS                     | PASS                      | PASS                   | Owner-run live verification on the #129 merge, closing curator_creation_v1. New Thinkspace opened the creation surface; the agent card converged per tool call as the Curator shaped the Goal/instructions/model/tools and re-converged after a push-back (the first real-browser eyeball of the #128 synced-state projection); granting a subset activated with exactly those Permissions; the unconnected GitHub tool warned but did not block and stayed inert; a credential-less user hit the connect-first gate with no form; an abandoned empty-Goal draft stayed hidden and resumed by id. |
+
 ## Appendix: temporary local DO probe (optional deep checks)
 
 The two optional deep checks exercise the DO boundary directly, which no
