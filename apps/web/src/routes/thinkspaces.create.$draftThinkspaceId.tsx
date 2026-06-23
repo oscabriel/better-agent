@@ -4,7 +4,6 @@ import type {
 	CuratorCardRequestedPermissionView,
 } from "@better-agent/api/thinkspaces/curator-card";
 import { env } from "@better-agent/env/web";
-import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { Switch } from "@better-agent/ui/components/switch";
 import { Textarea } from "@better-agent/ui/components/textarea";
@@ -13,15 +12,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useAgent } from "agents/react";
 import {
+	ArrowUpIcon,
 	ChevronRightIcon,
 	KeyRoundIcon,
-	MessagesSquareIcon,
 	PlugIcon,
 	SparklesIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CuratorAgentCardBody, useCuratorCardSeed } from "@/components/curator-agent-card";
 
@@ -38,6 +37,23 @@ const CURATOR_AGENT_RUNTIME = "curator-agent";
 /** The shared connection both the chat and the live card read from. */
 type CuratorAgentConnection = ReturnType<typeof useAgent<CuratorCardProjection | null>>;
 
+/** A renderable message part, narrowed to the text/reasoning the transcript shows. */
+interface RenderablePart {
+	kind: string;
+	text: string;
+}
+
+/**
+ * Grounded starter prompts (PRODUCT.md voice: name the outcome, no aspiration).
+ * Seed the composer so a blank conversation teaches what to say instead of
+ * staring back at the owner.
+ */
+const SUGGESTION_PROMPTS: readonly string[] = [
+	"A research agent that tracks a competitor's pricing pages and flags changes I should review.",
+	"An agent that reviews my ADRs against our coding standards and proposes GitHub issues for gaps.",
+	"A weekly digest agent that reads my Sources and writes a short brief of what changed.",
+];
+
 /**
  * A stable identity for a requested Permission, used to track grant decisions
  * across the live (synced) card and the authoritative draft re-read at activation
@@ -49,7 +65,114 @@ type CuratorAgentConnection = ReturnType<typeof useAgent<CuratorCardProjection |
 const permissionKey = (permission: CuratorCardRequestedPermissionView): string =>
 	`${permission.kind}|${permission.label}`;
 
-const getCuratorMessageRoleLabel = (role: string): string => (role === "user" ? "You" : "Curator");
+const toRenderableParts = (parts: { text?: string; type: string }[]): RenderablePart[] =>
+	parts
+		.filter((part) => part.type === "text" || part.type === "reasoning")
+		.map((part) => ({ kind: part.type, text: part.text ?? "" }));
+
+const getLiveIndicatorLabel = (isRecovering: boolean, status: string): string => {
+	if (isRecovering) {
+		return "Recovering the Curator's turn…";
+	}
+
+	return status === "streaming" ? "Curator is responding…" : "Curator is thinking…";
+};
+
+/** The Curator's identity glyph — a calm achromatic disc, not a colored avatar. */
+const CuratorAvatar = () => (
+	<span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+		<SparklesIcon aria-hidden className="size-3.5" />
+	</span>
+);
+
+const CuratorTurn = ({ messageId, parts }: { messageId: string; parts: RenderablePart[] }) => (
+	<div className="grid gap-2">
+		<div className="flex items-center gap-2">
+			<CuratorAvatar />
+			<p className="text-muted-foreground text-xs font-medium">Curator</p>
+		</div>
+		<div className="grid gap-2 pl-8">
+			{parts.map((part, index) =>
+				part.kind === "reasoning" ? (
+					<p
+						className="whitespace-pre-wrap border-border border-l pl-3 text-muted-foreground text-xs italic leading-relaxed"
+						key={`${messageId}-${index}`}
+					>
+						{part.text}
+					</p>
+				) : (
+					<p
+						className="whitespace-pre-wrap text-sm leading-relaxed text-pretty"
+						key={`${messageId}-${index}`}
+					>
+						{part.text}
+					</p>
+				),
+			)}
+		</div>
+	</div>
+);
+
+const UserTurn = ({ messageId, parts }: { messageId: string; parts: RenderablePart[] }) => (
+	<div className="flex justify-end">
+		<div className="grid max-w-[85%] gap-1 rounded-lg rounded-br-sm bg-muted px-3.5 py-2.5">
+			{parts.map((part, index) => (
+				<p className="whitespace-pre-wrap text-sm leading-relaxed" key={`${messageId}-${index}`}>
+					{part.text}
+				</p>
+			))}
+		</div>
+	</div>
+);
+
+/** Left-aligned live indicator: a pulsing disc the moment the Curator is working. */
+const ThinkingIndicator = ({ label }: { label: string }) => (
+	<div className="flex items-center gap-2">
+		<CuratorAvatar />
+		<span className="flex items-center gap-2 text-muted-foreground text-xs">
+			<span className="relative flex size-1.5" aria-hidden>
+				<span className="absolute inline-flex size-full animate-ping rounded-full bg-muted-foreground/60 motion-reduce:hidden" />
+				<span className="relative inline-flex size-1.5 rounded-full bg-muted-foreground" />
+			</span>
+			{label}
+		</span>
+	</div>
+);
+
+const ConversationEmptyState = ({ onPick }: { onPick: (prompt: string) => void }) => (
+	<div className="grid gap-6 py-10 text-center sm:py-16">
+		<div className="mx-auto grid size-12 place-items-center rounded-full bg-muted">
+			<SparklesIcon aria-hidden className="size-5 text-muted-foreground" />
+		</div>
+		<div className="grid gap-2">
+			<h2 className="text-base font-semibold tracking-tight">Describe the agent you want</h2>
+			<p className="mx-auto max-w-md text-muted-foreground text-sm leading-relaxed text-pretty">
+				Tell the Curator the Goal, what it should pay attention to, and which Sources and tools it
+				should use. It shapes the agent card beside this conversation as you talk; you grant
+				Permissions and activate when it&apos;s ready.
+			</p>
+		</div>
+		<div className="grid gap-2">
+			<p className="text-muted-foreground text-xs font-medium">Try starting with</p>
+			<div className="mx-auto grid w-full max-w-md gap-2">
+				{SUGGESTION_PROMPTS.map((prompt) => (
+					<button
+						className="group flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-left text-muted-foreground text-sm leading-relaxed ring-1 ring-foreground/10 transition-colors hover:bg-muted hover:text-foreground"
+						key={prompt}
+						onClick={() => onPick(prompt)}
+						type="button"
+					>
+						<ArrowUpIcon
+							aria-hidden
+							className="mt-0.5 size-3.5 shrink-0 -rotate-45 text-muted-foreground/60 transition-colors group-hover:text-foreground"
+						/>
+						<span>{prompt}</span>
+					</button>
+				))}
+			</div>
+		</div>
+	</div>
+);
 
 const LiveCuration = ({ agent }: { agent: CuratorAgentConnection }) => {
 	const { error, isRecovering, messages, sendMessage, status, stop } = useAgentChat({
@@ -57,7 +180,27 @@ const LiveCuration = ({ agent }: { agent: CuratorAgentConnection }) => {
 		credentials: "include",
 	});
 	const [draft, setDraft] = useState("");
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const isBusy = status === "submitted" || status === "streaming";
+
+	// Follow the transcript as turns arrive and tokens stream, honoring reduced
+	// motion. Keyed on messages + status so it tracks both new turns and streaming.
+	useEffect(() => {
+		const node = scrollRef.current;
+
+		if (!node) {
+			return;
+		}
+
+		const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		node.scrollTo({ behavior: prefersReduced ? "auto" : "smooth", top: node.scrollHeight });
+	}, [messages, status]);
+
+	const applySuggestion = (prompt: string) => {
+		setDraft(prompt);
+		textareaRef.current?.focus();
+	};
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -71,107 +214,85 @@ const LiveCuration = ({ agent }: { agent: CuratorAgentConnection }) => {
 		void sendMessage({ text });
 	};
 
+	const liveLabel = getLiveIndicatorLabel(isRecovering, status);
+	const showLiveIndicator = isBusy || isRecovering;
+
 	return (
-		<div className="grid gap-4 rounded-lg p-4 ring-1 ring-foreground/10">
-			<div className="flex items-center gap-2">
-				<MessagesSquareIcon aria-hidden className="size-4 text-muted-foreground" />
-				<h2 className="text-sm font-medium">Curation conversation</h2>
-			</div>
+		<div className="flex flex-col lg:min-h-0 lg:border-border lg:border-r">
 			<div
 				aria-label="Curation conversation"
 				aria-live="polite"
-				className="grid max-h-[30rem] gap-4 overflow-y-auto"
+				className="overflow-y-auto px-4 py-6 lg:min-h-0 lg:flex-1 lg:px-8"
+				ref={scrollRef}
 			>
-				{messages.length === 0 ? (
-					<p className="text-muted-foreground text-sm leading-relaxed">
-						Describe the agent you want — its Goal, what it should pay attention to, which Sources
-						and tools it should use, and how it should work. The Curator shapes the agent card
-						beside this conversation as you talk; you grant Permissions and activate when it&apos;s
-						ready.
-					</p>
-				) : (
-					messages.map((message) => {
-						const renderableParts = message.parts.filter(
-							(part) => part.type === "text" || part.type === "reasoning",
-						);
+				<div className="mx-auto grid max-w-2xl gap-6">
+					{messages.length === 0 ? (
+						<ConversationEmptyState onPick={applySuggestion} />
+					) : (
+						messages.map((message) => {
+							const parts = toRenderableParts(message.parts);
 
-						// Curator tools are propose-only writes to the draft — the card reflects
-						// them — so a turn with only tool parts shows nothing here. Skip it; the
-						// streaming/thinking badges below already signal an in-flight turn.
-						if (renderableParts.length === 0) {
-							return null;
-						}
+							// Curator tools are propose-only writes to the draft — the card reflects
+							// them — so a turn with only tool parts shows nothing here. Skip it; the
+							// live indicator below already signals an in-flight turn.
+							if (parts.length === 0) {
+								return null;
+							}
 
-						return (
-							<div className="grid gap-1" key={message.id}>
-								<p className="text-muted-foreground text-xs font-medium">
-									{getCuratorMessageRoleLabel(message.role)}
-								</p>
-								{renderableParts.map((part, index) => {
-									if (part.type === "reasoning") {
-										return (
-											<p
-												className="whitespace-pre-wrap border-border border-l-2 pl-3 text-muted-foreground text-xs italic leading-relaxed"
-												key={`${message.id}-reasoning-${index}`}
-											>
-												{part.text}
-											</p>
-										);
-									}
-
-									return (
-										<p
-											className="whitespace-pre-wrap text-sm leading-relaxed"
-											key={`${message.id}-text-${index}`}
-										>
-											{part.type === "text" ? part.text : ""}
-										</p>
-									);
-								})}
-							</div>
-						);
-					})
-				)}
-			</div>
-			<div className="flex flex-wrap items-center gap-3 border-border border-t pt-3">
-				{isRecovering ? (
-					<Badge variant="secondary">Recovering the Curator&apos;s turn…</Badge>
-				) : null}
-				{status === "streaming" ? <Badge variant="secondary">Streaming…</Badge> : null}
-				{status === "submitted" ? <Badge variant="secondary">Thinking…</Badge> : null}
-			</div>
-			{error ? (
-				<p className="text-destructive text-xs" role="alert">
-					{error.message}
-				</p>
-			) : null}
-			<form className="grid gap-2" onSubmit={handleSubmit}>
-				<label className="sr-only" htmlFor="curation-message">
-					Message to the Curator
-				</label>
-				<Textarea
-					id="curation-message"
-					onChange={(event) => setDraft(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-							event.currentTarget.form?.requestSubmit();
-						}
-					}}
-					placeholder="Describe the agent you want to build, or refine the card on the right."
-					rows={3}
-					value={draft}
-				/>
-				<div className="flex items-center justify-end gap-2">
-					{isBusy ? (
-						<Button onClick={() => void stop()} type="button" variant="outline">
-							Stop
-						</Button>
-					) : null}
-					<Button disabled={!draft.trim() || isBusy} type="submit">
-						Send
-					</Button>
+							return message.role === "user" ? (
+								<UserTurn key={message.id} messageId={message.id} parts={parts} />
+							) : (
+								<CuratorTurn key={message.id} messageId={message.id} parts={parts} />
+							);
+						})
+					)}
+					{showLiveIndicator ? <ThinkingIndicator label={liveLabel} /> : null}
 				</div>
-			</form>
+			</div>
+
+			<div className="shrink-0 border-border border-t bg-background px-4 py-3 lg:px-8">
+				<div className="mx-auto grid max-w-2xl gap-2">
+					{error ? (
+						<p className="text-destructive text-xs" role="alert">
+							{error.message}
+						</p>
+					) : null}
+					<form className="grid gap-2" onSubmit={handleSubmit}>
+						<label className="sr-only" htmlFor="curation-message">
+							Message to the Curator
+						</label>
+						<Textarea
+							id="curation-message"
+							onChange={(event) => setDraft(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+									event.currentTarget.form?.requestSubmit();
+								}
+							}}
+							placeholder="Describe the agent you want to build, or refine the card on the right."
+							ref={textareaRef}
+							rows={2}
+							value={draft}
+						/>
+						<div className="flex items-center justify-between gap-3">
+							<p className="text-muted-foreground text-xs">
+								Press <kbd className="font-sans font-medium text-foreground">⌘↵</kbd> to send
+							</p>
+							<div className="flex items-center gap-2">
+								{isBusy ? (
+									<Button onClick={() => void stop()} type="button" variant="outline">
+										Stop
+									</Button>
+								) : null}
+								<Button disabled={!draft.trim() || isBusy} type="submit">
+									<ArrowUpIcon />
+									Send
+								</Button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
 		</div>
 	);
 };
@@ -365,8 +486,8 @@ const RouteComponent = () => {
 	const card = agent.state ?? seed;
 
 	return (
-		<div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-8">
-			<header className="grid gap-3">
+		<div className="flex flex-col lg:h-full lg:overflow-hidden">
+			<header className="shrink-0 border-border border-b px-4 py-4 lg:px-8">
 				<nav
 					aria-label="Breadcrumb"
 					className="flex items-center gap-1.5 text-muted-foreground text-xs"
@@ -379,32 +500,28 @@ const RouteComponent = () => {
 						New Thinkspace
 					</span>
 				</nav>
-				<div className="flex items-start gap-2.5">
-					<SparklesIcon aria-hidden className="mt-1 size-5 shrink-0 text-muted-foreground" />
-					<div className="grid gap-1">
-						<h1 className="text-2xl font-semibold tracking-tight">Create a Thinkspace</h1>
-						<p className="max-w-xl text-muted-foreground text-sm leading-relaxed text-pretty">
-							Shape the agent through a conversation with the Curator. It proposes the Goal,
-							instructions, model, tools, and Permissions on the card; you grant and activate.
-						</p>
-					</div>
+				<div className="mt-2 flex items-center gap-2.5">
+					<SparklesIcon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+					<h1 className="text-lg font-semibold tracking-tight">Create a Thinkspace</h1>
 				</div>
 			</header>
 
-			<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+			<div className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[2fr_1fr]">
 				<LiveCuration agent={agent} />
-				<div className="grid content-start gap-4">
-					{card ? (
-						<>
-							<CuratorAgentCardBody card={card} showRequestedPermissions={false} />
-							<ActivateStep card={card} draftThinkspaceId={draftThinkspaceId} />
-						</>
-					) : (
-						<p className="rounded-lg p-5 ring-1 ring-foreground/10 text-muted-foreground text-sm">
-							Starting the curation conversation…
-						</p>
-					)}
-				</div>
+				<aside className="border-border border-t px-4 py-5 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:px-6">
+					<div className="grid content-start gap-4">
+						{card ? (
+							<>
+								<CuratorAgentCardBody card={card} showRequestedPermissions={false} />
+								<ActivateStep card={card} draftThinkspaceId={draftThinkspaceId} />
+							</>
+						) : (
+							<p className="rounded-lg p-5 ring-1 ring-foreground/10 text-muted-foreground text-sm">
+								Starting the curation conversation…
+							</p>
+						)}
+					</div>
+				</aside>
 			</div>
 		</div>
 	);
