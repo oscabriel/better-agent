@@ -135,7 +135,7 @@ test("Cloudflare Agents MCP tool identity maps product server ids to runtime too
 	assert.equal(parseCloudflareAgentsMcpToolName("web_search", ["cloudflare-docs"]), null);
 });
 
-test("turn MCP runtime planning connects only potent grantable built-in servers", () => {
+test("turn MCP runtime planning connects potent auth-free servers of any risk, never authed ones", () => {
 	const revision = createRevision([
 		{ source: "mcp_server", toolId: "cloudflare-docs" },
 		{ source: "mcp_server", toolId: "aws-knowledge:search" },
@@ -150,11 +150,51 @@ test("turn MCP runtime planning connects only potent grantable built-in servers"
 		revision,
 	});
 
+	// The auth-free read-only and mutating servers both connect (the mutating
+	// one's tools are held); the api-key server stays out (auth deferred to the
+	// credential seam).
 	assert.deepEqual(
 		plan.servers.map((server) => server.id),
-		["cloudflare-docs"],
+		["cloudflare-docs", "mutating-docs"],
 	);
-	assert.deepEqual(plan.activeProductToolIds, ["cloudflare-docs"]);
+	assert.deepEqual(plan.activeProductToolIds, ["cloudflare-docs", "mutating-docs"]);
+});
+
+test("preparation holds every tool from a mutating server for Approval, leaving read-only tools inline", async () => {
+	const prepared = await prepareThinkspaceMcpRuntimeTools({
+		activeProductToolIds: ["cloudflare-docs", "mutating-docs"],
+		connectServer: ({ server }) =>
+			Promise.resolve(
+				server.id === "mutating-docs"
+					? toolSet(["tool_mutatingdocs_open_pr"])
+					: toolSet(["tool_cloudflaredocs_search_docs"]),
+			),
+		servers: [CLOUD_FLARE_DOCS, MUTATING_SERVER],
+	});
+
+	assert.equal(
+		(prepared.tools.tool_mutatingdocs_open_pr as { needsApproval?: boolean }).needsApproval,
+		true,
+	);
+	assert.equal(
+		(prepared.tools.tool_cloudflaredocs_search_docs as { needsApproval?: boolean }).needsApproval,
+		undefined,
+	);
+});
+
+test("before-tool-call authorization allows a potent mutating-server tool (held, not blocked)", async () => {
+	const revision = createRevision([{ source: "mcp_server", toolId: "mutating-docs" }]);
+	const decision = await evaluateMcpRuntimeToolCallPermission({
+		builtInMcpServers: [MUTATING_SERVER],
+		permissionPolicy: createMemoryPermissionPolicy({ "mutating-docs": "potent" }),
+		revision,
+		runtimeToolName: "tool_mutatingdocs_open_pr",
+		thinkspaceId: revision.thinkspaceId,
+	});
+
+	assert.equal(decision.applies, true);
+	assert.equal(decision.allowed, true);
+	assert.equal(decision.productToolId, "mutating-docs:open_pr");
 });
 
 test("inert MCP enablements produce no connection attempts and no active runtime tool", async () => {

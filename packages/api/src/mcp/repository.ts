@@ -1,13 +1,17 @@
 import type { ProductDb } from "@better-agent/db";
-import { schema } from "@better-agent/db";
+import * as schema from "@better-agent/db/schema/index";
 import { and, eq } from "drizzle-orm";
 
+import type { McpAuthType, McpRiskLevel, McpTransport } from "./catalog";
+
 export interface CustomMcpConnectionInput {
+	authType: McpAuthType;
 	description?: string;
 	encryptedHeaders: string;
 	id: string;
 	name: string;
-	transport: "streamable_http" | "sse";
+	riskLevel: McpRiskLevel;
+	transport: McpTransport;
 	url: string;
 	userId: string;
 }
@@ -16,11 +20,13 @@ export const createCustomMcpConnection = async (db: ProductDb, input: CustomMcpC
 	const [created] = await db
 		.insert(schema.userMcpConnections)
 		.values({
+			authType: input.authType,
 			catalogVisible: true,
 			description: input.description,
 			encryptedHeaders: input.encryptedHeaders,
 			id: input.id,
 			name: input.name,
+			riskLevel: input.riskLevel,
 			transport: input.transport,
 			url: input.url,
 			userId: input.userId,
@@ -46,9 +52,11 @@ export const updateCustomMcpConnection = async (
 	const [updated] = await db
 		.update(schema.userMcpConnections)
 		.set({
+			authType: input.authType,
 			description: input.description,
 			encryptedHeaders: input.encryptedHeaders,
 			name: input.name,
+			riskLevel: input.riskLevel,
 			transport: input.transport,
 			updatedAt: new Date(),
 			url: input.url,

@@ -1,4 +1,7 @@
-import { parseProposedGitHubIssue } from "@better-agent/api/thinkspaces/approvals";
+import {
+	parseProposedGitHubIssue,
+	parseProposedMcpToolCall,
+} from "@better-agent/api/thinkspaces/approvals";
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -17,16 +20,45 @@ const formatProposedAt = (value: Date | number | string): string =>
 
 const ACTION_LABELS: Record<string, string> = {
 	github_create_issue: "GitHub issue",
+	mcp_tool_call: "External tool call",
 	memory_write: "Memory proposal",
 };
 
 const actionLabel = (actionKind: string): string => ACTION_LABELS[actionKind] ?? "Held action";
 
 /**
+ * A held MCP tool call's detail: the proposed tool above its arguments, shown as
+ * formatted JSON so the owner sees exactly what would run. Falls back to the
+ * summary line when the stored payload is malformed.
+ */
+const McpToolCallDetail = ({
+	proposedContent,
+	proposedSummary,
+}: {
+	proposedContent: string;
+	proposedSummary: string;
+}) => {
+	const call = parseProposedMcpToolCall(proposedContent);
+
+	if (!call) {
+		return <p className="text-foreground text-sm leading-relaxed">{proposedSummary}</p>;
+	}
+
+	return (
+		<div className="grid gap-1">
+			<p className="break-all font-mono text-muted-foreground text-xs">{call.runtimeToolName}</p>
+			<pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted p-2 font-mono text-foreground text-xs">
+				{JSON.stringify(call.args, null, 2)}
+			</pre>
+		</div>
+	);
+};
+
+/**
  * The held proposal's detail. A GitHub-issue proposal parses its serialized
- * payload to show the target repo prominently above the title and body; any
- * other kind (and a malformed issue payload) falls back to the product-language
- * summary line.
+ * payload to show the target repo prominently above the title and body; a held
+ * MCP tool call shows the tool and its arguments; any other kind (and a
+ * malformed payload) falls back to the product-language summary line.
  */
 const ProposalDetail = ({
 	actionKind,
@@ -37,6 +69,10 @@ const ProposalDetail = ({
 	proposedContent: string;
 	proposedSummary: string;
 }) => {
+	if (actionKind === "mcp_tool_call") {
+		return <McpToolCallDetail proposedContent={proposedContent} proposedSummary={proposedSummary} />;
+	}
+
 	const issue =
 		actionKind === "github_create_issue" ? parseProposedGitHubIssue(proposedContent) : null;
 

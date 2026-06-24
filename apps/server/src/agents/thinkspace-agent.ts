@@ -15,6 +15,7 @@ import type {
 } from "@better-agent/api/thinkspaces/inspect";
 import type { BuiltInMcpServer } from "@better-agent/api/mcp/catalog";
 import { listBuiltInMcpServers } from "@better-agent/api/mcp/catalog";
+import { listGrantableMcpServers } from "@better-agent/api/mcp/grantable-servers";
 import {
 	assertThinkspaceRuntimePolicySupportsBuiltInTools,
 	evaluateBuiltInRuntimeToolCallPermission,
@@ -405,8 +406,14 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			}),
 			webReader: createFetchWebReader(),
 		});
+		// The grantable catalog is built-in servers ∪ the owner's registered MCP
+		// connections, so a Thinkspace can run tools from a server the owner added,
+		// not only the curated built-ins. The server's declared risk decides whether
+		// its tool calls run inline (read-only) or are held for Approval (mutating).
+		const grantableMcpServers = await listGrantableMcpServers(db, turnContext.ownerUserId);
 		const mcpPlan = planThinkspaceMcpRuntimeTools({
 			activeProductToolIds: assembly.activeTools,
+			builtInMcpServers: grantableMcpServers,
 			revision: resolved.activeRevision,
 		});
 
@@ -414,7 +421,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 
 		const mcpPreparation = await prepareThinkspaceMcpRuntimeTools({
 			activeProductToolIds: mcpPlan.activeProductToolIds,
-			connectServer: ({ server }) => this.connectBuiltInMcpServerForTurn(server),
+			connectServer: ({ server }) => this.connectMcpServerForTurn(server),
 			servers: mcpPlan.servers,
 		});
 
@@ -489,6 +496,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			const db = createDb(this.env.DB);
 			const resolved = await this.resolveTurnModel(db, turnContext);
 			const permissionPolicy = createPermissionStorePolicy({ db });
+			const grantableMcpServers = await listGrantableMcpServers(db, turnContext.ownerUserId);
 			const builtInDecision = await evaluateBuiltInRuntimeToolCallPermission({
 				permissionPolicy,
 				revision: resolved.activeRevision,
@@ -527,6 +535,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 			}
 
 			const decision = await evaluateMcpRuntimeToolCallPermission({
+				builtInMcpServers: grantableMcpServers,
 				permissionPolicy,
 				revision: resolved.activeRevision,
 				runtimeToolName: ctx.toolName,
@@ -558,7 +567,7 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		return super.onChatError(error, ctx);
 	}
 
-	private async connectBuiltInMcpServerForTurn(server: BuiltInMcpServer): Promise<ToolSet> {
+	private async connectMcpServerForTurn(server: BuiltInMcpServer): Promise<ToolSet> {
 		const result = await this.addMcpServer(server.name, server.url, {
 			id: server.id,
 			transport: { type: toRuntimeMcpTransport(server.transport) },
