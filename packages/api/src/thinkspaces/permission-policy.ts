@@ -26,9 +26,11 @@ import {
 	THINKSPACE_PERMISSION_KINDS,
 	thinkspacePermissions,
 } from "@better-agent/db/schema/permissions";
+import { userMcpConnections } from "@better-agent/db/schema/settings";
 import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import { and, eq, inArray } from "drizzle-orm";
 
+import { listBuiltInMcpServers } from "../mcp/catalog";
 import type { ToolEnablement } from "./agent-profile";
 import { builtInToolPermissionKind } from "./built-in-tools";
 import type { BuiltInToolPermissionKind } from "./built-in-tools";
@@ -67,6 +69,15 @@ interface ThinkspaceToolGrants {
 	/** Catalog ids the Thinkspace holds a connected_account_credential grant for. */
 	connectedAccountGrantCatalogIds: ReadonlySet<string>;
 	mcpServerIds: ReadonlySet<string>;
+	/**
+	 * Granted MCP server ids whose credential requirement is not satisfied: an
+	 * authed server (built-in `api_key_header`/`bearer`, or a registered
+	 * connection carrying secret headers) with no resolvable credential, plus
+	 * any granted server that no longer resolves to a built-in or a current
+	 * connection (fail closed). These stay inert even though the grant exists —
+	 * the MCP arm of the credential-exists axis (ADR-0009).
+	 */
+	mcpUncredentialedServerIds: ReadonlySet<string>;
 	/** Catalog ids the Thinkspace owner has an actually-connected account for. */
 	ownerConnectedAccountCatalogIds: ReadonlySet<string>;
 }
@@ -79,7 +90,12 @@ const isPotent = (enablement: ToolEnablement, grants: ThinkspaceToolGrants): boo
 	}
 
 	if (enablement.source === "mcp_server") {
-		return grants.mcpServerIds.has(mcpServerIdFromToolId(enablement.toolId));
+		// enable ∩ grant ∩ credential-exists: the Thinkspace must be granted the
+		// server, and an authed server must have a resolvable credential backing
+		// it (auth-free servers need none).
+		const serverId = mcpServerIdFromToolId(enablement.toolId);
+
+		return grants.mcpServerIds.has(serverId) && !grants.mcpUncredentialedServerIds.has(serverId);
 	}
 
 	if (enablement.source === "connected_account") {
@@ -111,6 +127,7 @@ const NO_GRANTS: ThinkspaceToolGrants = {
 	builtInKinds: new Set(),
 	connectedAccountGrantCatalogIds: new Set(),
 	mcpServerIds: new Set(),
+	mcpUncredentialedServerIds: new Set(),
 	ownerConnectedAccountCatalogIds: new Set(),
 };
 
@@ -160,6 +177,19 @@ const BUILT_IN_GRANT_KINDS: readonly BuiltInToolPermissionKind[] = [
 const isBuiltInGrantKind = (kind: string): kind is BuiltInToolPermissionKind =>
 	BUILT_IN_GRANT_KINDS.includes(kind as BuiltInToolPermissionKind);
 
+const resolveThinkspaceOwnerUserId = async (
+	db: ProductDb,
+	thinkspaceId: string,
+): Promise<string | null> => {
+	const [thinkspace] = await db
+		.select({ ownerUserId: thinkspaces.ownerUserId })
+		.from(thinkspaces)
+		.where(eq(thinkspaces.id, thinkspaceId))
+		.limit(1);
+
+	return thinkspace?.ownerUserId ?? null;
+};
+
 /**
  * The credential-exists axis: the catalog ids the Thinkspace owner actually
  * holds a Connected Account for. Grant-scoped potency lives on the Thinkspace;
@@ -168,22 +198,12 @@ const isBuiltInGrantKind = (kind: string): kind is BuiltInToolPermissionKind =>
  */
 const listOwnerConnectedAccountCatalogIds = async (
 	db: ProductDb,
-	thinkspaceId: string,
+	ownerUserId: string,
 ): Promise<ReadonlySet<string>> => {
-	const [thinkspace] = await db
-		.select({ ownerUserId: thinkspaces.ownerUserId })
-		.from(thinkspaces)
-		.where(eq(thinkspaces.id, thinkspaceId))
-		.limit(1);
-
-	if (!thinkspace) {
-		return new Set();
-	}
-
 	const rows = await db
 		.select({ catalogId: userConnectedAccounts.catalogId })
 		.from(userConnectedAccounts)
-		.where(eq(userConnectedAccounts.userId, thinkspace.ownerUserId));
+		.where(eq(userConnectedAccounts.userId, ownerUserId));
 
 	const catalogIds = new Set<string>();
 	for (const row of rows) {
@@ -195,10 +215,81 @@ const listOwnerConnectedAccountCatalogIds = async (
 	return catalogIds;
 };
 
+interface McpConnectionCredentialState {
+	authType: string;
+	hasHeaders: boolean;
+}
+
+const listOwnerMcpConnectionCredentialState = async (
+	db: ProductDb,
+	ownerUserId: string,
+): Promise<ReadonlyMap<string, McpConnectionCredentialState>> => {
+	const rows = await db
+		.select({
+			authType: userMcpConnections.authType,
+			encryptedHeaders: userMcpConnections.encryptedHeaders,
+			id: userMcpConnections.id,
+		})
+		.from(userMcpConnections)
+		.where(eq(userMcpConnections.userId, ownerUserId));
+
+	return new Map(
+		rows.map((row) => [
+			row.id,
+			{ authType: row.authType, hasHeaders: row.encryptedHeaders !== "{}" },
+		]),
+	);
+};
+
+/**
+ * The MCP arm of the credential-exists axis. A granted server is uncredentialed
+ * — and so stays inert despite the grant — when it needs auth but no credential
+ * resolves: a built-in authed server with no product key, a registered authed
+ * connection (or any header-bearing connection) whose headers were cleared, or
+ * a grant whose server no longer resolves at all (deleted connection). Auth-free
+ * built-ins and connections need no credential and are never blocked here.
+ */
+const listMcpUncredentialedServerIds = (
+	grantedMcpServerIds: ReadonlySet<string>,
+	connectionState: ReadonlyMap<string, McpConnectionCredentialState>,
+	credentialedBuiltInMcpServerIds: ReadonlySet<string>,
+): ReadonlySet<string> => {
+	const builtInById = new Map(listBuiltInMcpServers().map((server) => [server.id, server]));
+	const uncredentialed = new Set<string>();
+
+	for (const serverId of grantedMcpServerIds) {
+		const builtIn = builtInById.get(serverId);
+		if (builtIn) {
+			if (builtIn.authType !== "none" && !credentialedBuiltInMcpServerIds.has(serverId)) {
+				uncredentialed.add(serverId);
+			}
+			continue;
+		}
+
+		const connection = connectionState.get(serverId);
+		if (connection) {
+			const needsCredential = connection.authType !== "none" || connection.hasHeaders;
+			if (needsCredential && !connection.hasHeaders) {
+				uncredentialed.add(serverId);
+			}
+			continue;
+		}
+
+		// Granted but unresolvable (e.g. a deleted connection): fail closed.
+		uncredentialed.add(serverId);
+	}
+
+	return uncredentialed;
+};
+
 const listThinkspaceToolGrants = async (
 	db: ProductDb,
 	thinkspaceId: string,
-	options: { includeOwnerConnectedAccounts: boolean },
+	options: {
+		credentialedBuiltInMcpServerIds: ReadonlySet<string>;
+		includeMcpCredentials: boolean;
+		includeOwnerConnectedAccounts: boolean;
+	},
 ): Promise<ThinkspaceToolGrants> => {
 	const rows = await db
 		.select({
@@ -239,14 +330,31 @@ const listThinkspaceToolGrants = async (
 		mcpServerIds.add(row.providerId);
 	}
 
-	const ownerConnectedAccountCatalogIds = options.includeOwnerConnectedAccounts
-		? await listOwnerConnectedAccountCatalogIds(db, thinkspaceId)
+	const ownerUserId =
+		options.includeOwnerConnectedAccounts || options.includeMcpCredentials
+			? await resolveThinkspaceOwnerUserId(db, thinkspaceId)
+			: null;
+
+	const ownerConnectedAccountCatalogIds =
+		options.includeOwnerConnectedAccounts && ownerUserId
+			? await listOwnerConnectedAccountCatalogIds(db, ownerUserId)
+			: new Set<string>();
+
+	const mcpUncredentialedServerIds = options.includeMcpCredentials
+		? listMcpUncredentialedServerIds(
+				mcpServerIds,
+				ownerUserId
+					? await listOwnerMcpConnectionCredentialState(db, ownerUserId)
+					: new Map(),
+				options.credentialedBuiltInMcpServerIds,
+			)
 		: new Set<string>();
 
 	return {
 		builtInKinds,
 		connectedAccountGrantCatalogIds,
 		mcpServerIds,
+		mcpUncredentialedServerIds,
 		ownerConnectedAccountCatalogIds,
 	};
 };
@@ -254,12 +362,23 @@ const listThinkspaceToolGrants = async (
 /**
  * The real Permission-storage-backed policy: reads granted tool Permissions
  * (built-in read kinds, MCP tool access, and connected-account credential)
- * from Thinkspace Permission storage — plus the owner's connected accounts for
- * the credential-exists axis — and applies the fail-closed decision rule.
+ * from Thinkspace Permission storage — plus the owner's connected accounts and
+ * MCP connection credentials for the credential-exists axis — and applies the
+ * fail-closed decision rule.
+ *
+ * `credentialedBuiltInMcpServerIds` is the set of built-in authed MCP servers
+ * (e.g. `context7`) the deploy actually has a product key for. Built-ins have
+ * no per-user secret store, so the caller — which holds the runtime env —
+ * supplies which ones are credentialed; registered connections resolve their
+ * own credential from stored headers. It defaults to empty, so a caller without
+ * env access (e.g. inspect-only badging) treats built-in authed servers as
+ * uncredentialed, which fails closed.
  */
 export const createPermissionStorePolicy = ({
+	credentialedBuiltInMcpServerIds = new Set<string>(),
 	db,
 }: {
+	credentialedBuiltInMcpServerIds?: ReadonlySet<string>;
 	db: ProductDb;
 }): ThinkspacePermissionPolicy => ({
 	evaluateToolPotency: async ({ enablements, thinkspaceId }) => {
@@ -277,7 +396,12 @@ export const createPermissionStorePolicy = ({
 		const includeOwnerConnectedAccounts = enablements.some(
 			(enablement) => enablement.source === "connected_account",
 		);
+		const includeMcpCredentials = enablements.some(
+			(enablement) => enablement.source === "mcp_server",
+		);
 		const grants = await listThinkspaceToolGrants(db, thinkspaceId, {
+			credentialedBuiltInMcpServerIds,
+			includeMcpCredentials,
 			includeOwnerConnectedAccounts,
 		});
 

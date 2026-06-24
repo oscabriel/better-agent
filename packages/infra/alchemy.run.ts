@@ -50,6 +50,19 @@ const requiredSecretEnv = (name: string) => {
 	return requiredEnv(alchemy.secret.env(name), name);
 };
 
+/**
+ * A secret the deploy may omit. Returns `undefined` when the variable is
+ * absent so its binding is dropped rather than bound to an empty value — used
+ * for optional product credentials like the Context7 MCP key.
+ */
+const optionalSecretEnv = (name: string) => {
+	if (!process.env[name]) {
+		return;
+	}
+
+	return isLocalStage ? process.env[name] : alchemy.secret.env(name);
+};
+
 const db = await D1Database("product-db", {
 	adopt: adoptPersistentResources,
 	migrationsDir: "../../packages/db/src/migrations",
@@ -93,8 +106,10 @@ const commonBindings = {
 	SOURCES_ARTIFACTS: sourcesAndArtifacts,
 };
 
+const context7ApiKey = optionalSecretEnv("CONTEXT7_API_KEY");
 const serverBindings = {
 	...commonBindings,
+	...(context7ApiKey ? { CONTEXT7_API_KEY: context7ApiKey } : {}),
 	CURATOR_AGENT: curatorAgents,
 	THINKSPACE_AGENT: thinkspaceAgents,
 };

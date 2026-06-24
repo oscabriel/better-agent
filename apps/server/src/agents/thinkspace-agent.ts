@@ -16,6 +16,12 @@ import type {
 import type { BuiltInMcpServer } from "@better-agent/api/mcp/catalog";
 import { listBuiltInMcpServers } from "@better-agent/api/mcp/catalog";
 import { listGrantableMcpServers } from "@better-agent/api/mcp/grantable-servers";
+import { getCustomMcpConnection } from "@better-agent/api/mcp/repository";
+import { decryptCredential } from "@better-agent/api/crypto";
+import {
+	credentialedBuiltInMcpServerIds,
+	resolveBuiltInMcpHeaders,
+} from "./mcp-credentials";
 import {
 	assertThinkspaceRuntimePolicySupportsBuiltInTools,
 	evaluateBuiltInRuntimeToolCallPermission,
@@ -362,7 +368,10 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		}
 
 		const db = createDb(this.env.DB);
-		const permissionPolicy = createPermissionStorePolicy({ db });
+		const permissionPolicy = createPermissionStorePolicy({
+			credentialedBuiltInMcpServerIds: credentialedBuiltInMcpServerIds(this.env),
+			db,
+		});
 		const resolved = await this.resolveTurnModel(db, turnContext);
 
 		// Attribution is recorded at turn resolution time from the active revision.
@@ -421,7 +430,8 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 
 		const mcpPreparation = await prepareThinkspaceMcpRuntimeTools({
 			activeProductToolIds: mcpPlan.activeProductToolIds,
-			connectServer: ({ server }) => this.connectMcpServerForTurn(server),
+			connectServer: ({ server }) =>
+				this.connectMcpServerForTurn(server, turnContext.ownerUserId),
 			servers: mcpPlan.servers,
 		});
 
@@ -495,7 +505,10 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		try {
 			const db = createDb(this.env.DB);
 			const resolved = await this.resolveTurnModel(db, turnContext);
-			const permissionPolicy = createPermissionStorePolicy({ db });
+			const permissionPolicy = createPermissionStorePolicy({
+				credentialedBuiltInMcpServerIds: credentialedBuiltInMcpServerIds(this.env),
+				db,
+			});
 			const grantableMcpServers = await listGrantableMcpServers(db, turnContext.ownerUserId);
 			const builtInDecision = await evaluateBuiltInRuntimeToolCallPermission({
 				permissionPolicy,
@@ -567,10 +580,14 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		return super.onChatError(error, ctx);
 	}
 
-	private async connectMcpServerForTurn(server: BuiltInMcpServer): Promise<ToolSet> {
+	private async connectMcpServerForTurn(
+		server: BuiltInMcpServer,
+		ownerUserId: string,
+	): Promise<ToolSet> {
+		const headers = await this.resolveMcpServerAuthHeaders(server, ownerUserId);
 		const result = await this.addMcpServer(server.name, server.url, {
 			id: server.id,
-			transport: { type: toRuntimeMcpTransport(server.transport) },
+			transport: { headers, type: toRuntimeMcpTransport(server.transport) },
 		});
 
 		if (result.state !== "ready") {
@@ -580,6 +597,44 @@ export class ThinkspaceAgent extends Think<CloudflareEnv> {
 		this.turnMcpServerIds.add(result.id);
 
 		return this.mcp.getAITools({ serverId: result.id, state: "ready" });
+	}
+
+	/**
+	 * The auth headers to inject when connecting a granted MCP server, or
+	 * undefined for an auth-free server. Built-in authed servers read a
+	 * product-level key from env; registered authed connections decrypt their
+	 * stored headers. The decrypted credential lives only inside this connect
+	 * call — it is never written to the transcript, surfaced to the model, or
+	 * logged. Fails closed: an authed server with no resolvable credential
+	 * throws, degrading the server for the turn rather than connecting unauthed.
+	 * The credential-exists potency axis normally keeps such a server out of the
+	 * plan, so this is a defensive backstop.
+	 */
+	private async resolveMcpServerAuthHeaders(
+		server: BuiltInMcpServer,
+		ownerUserId: string,
+	): Promise<Record<string, string> | undefined> {
+		if (server.authType === "none") {
+			return undefined;
+		}
+
+		const builtInHeaders = resolveBuiltInMcpHeaders(server.id, this.env);
+		if (builtInHeaders) {
+			return builtInHeaders;
+		}
+
+		const db = createDb(this.env.DB);
+		const connection = await getCustomMcpConnection(db, { id: server.id, userId: ownerUserId });
+
+		if (!connection || connection.encryptedHeaders === "{}") {
+			throw new Error("Granted external information source is missing its credential.");
+		}
+
+		const secret = this.env.API_ENCRYPTION_KEY ?? this.env.BETTER_AUTH_SECRET;
+		const decrypted = await decryptCredential(connection.encryptedHeaders, secret);
+		const headers = JSON.parse(decrypted) as Record<string, string>;
+
+		return headers;
 	}
 
 	/**

@@ -140,14 +140,22 @@ test("MCP grants accept a registered server resolved into the grantable catalog"
 	assert.equal(grant?.providerId, "mcp_connection_registered");
 });
 
-test("MCP grants reject servers requiring auth and unsafe URLs", () => {
-	assert.throws(
-		() =>
-			toThinkspacePermissionGrant(grantInput(), {
-				grantableMcpServers: [{ ...readOnlyAuthFreeServer, authType: "api_key_header" }],
-			}),
-		ThinkspacePermissionGrantError,
-	);
+test("MCP grants accept servers requiring auth (credential enforced at runtime, not grant time)", () => {
+	const bearerGrant = toThinkspacePermissionGrant(grantInput(), {
+		grantableMcpServers: [{ ...readOnlyAuthFreeServer, authType: "bearer" }],
+	});
+	const apiKeyGrant = toThinkspacePermissionGrant(grantInput(), {
+		grantableMcpServers: [{ ...readOnlyAuthFreeServer, authType: "api_key_header" }],
+	});
+
+	// The grant records the capability; whether the server actually connects is
+	// gated by the credential-exists potency axis and the runtime's header
+	// injection (ADR-0009), so a grant never depends on a resolvable credential.
+	assert.equal(bearerGrant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+	assert.equal(apiKeyGrant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+});
+
+test("MCP grants still reject unsafe server URLs", () => {
 	assert.throws(
 		() =>
 			toThinkspacePermissionGrant(grantInput(), {
