@@ -110,7 +110,7 @@ test("connected-account credential requests convert into a credential grant keye
 
 test("grantable MCP requests convert into MCP tool access grants with explicit scope", () => {
 	const grant = toThinkspacePermissionGrant(grantInput(), {
-		builtInMcpServers: [readOnlyAuthFreeServer],
+		grantableMcpServers: [readOnlyAuthFreeServer],
 	});
 
 	assert.equal(grant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
@@ -118,48 +118,61 @@ test("grantable MCP requests convert into MCP tool access grants with explicit s
 	assert.equal(grant?.resourceScope, JSON.stringify({ type: "server" }));
 });
 
-test("MCP grants reject servers outside the built-in catalog", () => {
+test("MCP grants reject servers outside the grantable catalog", () => {
 	assert.throws(
-		() => toThinkspacePermissionGrant(grantInput(), { builtInMcpServers: [] }),
+		() => toThinkspacePermissionGrant(grantInput(), { grantableMcpServers: [] }),
 		ThinkspacePermissionGrantError,
 	);
 });
 
-test("MCP grants reject servers requiring auth, non-read-only requests, and unsafe URLs", () => {
+test("MCP grants accept a registered server resolved into the grantable catalog", () => {
+	const registeredServer: BuiltInMcpServer = {
+		...readOnlyAuthFreeServer,
+		id: "mcp_connection_registered",
+		name: "My Registered Docs",
+	};
+	const grant = toThinkspacePermissionGrant(
+		grantInput(mcpRequest({ serverId: "mcp_connection_registered" })),
+		{ grantableMcpServers: [registeredServer] },
+	);
+
+	assert.equal(grant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+	assert.equal(grant?.providerId, "mcp_connection_registered");
+});
+
+test("MCP grants reject servers requiring auth and unsafe URLs", () => {
 	assert.throws(
 		() =>
 			toThinkspacePermissionGrant(grantInput(), {
-				builtInMcpServers: [{ ...readOnlyAuthFreeServer, authType: "api_key_header" }],
-			}),
-		ThinkspacePermissionGrantError,
-	);
-	assert.throws(
-		() =>
-			toThinkspacePermissionGrant(grantInput(mcpRequest({ risk: "mutating" })), {
-				builtInMcpServers: [readOnlyAuthFreeServer],
+				grantableMcpServers: [{ ...readOnlyAuthFreeServer, authType: "api_key_header" }],
 			}),
 		ThinkspacePermissionGrantError,
 	);
 	assert.throws(
 		() =>
 			toThinkspacePermissionGrant(grantInput(), {
-				builtInMcpServers: [{ ...readOnlyAuthFreeServer, riskLevel: "mutating" }],
+				grantableMcpServers: [{ ...readOnlyAuthFreeServer, url: "http://127.0.0.1/mcp" }],
 			}),
 		ThinkspacePermissionGrantError,
 	);
-	assert.throws(
-		() =>
-			toThinkspacePermissionGrant(grantInput(), {
-				builtInMcpServers: [{ ...readOnlyAuthFreeServer, url: "http://127.0.0.1/mcp" }],
-			}),
-		ThinkspacePermissionGrantError,
-	);
+});
+
+test("MCP grants accept mutating and unknown-risk servers (held for Approval at runtime)", () => {
+	const mutatingGrant = toThinkspacePermissionGrant(grantInput(mcpRequest({ risk: "mutating" })), {
+		grantableMcpServers: [{ ...readOnlyAuthFreeServer, riskLevel: "mutating" }],
+	});
+	const unknownGrant = toThinkspacePermissionGrant(grantInput(mcpRequest({ risk: "unknown" })), {
+		grantableMcpServers: [{ ...readOnlyAuthFreeServer, riskLevel: "unknown" }],
+	});
+
+	assert.equal(mutatingGrant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
+	assert.equal(unknownGrant?.kind, THINKSPACE_PERMISSION_KINDS.MCP_TOOL_ACCESS);
 });
 
 test("MCP grants keep per-Thinkspace uniqueness by kind and server id", async () => {
 	const db = await createSeededDb();
 	const firstGrant = prepareThinkspacePermissionGrants([grantInput()], {
-		builtInMcpServers: [readOnlyAuthFreeServer],
+		grantableMcpServers: [readOnlyAuthFreeServer],
 	});
 	await saveThinkspacePermissionGrants(db, firstGrant);
 
@@ -172,7 +185,7 @@ test("MCP grants keep per-Thinkspace uniqueness by kind and server id", async ()
 				}),
 			),
 		],
-		{ builtInMcpServers: [readOnlyAuthFreeServer] },
+		{ grantableMcpServers: [readOnlyAuthFreeServer] },
 	);
 	const saved = await saveThinkspacePermissionGrants(db, replacementGrant);
 
@@ -187,7 +200,7 @@ test("revoking a Thinkspace Permission deletes only the matching grant row", asy
 	const [grant] = await saveThinkspacePermissionGrants(
 		db,
 		prepareThinkspacePermissionGrants([grantInput()], {
-			builtInMcpServers: [readOnlyAuthFreeServer],
+			grantableMcpServers: [readOnlyAuthFreeServer],
 		}),
 	);
 	assert.ok(grant);

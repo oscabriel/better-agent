@@ -13,11 +13,15 @@ import {
 import { assertSafeMcpServerUrl, McpUrlPolicyError } from "./url-policy";
 
 const transportSchema = z.enum(["streamable_http", "sse"]);
+const authTypeSchema = z.enum(["none", "bearer", "api_key_header"]);
+const riskLevelSchema = z.enum(["read_only", "unknown", "mutating"]);
 const headersSchema = z.record(z.string().min(1), z.string().min(1)).optional();
 const connectionInput = z.object({
+	authType: authTypeSchema.default("none"),
 	description: z.string().trim().max(400).optional(),
 	headers: headersSchema,
 	name: z.string().trim().min(1).max(100),
+	riskLevel: riskLevelSchema.default("unknown"),
 	transport: transportSchema.default("streamable_http"),
 	url: z.string().trim().min(1),
 });
@@ -29,6 +33,7 @@ const encryptionSecret = (env: { API_ENCRYPTION_KEY?: string; BETTER_AUTH_SECRET
 const redactHeaderNames = (headers: Record<string, string> | undefined) =>
 	Object.keys(headers ?? {}).map((name) => ({ name, value: "••••" }));
 const toConnectionOutput = (row: Awaited<ReturnType<typeof listCustomMcpConnections>>[number]) => ({
+	authType: row.authType,
 	createdAt: row.createdAt,
 	description: row.description,
 	enabledByDefaultForThinkspaces: false,
@@ -37,6 +42,7 @@ const toConnectionOutput = (row: Awaited<ReturnType<typeof listCustomMcpConnecti
 	name: row.name,
 	redactedHeaders:
 		row.encryptedHeaders === "{}" ? [] : [{ name: "stored secret headers", value: "••••" }],
+	riskLevel: row.riskLevel,
 	transport: row.transport,
 	updatedAt: row.updatedAt,
 	url: row.url,
@@ -54,10 +60,12 @@ export const mcpRouter = {
 					? await encryptCredential(JSON.stringify(input.headers), encryptionSecret(context.env))
 					: "{}";
 				const created = await createCustomMcpConnection(context.db, {
+					authType: input.authType,
 					description: input.description,
 					encryptedHeaders,
 					id: `mcp_connection_${crypto.randomUUID()}`,
 					name: input.name,
+					riskLevel: input.riskLevel,
 					transport: input.transport,
 					url: url.toString(),
 					userId: context.session.user.id,
@@ -94,10 +102,12 @@ export const mcpRouter = {
 				? await encryptCredential(JSON.stringify(input.headers), encryptionSecret(context.env))
 				: undefined;
 			const updated = await updateCustomMcpConnection(context.db, {
+				authType: input.authType,
 				description: input.description,
 				encryptedHeaders,
 				id: input.connectionId,
 				name: input.name,
+				riskLevel: input.riskLevel,
 				transport: input.transport,
 				url: input.url ? assertSafeMcpServerUrl(input.url).toString() : undefined,
 				userId: context.session.user.id,

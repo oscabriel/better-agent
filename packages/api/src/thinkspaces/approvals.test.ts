@@ -8,8 +8,10 @@ import {
 	flipApprovalInTranscript,
 	MEMORY_WRITE_TOOL_PART_TYPE,
 	parseProposedGitHubIssue,
+	parseProposedMcpToolCall,
 	readProposedGitHubIssue,
 	summarizeGitHubIssueProposal,
+	summarizeMcpToolCall,
 	summarizeMemoryProposal,
 } from "./approvals";
 
@@ -32,6 +34,15 @@ const githubPart = (overrides: Record<string, unknown> = {}) => ({
 	state: "approval-requested",
 	toolCallId: "tool_call_gh",
 	type: CREATE_GITHUB_ISSUE_TOOL_PART_TYPE,
+	...overrides,
+});
+
+const mcpToolPart = (overrides: Record<string, unknown> = {}) => ({
+	approval: { id: "approval_req_mcp" },
+	input: { repo: "octocat/hello-world", title: "Ship it" },
+	state: "approval-requested",
+	toolCallId: "tool_call_mcp",
+	type: "tool-tool_mutatingdocs_open_pr",
 	...overrides,
 });
 
@@ -68,6 +79,53 @@ test("a parked GitHub-issue proposal is extracted with a serialized payload and 
 		body: "Steps to reproduce the flake.",
 		repo: "octocat/hello-world",
 		title: "Fix the flaky test",
+	});
+});
+
+test("a parked MCP tool call is extracted with a dynamic part type and its args preserved", () => {
+	const [pending, ...rest] = extractPendingApprovals([
+		assistant([{ text: "Opening a PR.", type: "text" }, mcpToolPart()]),
+	]);
+
+	assert.equal(rest.length, 0);
+	assert.ok(pending);
+	assert.equal(pending.actionKind, "mcp_tool_call");
+	assert.equal(pending.approvalRequestId, "approval_req_mcp");
+	assert.equal(pending.toolCallId, "tool_call_mcp");
+	assert.equal(pending.proposedSummary, 'Call the external tool "mutatingdocs_open_pr"');
+	assert.deepEqual(parseProposedMcpToolCall(pending.proposedContent), {
+		args: { repo: "octocat/hello-world", title: "Ship it" },
+		runtimeToolName: "tool_mutatingdocs_open_pr",
+	});
+});
+
+test("a held MCP tool call flips and reads back like any other hold", () => {
+	const messages = [assistant([mcpToolPart()])];
+	const flip = flipApprovalInTranscript({
+		decision: "approved",
+		messages,
+		toolCallId: "tool_call_mcp",
+	});
+
+	assert.equal(flip.flipped, true);
+	const resolved = extractResolvedApprovals(flip.messages);
+	assert.deepEqual(resolved, [{ status: "approved", toolCallId: "tool_call_mcp" }]);
+});
+
+test("an MCP tool-call summary strips the runtime prefix and bounds length", () => {
+	assert.equal(summarizeMcpToolCall("tool_server_do_thing"), 'Call the external tool "server_do_thing"');
+
+	const long = summarizeMcpToolCall(`tool_${"x".repeat(500)}`);
+	assert.ok(long.length < 500);
+	assert.match(long, /…"$/u);
+});
+
+test("a malformed MCP tool-call payload parses back to null", () => {
+	assert.equal(parseProposedMcpToolCall("not json"), null);
+	assert.equal(parseProposedMcpToolCall(JSON.stringify({ args: {} })), null);
+	assert.deepEqual(parseProposedMcpToolCall(JSON.stringify({ runtimeToolName: "tool_x" })), {
+		args: {},
+		runtimeToolName: "tool_x",
 	});
 });
 

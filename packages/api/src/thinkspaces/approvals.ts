@@ -29,6 +29,18 @@ export const MEMORY_WRITE_TOOL_PART_TYPE = "tool-memory_write" as const;
 /** The runtime tool-part type the held GitHub-issue-proposing tool produces. */
 export const CREATE_GITHUB_ISSUE_TOOL_PART_TYPE = "tool-create_github_issue" as const;
 
+/**
+ * The transcript part-type prefix every held MCP tool call shares. An MCP tool's
+ * runtime name is `tool_<server>_<tool>` (see `mcp/tool-identity.ts`), so its UI
+ * message part type is `tool-tool_<server>_<tool>`. Unlike the fixed Memory and
+ * GitHub part types, MCP tool calls are dynamic, so their descriptor matches by
+ * this prefix rather than an exact string. No built-in or connected-account tool
+ * name begins with `tool_`, so the prefix is unambiguous.
+ */
+export const MCP_TOOL_PART_TYPE_PREFIX = "tool-tool_" as const;
+
+export const MCP_TOOL_CALL_SUMMARY_NAME_MAX_LENGTH = 120;
+
 const APPROVAL_REQUESTED_STATE = "approval-requested";
 const APPROVAL_RESPONDED_STATE = "approval-responded";
 const OUTPUT_AVAILABLE_STATE = "output-available";
@@ -141,21 +153,103 @@ export const summarizeGitHubIssueProposal = ({
 	)}" in ${collapseWhitespace(repo)}`;
 
 /**
- * One held action kind's transcript shape: which tool-part type it produces and
- * how to turn a parked part's `input` into the durable `proposed_content` (the
- * serialized payload) plus a human `proposed_summary`. `describeProposal`
- * returns null for a malformed input so the hold is skipped and never surfaces
- * as a decidable Approval.
+ * A held call to a tool on a mutating-risk MCP server, the payload the
+ * `needsApproval` wrapper parks. `runtimeToolName` is the server-qualified tool
+ * name as the runtime named it (`tool_<server>_<tool>`); `args` is the model's
+ * proposed input, preserved verbatim so the owner sees exactly what would run.
+ */
+export interface ProposedMcpToolCall {
+	args: Record<string, unknown>;
+	runtimeToolName: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * The bare tool label shown to the owner: the runtime name with its leading
+ * `tool_` runtime prefix removed. Lossy by design (the server id and tool name
+ * are joined with no reliable separator), so it is a display hint only; the args
+ * carry the decidable detail. A richer server/tool split is a later refinement.
+ */
+const mcpToolDisplayName = (runtimeToolName: string): string =>
+	runtimeToolName.replace(/^tool_/u, "");
+
+/** A short product-language summary of a held MCP tool call for the Review Queue. */
+export const summarizeMcpToolCall = (runtimeToolName: string): string =>
+	`Call the external tool "${bound(
+		mcpToolDisplayName(runtimeToolName),
+		MCP_TOOL_CALL_SUMMARY_NAME_MAX_LENGTH,
+	)}"`;
+
+/**
+ * Pulls a proposed MCP tool call out of a held part's type (for the tool name)
+ * and input (for the args). Null when the part type is not a held MCP tool part,
+ * so the hold stays held rather than surfacing a card with no tool to name.
+ */
+export const readProposedMcpToolCall = (
+	partType: string,
+	input: unknown,
+): ProposedMcpToolCall | null => {
+	if (!partType.startsWith(MCP_TOOL_PART_TYPE_PREFIX)) {
+		return null;
+	}
+
+	const runtimeToolName = partType.slice("tool-".length);
+
+	if (!runtimeToolName) {
+		return null;
+	}
+
+	return { args: isRecord(input) ? input : {}, runtimeToolName };
+};
+
+const serializeProposedMcpToolCall = (proposal: ProposedMcpToolCall): string =>
+	JSON.stringify({ args: proposal.args, runtimeToolName: proposal.runtimeToolName });
+
+/**
+ * Parses a serialized `proposed_content` MCP tool-call payload back into its
+ * fields for the Review Queue. Null when the stored content is not a well-formed
+ * payload, so a malformed row renders nothing rather than throwing.
+ */
+export const parseProposedMcpToolCall = (proposedContent: string): ProposedMcpToolCall | null => {
+	try {
+		const parsed = JSON.parse(proposedContent) as unknown;
+
+		if (!isRecord(parsed) || typeof parsed.runtimeToolName !== "string") {
+			return null;
+		}
+
+		return {
+			args: isRecord(parsed.args) ? parsed.args : {},
+			runtimeToolName: parsed.runtimeToolName,
+		};
+	} catch {
+		return null;
+	}
+};
+
+/**
+ * One held action kind's transcript shape: whether it owns a given tool-part
+ * type and how to turn a parked part's type + `input` into the durable
+ * `proposed_content` (the serialized payload) plus a human `proposed_summary`.
+ * `matches` is a predicate rather than a fixed string so dynamic part types
+ * (MCP tool calls, whose names are server-qualified) can be recognized.
+ * `describeProposal` returns null for a malformed part so the hold is skipped
+ * and never surfaces as a decidable Approval.
  */
 interface ApprovalActionDescriptor {
 	actionKind: ThinkspaceApprovalActionKind;
-	describeProposal: (input: unknown) => { proposedContent: string; proposedSummary: string } | null;
-	partType: string;
+	describeProposal: (
+		partType: string,
+		input: unknown,
+	) => { proposedContent: string; proposedSummary: string } | null;
+	matches: (partType: string) => boolean;
 }
 
 const memoryWriteDescriptor: ApprovalActionDescriptor = {
 	actionKind: THINKSPACE_APPROVAL_ACTION_KIND.MEMORY_WRITE,
-	describeProposal: (input) => {
+	describeProposal: (_partType, input) => {
 		const content = readMemoryContent(input);
 
 		if (!content) {
@@ -164,12 +258,12 @@ const memoryWriteDescriptor: ApprovalActionDescriptor = {
 
 		return { proposedContent: content, proposedSummary: summarizeMemoryProposal(content) };
 	},
-	partType: MEMORY_WRITE_TOOL_PART_TYPE,
+	matches: (partType) => partType === MEMORY_WRITE_TOOL_PART_TYPE,
 };
 
 const githubCreateIssueDescriptor: ApprovalActionDescriptor = {
 	actionKind: THINKSPACE_APPROVAL_ACTION_KIND.GITHUB_CREATE_ISSUE,
-	describeProposal: (input) => {
+	describeProposal: (_partType, input) => {
 		const proposal = readProposedGitHubIssue(input);
 
 		if (!proposal) {
@@ -181,20 +275,36 @@ const githubCreateIssueDescriptor: ApprovalActionDescriptor = {
 			proposedSummary: summarizeGitHubIssueProposal(proposal),
 		};
 	},
-	partType: CREATE_GITHUB_ISSUE_TOOL_PART_TYPE,
+	matches: (partType) => partType === CREATE_GITHUB_ISSUE_TOOL_PART_TYPE,
+};
+
+const mcpToolCallDescriptor: ApprovalActionDescriptor = {
+	actionKind: THINKSPACE_APPROVAL_ACTION_KIND.MCP_TOOL_CALL,
+	describeProposal: (partType, input) => {
+		const proposal = readProposedMcpToolCall(partType, input);
+
+		if (!proposal) {
+			return null;
+		}
+
+		return {
+			proposedContent: serializeProposedMcpToolCall(proposal),
+			proposedSummary: summarizeMcpToolCall(proposal.runtimeToolName),
+		};
+	},
+	matches: (partType) => partType.startsWith(MCP_TOOL_PART_TYPE_PREFIX),
 };
 
 const APPROVAL_ACTION_DESCRIPTORS: readonly ApprovalActionDescriptor[] = [
 	memoryWriteDescriptor,
 	githubCreateIssueDescriptor,
+	mcpToolCallDescriptor,
 ];
 
-const descriptorByPartType = new Map<string, ApprovalActionDescriptor>(
-	APPROVAL_ACTION_DESCRIPTORS.map((descriptor) => [descriptor.partType, descriptor]),
-);
-
 const descriptorForPart = (part: TranscriptToolPart): ApprovalActionDescriptor | undefined =>
-	typeof part.type === "string" ? descriptorByPartType.get(part.type) : undefined;
+	typeof part.type === "string"
+		? APPROVAL_ACTION_DESCRIPTORS.find((descriptor) => descriptor.matches(part.type as string))
+		: undefined;
 
 /** A held proposal awaiting the owner's decision, of any registered action kind. */
 export interface PendingApproval {
@@ -237,7 +347,7 @@ export const extractPendingApprovals = (
 
 			const toolCallId = toNonEmptyString(part.toolCallId);
 			const approvalRequestId = toNonEmptyString(part.approval?.id);
-			const proposal = descriptor.describeProposal(part.input);
+			const proposal = descriptor.describeProposal(part.type as string, part.input);
 
 			if (!(toolCallId && approvalRequestId && proposal)) {
 				continue;

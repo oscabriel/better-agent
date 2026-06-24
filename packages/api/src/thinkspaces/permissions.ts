@@ -12,7 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { MODEL_PROVIDER_IDS } from "../models/catalog";
 import type { ModelProviderId } from "../models/catalog";
 import { listBuiltInMcpServers } from "../mcp/catalog";
-import type { BuiltInMcpServer } from "../mcp/catalog";
+import type { GrantableMcpServer } from "../mcp/grantable-servers";
 import { assertSafeMcpServerUrl } from "../mcp/url-policy";
 import type {
 	BuiltInToolAccessPermissionRequest,
@@ -28,7 +28,13 @@ export interface GrantThinkspacePermissionInput {
 
 export interface ThinkspacePermissionGrantOptions {
 	allowInsecureDevUrls?: boolean;
-	builtInMcpServers?: BuiltInMcpServer[];
+	/**
+	 * The MCP servers this owner may be granted: built-in catalog entries plus
+	 * their registered connections (see `mcp/grantable-servers.ts`). Defaults to
+	 * the built-in catalog alone when a caller does not resolve the owner's
+	 * registry.
+	 */
+	grantableMcpServers?: GrantableMcpServer[];
 }
 
 export interface RevokeThinkspacePermissionInput {
@@ -84,11 +90,11 @@ const isModelProviderId = (value: string): value is ModelProviderId =>
 
 const createPermissionId = (): string => `thinkspace_permission_${crypto.randomUUID()}`;
 
-const findBuiltInMcpServer = (
+const findGrantableMcpServer = (
 	serverId: string,
 	options: ThinkspacePermissionGrantOptions,
-): BuiltInMcpServer | null => {
-	const catalog = options.builtInMcpServers ?? listBuiltInMcpServers();
+): GrantableMcpServer | null => {
+	const catalog = options.grantableMcpServers ?? listBuiltInMcpServers();
 
 	return catalog.find((server) => server.id === serverId) ?? null;
 };
@@ -96,12 +102,12 @@ const findBuiltInMcpServer = (
 const assertGrantableMcpToolAccess = (
 	permission: McpToolAccessPermissionRequest,
 	options: ThinkspacePermissionGrantOptions,
-): BuiltInMcpServer => {
-	const server = findBuiltInMcpServer(permission.serverId, options);
+): GrantableMcpServer => {
+	const server = findGrantableMcpServer(permission.serverId, options);
 
 	if (!server) {
 		throw new ThinkspacePermissionGrantError(
-			"Only built-in MCP servers can be granted to a Thinkspace in this slice.",
+			"That MCP server is not a built-in or one you have registered, so it cannot be granted to a Thinkspace.",
 		);
 	}
 
@@ -111,11 +117,10 @@ const assertGrantableMcpToolAccess = (
 		);
 	}
 
-	if (server.riskLevel !== "read_only" || permission.risk !== "read_only") {
-		throw new ThinkspacePermissionGrantError(
-			"Only read-only MCP tool access is grantable in this slice.",
-		);
-	}
+	// Mutating and unknown-risk MCP access is grantable: a non-read-only server's
+	// tool calls are held for the owner's Approval at runtime rather than executed
+	// on the grant alone (ADR-0003), so the grant records the capability and the
+	// holdpoint enforces consent.
 
 	try {
 		assertSafeMcpServerUrl(server.url, options.allowInsecureDevUrls ?? false);

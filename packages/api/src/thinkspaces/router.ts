@@ -9,6 +9,7 @@ import {
 	getUserProductModelSettings,
 	ThinkspaceTurnModelUnavailableError,
 } from "../models/readiness";
+import { listGrantableMcpServers } from "../mcp/grantable-servers";
 import { protectedProcedure } from "../procedures";
 import {
 	AgentProfileValidationError,
@@ -256,7 +257,12 @@ export const thinkspacesRouter = {
 					permission,
 					thinkspaceId: thinkspace.id,
 				}));
-				const permissionGrants = prepareThinkspacePermissionGrants(grantInputs);
+				const permissionGrants = prepareThinkspacePermissionGrants(grantInputs, {
+					grantableMcpServers: await listGrantableMcpServers(
+						context.db,
+						context.session.user.id,
+					),
+				});
 
 				await applyAgentProfileActivation(context.db, { activation });
 				const grantedPermissions = await saveThinkspacePermissionGrants(

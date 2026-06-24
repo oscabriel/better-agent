@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { Tool, ToolSet } from "ai";
 
 import type { BuiltInMcpServer } from "../mcp/catalog";
 import { listBuiltInMcpServers } from "../mcp/catalog";
@@ -45,8 +45,39 @@ export type ConnectThinkspaceMcpRuntimeServer = (input: {
 
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
-export const isGrantableBuiltInMcpServer = (server: BuiltInMcpServer): boolean =>
-	server.authType === "none" && server.riskLevel === "read_only";
+/**
+ * Whether a granted MCP server can be connected for a turn at all. Auth-free
+ * servers connect regardless of risk: a read-only server's tools run inline, a
+ * mutating-risk server's tools are held for the owner's Approval (see
+ * `requiresMcpApprovalHold`). Authenticated servers stay non-connectable until
+ * the credential seam (ADR-0009) lands.
+ */
+export const isConnectableMcpServer = (server: BuiltInMcpServer): boolean =>
+	server.authType === "none";
+
+/**
+ * Whether every tool on this server must be held for the owner's Approval
+ * before it runs. A server that does not clearly declare itself read-only is
+ * treated as mutating and held — the conservative default that keeps external
+ * mutations behind the draft-or-approval holdpoint (ADR-0003).
+ */
+export const requiresMcpApprovalHold = (server: BuiltInMcpServer): boolean =>
+	server.riskLevel !== "read_only";
+
+/**
+ * Marks every tool in a server's toolset as held for Approval: Project Think's
+ * `needsApproval` parks the call in the transcript instead of executing it, so
+ * a mutating MCP tool reaches the Review Queue exactly like the held
+ * Memory-write and GitHub-issue tools. A constant `true` keeps the hold
+ * unambiguous (fail closed).
+ */
+const holdToolSetForApproval = (toolSet: ToolSet): ToolSet =>
+	Object.fromEntries(
+		Object.entries(toolSet).map(([name, definition]) => [
+			name,
+			{ ...definition, needsApproval: true } as Tool,
+		]),
+	);
 
 const mcpEnablementToolIds = (revision: ActiveAgentProfileRevision): Set<string> =>
 	new Set(
@@ -76,7 +107,7 @@ export const planThinkspaceMcpRuntimeTools = ({
 	const servers = activeServerIds
 		.map((serverId) => findBuiltInMcpServer(serverId, builtInMcpServers))
 		.filter((server): server is BuiltInMcpServer =>
-			Boolean(server && isGrantableBuiltInMcpServer(server)),
+			Boolean(server && isConnectableMcpServer(server)),
 		);
 	const serverIds = new Set(servers.map((server) => server.id));
 
@@ -131,7 +162,12 @@ export const prepareThinkspaceMcpRuntimeTools = async ({
 
 	for (const server of servers) {
 		try {
-			Object.assign(tools, await connectServer({ server }));
+			const serverTools = await connectServer({ server });
+
+			Object.assign(
+				tools,
+				requiresMcpApprovalHold(server) ? holdToolSetForApproval(serverTools) : serverTools,
+			);
 			connectedServerIds.push(server.id);
 		} catch {
 			degradedServers.push({ serverId: server.id, serverName: server.name });
@@ -214,7 +250,7 @@ export const evaluateMcpRuntimeToolCallPermission = async ({
 		identity.toolName,
 	);
 
-	if (!(server && isGrantableBuiltInMcpServer(server) && enablements.length > 0)) {
+	if (!(server && isConnectableMcpServer(server) && enablements.length > 0)) {
 		return {
 			allowed: false,
 			applies: true,

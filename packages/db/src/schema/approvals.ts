@@ -23,11 +23,13 @@ export type ThinkspaceApprovalStatus =
 /**
  * The class of action a pending Approval holds. The first held action was the
  * agent proposing a durable Product Memory; `github_create_issue` is the first
- * held *external* mutation (PRD #108). Both reuse `proposed_content` /
+ * held *external* mutation (PRD #108); `mcp_tool_call` is a held call to a tool
+ * on a mutating-risk MCP server (ADR-0003). All reuse `proposed_content` /
  * `proposed_summary`, so adding a kind needs no migration.
  */
 export const THINKSPACE_APPROVAL_ACTION_KIND = {
 	GITHUB_CREATE_ISSUE: "github_create_issue",
+	MCP_TOOL_CALL: "mcp_tool_call",
 	MEMORY_WRITE: "memory_write",
 } as const;
 

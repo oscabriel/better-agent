@@ -105,7 +105,13 @@ const createDbForAgentProfileActivation = (row: Record<string, unknown>) => {
 		batch: (statements: unknown[]) => Promise.resolve(statements.map(() => [])),
 		select: () => ({
 			from: () => ({
-				where: () => ({ limit: () => Promise.resolve([row]) }),
+				// `.where()` is awaited directly by list reads (e.g. the owner's MCP
+				// connections, none here) and chained with `.limit()` by single-row
+				// reads, so it resolves empty on its own but yields the row when limited.
+				where: () =>
+					Object.assign(Promise.resolve([] as Record<string, unknown>[]), {
+						limit: () => Promise.resolve([row]),
+					}),
 			}),
 		}),
 		update: () => ({

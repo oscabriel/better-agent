@@ -61,12 +61,27 @@ export const mcpServerCatalog = sqliteTable("mcp_server_catalog", {
 export const userMcpConnections = sqliteTable(
 	"user_mcp_connections",
 	{
+		/**
+		 * How this server authenticates: "none" for open servers, otherwise the
+		 * header scheme it expects. The registry declares it so the Thinkspace
+		 * grant path can decide whether the server is grantable without a stored
+		 * credential. Authenticated servers stay non-grantable until the
+		 * credential seam (ADR-0009) lands.
+		 */
+		authType: text("auth_type").default("none").notNull(),
 		catalogVisible: integer("catalog_visible", { mode: "boolean" }).default(true).notNull(),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).default(timestampMsNow).notNull(),
 		description: text("description"),
 		encryptedHeaders: text("encrypted_headers").default("{}").notNull(),
 		id: text("id").primaryKey(),
 		name: text("name").notNull(),
+		/**
+		 * The blast radius of this server's tools, as declared at registration:
+		 * "read_only", "mutating", or "unknown". The Thinkspace grant path only
+		 * grants read-only access until the draft-or-approval policy for
+		 * mutations (ADR-0003) governs the rest.
+		 */
+		riskLevel: text("risk_level").default("unknown").notNull(),
 		serverId: text("server_id").references(() => mcpServerCatalog.id, { onDelete: "set null" }),
 		transport: text("transport").default("streamable_http").notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
