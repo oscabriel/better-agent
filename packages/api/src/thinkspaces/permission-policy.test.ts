@@ -8,6 +8,7 @@ import {
 	THINKSPACE_PERMISSION_KINDS,
 	thinkspacePermissions,
 } from "@better-agent/db/schema/permissions";
+import { userMcpConnections } from "@better-agent/db/schema/settings";
 import { thinkspaces } from "@better-agent/db/schema/thinkspaces";
 import { eq } from "drizzle-orm";
 import { createTestProductDb } from "../testing/product-db";
@@ -88,6 +89,33 @@ const connectOwnerAccount = async (db: ProductDb, catalogId: string, userId = OW
 
 const evaluate = (db: ProductDb, enablements: ToolEnablement[], thinkspaceId = THINKSPACE_ID) =>
 	createPermissionStorePolicy({ db }).evaluateToolPotency({ enablements, thinkspaceId });
+
+const evaluateWithBuiltInCredentials = (
+	db: ProductDb,
+	enablements: ToolEnablement[],
+	credentialedBuiltInMcpServerIds: ReadonlySet<string>,
+	thinkspaceId = THINKSPACE_ID,
+) =>
+	createPermissionStorePolicy({ credentialedBuiltInMcpServerIds, db }).evaluateToolPotency({
+		enablements,
+		thinkspaceId,
+	});
+
+const registerMcpConnection = async (
+	db: ProductDb,
+	input: { id: string; authType?: string; encryptedHeaders?: string },
+) => {
+	await db.insert(userMcpConnections).values({
+		authType: input.authType ?? "none",
+		encryptedHeaders: input.encryptedHeaders ?? "{}",
+		id: input.id,
+		name: input.id,
+		riskLevel: "unknown",
+		transport: "streamable_http",
+		url: "https://registered.example.com/mcp",
+		userId: OWNER_USER_ID,
+	});
+};
 
 test("MCP toolIds resolve to their server id at both server and tool scope", () => {
 	assert.equal(mcpServerIdFromToolId("cloudflare-docs"), "cloudflare-docs");
@@ -281,6 +309,93 @@ test("a granted MCP tool access Permission makes that server's enablements poten
 		{ potency: "potent", toolId: "cloudflare-docs:search_docs" },
 		{ potency: "inert", toolId: "aws-knowledge" },
 	]);
+});
+
+test("a built-in authed MCP server is inert when granted but no product credential is configured", async () => {
+	const db = await createSeededDb();
+	await grantMcpToolAccess(db, "context7");
+
+	// context7 is an api_key_header built-in; without a product key it fails
+	// closed even though the grant is present (enable ∩ grant ∩ credential).
+	const verdicts = await evaluate(db, [{ source: "mcp_server", toolId: "context7" }]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "context7" }]);
+});
+
+test("a built-in authed MCP server is potent when granted and a product credential is configured", async () => {
+	const db = await createSeededDb();
+	await grantMcpToolAccess(db, "context7");
+
+	const verdicts = await evaluateWithBuiltInCredentials(
+		db,
+		[{ source: "mcp_server", toolId: "context7" }],
+		new Set(["context7"]),
+	);
+
+	assert.deepEqual(verdicts, [{ potency: "potent", toolId: "context7" }]);
+});
+
+test("a registered authed MCP connection is potent only while its stored credential remains", async () => {
+	const db = await createSeededDb();
+	await registerMcpConnection(db, {
+		authType: "bearer",
+		encryptedHeaders: "encrypted-headers-blob",
+		id: "mcp_connection_authed",
+	});
+	await grantMcpToolAccess(db, "mcp_connection_authed");
+
+	const enablements: ToolEnablement[] = [{ source: "mcp_server", toolId: "mcp_connection_authed" }];
+	assert.deepEqual(await evaluate(db, enablements), [
+		{ potency: "potent", toolId: "mcp_connection_authed" },
+	]);
+
+	// Clearing the stored headers flips the tool inert without editing the
+	// grant, mirroring how disconnecting a connected account does.
+	await db
+		.update(userMcpConnections)
+		.set({ encryptedHeaders: "{}" })
+		.where(eq(userMcpConnections.id, "mcp_connection_authed"));
+
+	assert.deepEqual(await evaluate(db, enablements), [
+		{ potency: "inert", toolId: "mcp_connection_authed" },
+	]);
+});
+
+test("a header-bearing registered connection declared auth-none is still treated as authed", async () => {
+	const db = await createSeededDb();
+	await registerMcpConnection(db, {
+		authType: "none",
+		encryptedHeaders: "encrypted-headers-blob",
+		id: "mcp_connection_secret_none",
+	});
+	await grantMcpToolAccess(db, "mcp_connection_secret_none");
+
+	// Defensive: a connection carrying secret headers is credentialed, so it is
+	// potent now and would flip inert if the headers were cleared.
+	const verdicts = await evaluate(db, [
+		{ source: "mcp_server", toolId: "mcp_connection_secret_none" },
+	]);
+
+	assert.deepEqual(verdicts, [{ potency: "potent", toolId: "mcp_connection_secret_none" }]);
+});
+
+test("a registered auth-free MCP connection is potent on grant with no credential", async () => {
+	const db = await createSeededDb();
+	await registerMcpConnection(db, { authType: "none", id: "mcp_connection_open" });
+	await grantMcpToolAccess(db, "mcp_connection_open");
+
+	const verdicts = await evaluate(db, [{ source: "mcp_server", toolId: "mcp_connection_open" }]);
+
+	assert.deepEqual(verdicts, [{ potency: "potent", toolId: "mcp_connection_open" }]);
+});
+
+test("a granted MCP server that is neither a built-in nor a current connection fails closed", async () => {
+	const db = await createSeededDb();
+	await grantMcpToolAccess(db, "mcp_connection_deleted");
+
+	const verdicts = await evaluate(db, [{ source: "mcp_server", toolId: "mcp_connection_deleted" }]);
+
+	assert.deepEqual(verdicts, [{ potency: "inert", toolId: "mcp_connection_deleted" }]);
 });
 
 test("grants match on kind: a model-provider credential grant never grants MCP access", async () => {
