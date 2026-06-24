@@ -531,7 +531,9 @@ test("invalid MCP grants reject before the draft activates", async () => {
 	const db = createTestProductDb();
 	await seedRealThinkspaceWithProfile({
 		db,
-		requestedPermissions: [firstClassMcpPermissionRequest("context7")],
+		// A server that is neither a built-in nor one of the owner's registered
+		// connections is outside the grantable catalog, so activation rejects.
+		requestedPermissions: [firstClassMcpPermissionRequest("nonexistent-unregistered-server")],
 	});
 
 	await assert.rejects(

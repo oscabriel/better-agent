@@ -115,7 +115,10 @@ test("the Thinkspace Agent runtime keeps direct HTTP access fail-closed", () => 
 });
 
 test("the Thinkspace Agent runtime gets tool verdicts from the store-backed Permission policy", () => {
-	assert.match(agentSource, /const permissionPolicy = createPermissionStorePolicy\(\{ db \}\)/u);
+	assert.match(
+		agentSource,
+		/createPermissionStorePolicy\(\{\s*credentialedBuiltInMcpServerIds: credentialedBuiltInMcpServerIds\(this\.env\),\s*db,\s*\}\)/u,
+	);
 	assert.match(agentSource, /permissionPolicy\.evaluateToolPotency/u);
 	assert.match(agentSource, /enablements: activeRevision\.toolEnablements/u);
 	assert.doesNotMatch(agentSource, /toolPotencies:\s*\[\]/u);
@@ -131,7 +134,10 @@ test("the Thinkspace Agent runtime registers MCP tools only through grant-gated 
 test("the Thinkspace Agent runtime rechecks Permission policy before MCP tool execution", () => {
 	assert.match(agentSource, /override async beforeToolCall/u);
 	assert.match(agentSource, /evaluateMcpRuntimeToolCallPermission/u);
-	assert.match(agentSource, /const permissionPolicy = createPermissionStorePolicy\(\{ db \}\)/u);
+	assert.match(
+		agentSource,
+		/createPermissionStorePolicy\(\{\s*credentialedBuiltInMcpServerIds: credentialedBuiltInMcpServerIds\(this\.env\),\s*db,\s*\}\)/u,
+	);
 	assert.match(agentSource, /action: "block"/u);
 });
 

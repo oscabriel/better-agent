@@ -111,11 +111,13 @@ const assertGrantableMcpToolAccess = (
 		);
 	}
 
-	if (server.authType !== "none") {
-		throw new ThinkspacePermissionGrantError(
-			"MCP servers that require authentication are not grantable in this slice.",
-		);
-	}
+	// Authenticated MCP access is grantable: like the model-provider and
+	// connected-account grants, the grant records the capability on one axis
+	// while the credential lives on another. A granted authed server connects
+	// only when its credential is resolvable — registered connections carry
+	// encrypted headers, built-in authed servers read a product key — and the
+	// credential-exists potency axis flips the tool inert (and the runtime fails
+	// closed) when no credential backs it (ADR-0009).
 
 	// Mutating and unknown-risk MCP access is grantable: a non-read-only server's
 	// tool calls are held for the owner's Approval at runtime rather than executed

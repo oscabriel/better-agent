@@ -135,7 +135,7 @@ test("Cloudflare Agents MCP tool identity maps product server ids to runtime too
 	assert.equal(parseCloudflareAgentsMcpToolName("web_search", ["cloudflare-docs"]), null);
 });
 
-test("turn MCP runtime planning connects potent auth-free servers of any risk, never authed ones", () => {
+test("turn MCP runtime planning connects every active server, auth-free or authed", () => {
 	const revision = createRevision([
 		{ source: "mcp_server", toolId: "cloudflare-docs" },
 		{ source: "mcp_server", toolId: "aws-knowledge:search" },
@@ -150,14 +150,15 @@ test("turn MCP runtime planning connects potent auth-free servers of any risk, n
 		revision,
 	});
 
-	// The auth-free read-only and mutating servers both connect (the mutating
-	// one's tools are held); the api-key server stays out (auth deferred to the
-	// credential seam).
+	// An authed server reaching planning has already passed the credential-exists
+	// potency axis (it would be inert without a resolvable credential), so it
+	// connects with its credential injected at the transport. The mutating
+	// server connects too — its tools are held for Approval, not dropped.
 	assert.deepEqual(
 		plan.servers.map((server) => server.id),
-		["cloudflare-docs", "mutating-docs"],
+		["cloudflare-docs", "context7", "mutating-docs"],
 	);
-	assert.deepEqual(plan.activeProductToolIds, ["cloudflare-docs", "mutating-docs"]);
+	assert.deepEqual(plan.activeProductToolIds, ["cloudflare-docs", "context7", "mutating-docs"]);
 });
 
 test("preparation holds every tool from a mutating server for Approval, leaving read-only tools inline", async () => {
@@ -179,6 +180,33 @@ test("preparation holds every tool from a mutating server for Approval, leaving 
 	assert.equal(
 		(prepared.tools.tool_cloudflaredocs_search_docs as { needsApproval?: boolean }).needsApproval,
 		undefined,
+	);
+});
+
+test("an authed mutating server connects and still holds every tool for Approval", async () => {
+	const authedMutatingServer: BuiltInMcpServer = {
+		...MUTATING_SERVER,
+		authType: "api_key_header",
+		id: "authed-mutating",
+		name: "Authed Mutating",
+	};
+
+	// Auth and risk are orthogonal: a credentialed authed server connects (its
+	// credential is injected at the transport in the runtime), and because it is
+	// mutating its tools are still held for the owner's Approval (ADR-0003).
+	const prepared = await prepareThinkspaceMcpRuntimeTools({
+		activeProductToolIds: ["authed-mutating"],
+		connectServer: ({ server }) => {
+			assert.equal(server.id, "authed-mutating");
+			return Promise.resolve(toolSet(["tool_authedmutating_open_pr"]));
+		},
+		servers: [authedMutatingServer],
+	});
+
+	assert.deepEqual(prepared.connectedServerIds, ["authed-mutating"]);
+	assert.equal(
+		(prepared.tools.tool_authedmutating_open_pr as { needsApproval?: boolean }).needsApproval,
+		true,
 	);
 });
 

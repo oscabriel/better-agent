@@ -45,15 +45,26 @@ export type ConnectThinkspaceMcpRuntimeServer = (input: {
 
 const unique = <T>(values: T[]): T[] => [...new Set(values)];
 
+const CONNECTABLE_AUTH_TYPES = new Set<BuiltInMcpServer["authType"]>([
+	"none",
+	"bearer",
+	"api_key_header",
+]);
+
 /**
- * Whether a granted MCP server can be connected for a turn at all. Auth-free
- * servers connect regardless of risk: a read-only server's tools run inline, a
+ * Whether a granted MCP server can be connected for a turn at all. Every
+ * supported auth scheme is connectable: auth-free servers connect outright,
+ * and authed servers connect with their credential injected at the transport
+ * (ADR-0009). Risk is orthogonal — a read-only server's tools run inline, a
  * mutating-risk server's tools are held for the owner's Approval (see
- * `requiresMcpApprovalHold`). Authenticated servers stay non-connectable until
- * the credential seam (ADR-0009) lands.
+ * `requiresMcpApprovalHold`). The credential itself is enforced upstream: an
+ * authed server only reaches planning when the credential-exists potency axis
+ * found a resolvable credential, and the runtime fails closed if one is absent
+ * at connect time. A server declaring an auth scheme the runtime cannot satisfy
+ * stays non-connectable.
  */
 export const isConnectableMcpServer = (server: BuiltInMcpServer): boolean =>
-	server.authType === "none";
+	CONNECTABLE_AUTH_TYPES.has(server.authType);
 
 /**
  * Whether every tool on this server must be held for the owner's Approval

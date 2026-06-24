@@ -45,6 +45,30 @@ export const listCustomMcpConnections = async (db: ProductDb, userId: string) =>
 		.from(schema.userMcpConnections)
 		.where(eq(schema.userMcpConnections.userId, userId));
 
+/**
+ * One owner's registered connection by id, or null. The owner scope is part of
+ * the lookup so a connection is never resolvable across users — the runtime
+ * uses this to fetch the encrypted headers it must decrypt and inject when
+ * connecting an authed registered MCP server for a turn.
+ */
+export const getCustomMcpConnection = async (
+	db: ProductDb,
+	input: { id: string; userId: string },
+) => {
+	const [connection] = await db
+		.select()
+		.from(schema.userMcpConnections)
+		.where(
+			and(
+				eq(schema.userMcpConnections.id, input.id),
+				eq(schema.userMcpConnections.userId, input.userId),
+			),
+		)
+		.limit(1);
+
+	return connection ?? null;
+};
+
 export const updateCustomMcpConnection = async (
 	db: ProductDb,
 	input: Partial<Omit<CustomMcpConnectionInput, "id" | "userId">> & { id: string; userId: string },
